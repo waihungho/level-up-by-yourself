@@ -2,12 +2,13 @@
 import { useGame } from "@/components/GameProvider";
 import { PlayerStats } from "@/components/PlayerStats";
 import { DailyTasks } from "@/components/DailyTasks";
+import { PixelSprite } from "@/components/PixelSprite";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export default function Dashboard() {
-  const { player, loading } = useGame();
+  const { player, agents, loading } = useGame();
   const router = useRouter();
 
   useEffect(() => {
@@ -41,6 +42,30 @@ export default function Dashboard() {
         </div>
       </div>
       <PlayerStats />
+
+      {/* My Agents */}
+      {agents.length > 0 && (
+        <div className="mt-6 bg-gray-900 border border-gray-800 rounded p-4">
+          <h2 className="text-lg font-mono font-bold text-white mb-3">My Agents</h2>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {agents.map((agent) => (
+              <Link
+                key={agent.id}
+                href={`/agents/${agent.id}`}
+                className="flex flex-col items-center shrink-0 group"
+              >
+                <div className="rounded-lg border border-gray-700 group-hover:border-purple-500 transition-colors p-1 bg-gray-800">
+                  <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={56} />
+                </div>
+                <span className="text-xs font-mono text-gray-400 mt-1 max-w-[64px] truncate group-hover:text-purple-400 transition-colors">
+                  {agent.name}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-6">
         <DailyTasks />
       </div>

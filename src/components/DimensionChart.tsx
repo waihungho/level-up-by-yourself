@@ -38,10 +38,10 @@ function getCategoryAverage(
 }
 
 function OverallRadar({ dimMap }: { dimMap: Map<number, number> }) {
-  const size = 240;
+  const size = 300;
   const cx = size / 2;
   const cy = size / 2;
-  const maxRadius = 90;
+  const maxRadius = 100;
   const levels = 4;
 
   const averages = CATEGORIES.map((cat) => getCategoryAverage(cat, dimMap));
@@ -122,7 +122,7 @@ function OverallRadar({ dimMap }: { dimMap: Map<number, number> }) {
         })}
         {/* Labels */}
         {CATEGORIES.map((cat, i) => {
-          const p = getPoint(i, maxRadius + 20);
+          const p = getPoint(i, maxRadius + 35);
           return (
             <text
               key={cat}
