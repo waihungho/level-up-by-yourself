@@ -7,6 +7,7 @@ import { DimensionChart } from "@/components/DimensionChart";
 import { GrowthTimeline } from "@/components/GrowthTimeline";
 import type { AgentWithDimensions, GrowthLog } from "@/lib/types";
 import Link from "next/link";
+import { PixelSprite } from "@/components/PixelSprite";
 
 const ROLE_COLORS = {
   future: "border-purple-700 bg-purple-900/30",
@@ -67,9 +68,7 @@ export default function AgentDetailPage() {
       {/* Header */}
       <div className={`border rounded p-4 mb-6 ${ROLE_COLORS[agent.role]}`}>
         <div className="flex gap-4 items-center">
-          <div className="w-20 h-20 rounded bg-gray-800 flex items-center justify-center font-mono text-3xl text-gray-500">
-            {agent.name.charAt(0).toUpperCase()}
-          </div>
+          <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={80} />
           <div>
             <h1 className="text-2xl font-mono font-bold">{agent.name}</h1>
             <p className="text-gray-400 font-mono">{agent.roleTitle} &middot; {agent.role}</p>

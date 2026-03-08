@@ -2,6 +2,7 @@
 import Link from "next/link";
 import type { Agent, AgentDimension } from "@/lib/types";
 import { DIMENSIONS } from "@/lib/constants";
+import { PixelSprite } from "@/components/PixelSprite";
 
 interface AgentCardProps {
   agent: Agent;
@@ -28,10 +29,7 @@ export function AgentCard({ agent, dimensions }: AgentCardProps) {
   return (
     <Link href={`/agents/${agent.id}`} className="block bg-gray-900 border border-gray-800 rounded p-4 hover:border-gray-600 transition-colors">
       <div className="flex gap-4">
-        {/* Pixel art placeholder */}
-        <div className={`w-20 h-20 rounded ${ROLE_COLORS[agent.role]} border flex items-center justify-center font-mono text-2xl`}>
-          {agent.name.charAt(0).toUpperCase()}
-        </div>
+        <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={80} />
         <div className="flex-1 min-w-0">
           <div className="font-mono font-bold text-white truncate">{agent.name}</div>
           <div className="flex items-center gap-2 mt-1">
