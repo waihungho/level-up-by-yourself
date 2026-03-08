@@ -124,6 +124,7 @@ export function SummonForm() {
         <input
           id="roleTitle"
           type="text"
+          required
           maxLength={30}
           value={roleTitle}
           onChange={(e) => setRoleTitle(e.target.value)}
@@ -139,6 +140,7 @@ export function SummonForm() {
         </label>
         <textarea
           id="character"
+          required
           maxLength={500}
           value={character}
           onChange={(e) => setCharacter(e.target.value)}
@@ -155,6 +157,7 @@ export function SummonForm() {
         </label>
         <textarea
           id="objective"
+          required
           maxLength={500}
           value={objective}
           onChange={(e) => setObjective(e.target.value)}
@@ -174,7 +177,7 @@ export function SummonForm() {
       {/* Submit */}
       <button
         type="submit"
-        disabled={submitting || !name.trim() || !role}
+        disabled={submitting || !name.trim() || !role || !roleTitle.trim() || !character.trim() || !objective.trim()}
         className="w-full py-3 rounded font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-cyan-600 hover:bg-cyan-500 text-white"
       >
         {submitting ? "Summoning..." : "Summon Agent"}
