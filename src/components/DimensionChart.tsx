@@ -37,6 +37,55 @@ function getCategoryAverage(
   return total / categoryDims.length;
 }
 
+export function MiniRadar({ dimMap, size = 120 }: { dimMap: Map<number, number>; size?: number }) {
+  const cx = size / 2;
+  const cy = size / 2;
+  const maxRadius = size * 0.33;
+  const maxValue = 50;
+
+  const averages = CATEGORIES.map((cat) => getCategoryAverage(cat, dimMap));
+  const totalScore = Math.round(averages.reduce((s, v) => s + v, 0));
+
+  const getPoint = (index: number, radius: number) => {
+    const angle = (Math.PI * 2 * index) / 5 - Math.PI / 2;
+    return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) };
+  };
+
+  const polygonPath = (radius: number) =>
+    CATEGORIES.map((_, i) => {
+      const p = getPoint(i, radius);
+      return `${i === 0 ? "M" : "L"}${p.x},${p.y}`;
+    }).join(" ") + " Z";
+
+  const dataPath = averages
+    .map((val, i) => {
+      const r = (val / maxValue) * maxRadius;
+      const p = getPoint(i, r);
+      return `${i === 0 ? "M" : "L"}${p.x},${p.y}`;
+    })
+    .join(" ") + " Z";
+
+  return (
+    <svg width={size} height={size} className="block shrink-0">
+      <path d={polygonPath(maxRadius)} fill="none" stroke="#374151" strokeWidth={1} />
+      <path d={polygonPath(maxRadius * 0.5)} fill="none" stroke="#374151" strokeWidth={0.5} />
+      {CATEGORIES.map((_, i) => {
+        const p = getPoint(i, maxRadius);
+        return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="#374151" strokeWidth={0.5} />;
+      })}
+      <path d={dataPath} fill="rgba(6,182,212,0.15)" stroke="#06b6d4" strokeWidth={1.5} />
+      {averages.map((val, i) => {
+        const r = (val / maxValue) * maxRadius;
+        const p = getPoint(i, r);
+        return <circle key={i} cx={p.x} cy={p.y} r={2.5} fill={CATEGORY_STROKE[CATEGORIES[i]]} stroke="#111827" strokeWidth={1} />;
+      })}
+      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" className="text-xs font-mono font-bold" fill="white">
+        {totalScore}
+      </text>
+    </svg>
+  );
+}
+
 function OverallRadar({ dimMap }: { dimMap: Map<number, number> }) {
   const size = 300;
   const cx = size / 2;
