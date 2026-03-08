@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { WalletProvider } from "@/components/WalletProvider";
 import { GameProvider } from "@/components/GameProvider";
+import { NavBar } from "@/components/NavBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,6 +33,7 @@ export default function RootLayout({
         <WalletProvider>
           <GameProvider>
             {children}
+            <NavBar />
           </GameProvider>
         </WalletProvider>
       </body>
