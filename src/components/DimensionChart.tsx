@@ -87,7 +87,9 @@ export function MiniRadar({ dimMap, size = 120 }: { dimMap: Map<number, number>;
 }
 
 function OverallRadar({ dimMap }: { dimMap: Map<number, number> }) {
-  const size = 300;
+  const padding = 50;
+  const innerSize = 300;
+  const size = innerSize + padding * 2;
   const cx = size / 2;
   const cy = size / 2;
   const maxRadius = 100;
