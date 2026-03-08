@@ -91,7 +91,7 @@ export async function getOrCreatePlayer(walletAddress: string): Promise<Player> 
 
   // Demo mode
   const found = localPlayers.find((p) => p.walletAddress === walletAddress);
-  if (found) return found;
+  if (found) return { ...found };
 
   const now = new Date().toISOString();
   const player: Player = {

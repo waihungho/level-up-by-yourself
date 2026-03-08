@@ -14,6 +14,21 @@ const ROLE_OPTIONS: { value: RoleCategory; label: string }[] = [
   { value: "medieval", label: "Medieval" },
 ];
 
+const ROLE_TITLES: Record<RoleCategory, string[]> = {
+  future: [
+    "AI Robot", "AI Brain", "Cyborg", "Quantum Hacker", "Nanosmith", "Starweaver",
+    "Synthoid", "Void Pilot", "Data Wraith", "Chrono Agent", "Plasma Sage", "Neuro Link",
+  ],
+  modern: [
+    "Developer", "Doctor", "Scientist", "Engineer", "Strategist", "Analyst",
+    "Architect", "Hacker", "Professor", "Diplomat", "Journalist", "Trader",
+  ],
+  medieval: [
+    "Warrior", "Magician", "Necromancer", "Shaman", "Paladin", "Alchemist",
+    "Ranger", "Druid", "Berserker", "Sorcerer", "Monk", "Assassin",
+  ],
+};
+
 const WEIGHT_DISPLAY: Record<string, string> = {
   high: "\u2191\u2191",
   medium: "\u2191",
@@ -91,7 +106,7 @@ export function SummonForm() {
             <button
               key={opt.value}
               type="button"
-              onClick={() => setRole(opt.value)}
+              onClick={() => { setRole(opt.value); setRoleTitle(""); }}
               className={`px-4 py-3 rounded border text-center transition-colors ${
                 role === opt.value
                   ? "border-cyan-500 bg-cyan-500/10 text-cyan-400"
@@ -117,21 +132,27 @@ export function SummonForm() {
       </div>
 
       {/* Role Title */}
-      <div>
-        <label htmlFor="roleTitle" className="block text-sm text-gray-400 mb-1">
-          Role Title
-        </label>
-        <input
-          id="roleTitle"
-          type="text"
-          required
-          maxLength={30}
-          value={roleTitle}
-          onChange={(e) => setRoleTitle(e.target.value)}
-          className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
-          placeholder='e.g. "Shaman", "Developer"'
-        />
-      </div>
+      {role && (
+        <div>
+          <label className="block text-sm text-gray-400 mb-2">Role Title</label>
+          <div className="grid grid-cols-4 gap-2">
+            {ROLE_TITLES[role].map((title) => (
+              <button
+                key={title}
+                type="button"
+                onClick={() => setRoleTitle(title)}
+                className={`px-3 py-2 rounded border text-sm text-center transition-colors ${
+                  roleTitle === title
+                    ? "border-cyan-500 bg-cyan-500/10 text-cyan-400"
+                    : "border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-500"
+                }`}
+              >
+                {title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Character */}
       <div>

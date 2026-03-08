@@ -26,9 +26,20 @@ export default function Dashboard() {
 
   if (!player) return null;
 
+  const walletShort = player.walletAddress.slice(0, 4) + "..." + player.walletAddress.slice(-4);
+
   return (
     <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-mono font-bold mb-6">Dashboard</h1>
+      {/* Player Profile */}
+      <div className="flex items-center gap-4 mb-6">
+        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-cyan-500 flex items-center justify-center text-2xl font-mono font-bold text-white shrink-0">
+          {player.walletAddress.slice(0, 2).toUpperCase()}
+        </div>
+        <div>
+          <h1 className="text-2xl font-mono font-bold">Dashboard</h1>
+          <p className="text-sm text-gray-500 font-mono">{walletShort}</p>
+        </div>
+      </div>
       <PlayerStats />
       <div className="mt-6">
         <DailyTasks />
