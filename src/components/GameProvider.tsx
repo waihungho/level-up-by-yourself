@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { getOrCreatePlayer, getPlayerAgents } from "@/lib/db";
+import { signInWithSolana } from "@/lib/auth";
 import type { Player, Agent } from "@/lib/types";
 
 interface GameState {
@@ -57,7 +58,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (connected && publicKey) {
       setLoading(true);
-      refreshPlayer().finally(() => setLoading(false));
+      const walletAddress = publicKey.toBase58();
+      signInWithSolana(walletAddress)
+        .then(() => refreshPlayer())
+        .finally(() => setLoading(false));
     } else {
       setPlayer(null);
       setAgents([]);
