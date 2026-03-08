@@ -177,8 +177,62 @@ export default function GuidePage() {
         </div>
       </Section>
 
+      {/* Battle System */}
+      <Section title="7. Battle System">
+        <div className="space-y-3 text-sm text-gray-300 font-mono">
+          <p>Challenge your own agents to friendly sparring matches in the Battle Arena and earn dimension growth as rewards.</p>
+
+          <div className="bg-gray-900 border border-gray-800 rounded p-4">
+            <h3 className="text-cyan-400 font-bold mb-2">How It Works</h3>
+            <ul className="list-none space-y-2 ml-4">
+              <li><span className="text-cyan-400 mr-2">Turn-based</span> - Combat plays out in turns with a random category each round</li>
+              <li><span className="text-cyan-400 mr-2">Speed</span> - Determines which agent attacks first each turn</li>
+              <li><span className="text-cyan-400 mr-2">HP</span> - Based on the agent's total dimension values across all 50 dimensions</li>
+            </ul>
+          </div>
+
+          <div className="bg-gray-900 border border-gray-800 rounded p-4">
+            <h3 className="text-green-400 font-bold mb-2">Rewards</h3>
+            <p className="mb-2">Both agents earn dimension growth from battle — win or lose.</p>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-yellow-400">Winner</span>
+                <span className="text-gray-400">+1.0–2.0 to 3 random dimensions</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">Loser</span>
+                <span className="text-gray-400">+0.5–1.0 to 2 random dimensions</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-900 border border-gray-800 rounded p-4">
+            <h3 className="text-purple-400 font-bold mb-2">Stamina</h3>
+            <p>Each agent can fight <span className="text-white">3 times per day</span>. Stamina resets at midnight UTC.</p>
+          </div>
+
+          <div className="bg-gray-900 border border-gray-800 rounded p-4">
+            <h3 className="text-amber-400 font-bold mb-2">Role Advantages</h3>
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-amber-400">Medieval</span>
+                <span className="text-gray-400">+10% Physical damage</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-purple-400">Future</span>
+                <span className="text-gray-400">+10% Technical damage</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-blue-400">Modern</span>
+                <span className="text-gray-400">+10% Mental damage</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Section>
+
       {/* Tips */}
-      <Section title="7. Tips">
+      <Section title="8. Tips">
         <div className="space-y-2 text-sm text-gray-300 font-mono">
           <div className="flex gap-2">
             <span className="text-yellow-400 shrink-0">*</span>

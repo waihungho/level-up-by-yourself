@@ -3,6 +3,7 @@ import type {
   Agent,
   AgentDimension,
   AgentWithDimensions,
+  BattleLog,
   GrowthLog,
   Player,
   RoleCategory,
@@ -16,6 +17,7 @@ let localAgents: Agent[] = [];
 let localDimensions: AgentDimension[] = [];
 let localTaskCompletions: { playerId: string; taskName: string; completedAt: string }[] = [];
 let localGrowthLogs: GrowthLog[] = [];
+const localBattleLogs: BattleLog[] = [];
 
 // ---------------------------------------------------------------------------
 // Row mappers (snake_case DB rows → camelCase TS types)
@@ -344,4 +346,94 @@ export async function getGrowthLogs(
     .filter((g) => g.agentId === agentId)
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// saveBattleLog
+// ---------------------------------------------------------------------------
+export async function saveBattleLog(log: BattleLog): Promise<void> {
+  const sb = getSupabase();
+
+  if (sb) {
+    // Supabase mode: demo-only for now
+    localBattleLogs.push(log);
+    return;
+  }
+
+  // Demo mode
+  localBattleLogs.push(log);
+
+  // Apply dimension growth for attacker
+  for (const [dimIdStr, delta] of Object.entries(log.attackerGrowth)) {
+    const dimId = Number(dimIdStr);
+    const dim = localDimensions.find(
+      (d) => d.agentId === log.attackerId && d.dimensionId === dimId
+    );
+    if (dim) {
+      dim.value += delta;
+    }
+  }
+
+  // Apply dimension growth for defender
+  for (const [dimIdStr, delta] of Object.entries(log.defenderGrowth)) {
+    const dimId = Number(dimIdStr);
+    const dim = localDimensions.find(
+      (d) => d.agentId === log.defenderId && d.dimensionId === dimId
+    );
+    if (dim) {
+      dim.value += delta;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// getBattleLogs
+// ---------------------------------------------------------------------------
+export async function getBattleLogs(
+  agentId: string,
+  limit = 20
+): Promise<BattleLog[]> {
+  const sb = getSupabase();
+
+  if (sb) {
+    // Supabase mode: demo-only for now
+    return localBattleLogs
+      .filter((l) => l.attackerId === agentId || l.defenderId === agentId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, limit);
+  }
+
+  // Demo mode
+  return localBattleLogs
+    .filter((l) => l.attackerId === agentId || l.defenderId === agentId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// getAgentFightsToday
+// ---------------------------------------------------------------------------
+export async function getAgentFightsToday(
+  agentId: string
+): Promise<number> {
+  const sb = getSupabase();
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const todayISO = todayStart.toISOString();
+
+  if (sb) {
+    // Supabase mode: demo-only for now
+    return localBattleLogs.filter(
+      (l) =>
+        (l.attackerId === agentId || l.defenderId === agentId) &&
+        l.createdAt >= todayISO
+    ).length;
+  }
+
+  // Demo mode
+  return localBattleLogs.filter(
+    (l) =>
+      (l.attackerId === agentId || l.defenderId === agentId) &&
+      l.createdAt >= todayISO
+  ).length;
 }

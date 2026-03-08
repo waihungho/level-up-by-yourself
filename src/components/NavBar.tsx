@@ -6,6 +6,7 @@ import { useGame } from "@/components/GameProvider";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: "⌂" },
   { href: "/agents", label: "Agents", icon: "▦" },
+  { href: "/battle", label: "Battle", icon: "⚔" },
   { href: "/summon", label: "Summon", icon: "+" },
   { href: "/guide", label: "Guide", icon: "?" },
 ];

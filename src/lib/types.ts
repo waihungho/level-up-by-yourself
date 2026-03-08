@@ -59,6 +59,27 @@ export interface GrowthTier {
   multiplier: number;
 }
 
+export interface BattleRound {
+  roundNumber: number;
+  category: string;
+  firstAttacker: string;
+  firstDamage: number;
+  secondDamage: number;
+  attackerHpAfter: number;
+  defenderHpAfter: number;
+}
+
+export interface BattleLog {
+  id: string;
+  attackerId: string;
+  defenderId: string;
+  winnerId: string;
+  rounds: BattleRound[];
+  attackerGrowth: Record<number, number>;
+  defenderGrowth: Record<number, number>;
+  createdAt: string;
+}
+
 export type CategoryWeight = "low" | "medium" | "high";
 
 export interface RoleWeightMap {

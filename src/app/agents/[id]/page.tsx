@@ -2,10 +2,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
-import { getAgentWithDimensions, getGrowthLogs } from "@/lib/db";
+import { getAgentWithDimensions, getGrowthLogs, getBattleLogs } from "@/lib/db";
 import { DimensionChart } from "@/components/DimensionChart";
 import { GrowthTimeline } from "@/components/GrowthTimeline";
-import type { AgentWithDimensions, GrowthLog } from "@/lib/types";
+import { BattleHistory } from "@/components/BattleHistory";
+import type { AgentWithDimensions, BattleLog, GrowthLog } from "@/lib/types";
 import Link from "next/link";
 import { PixelSprite } from "@/components/PixelSprite";
 
@@ -21,6 +22,7 @@ export default function AgentDetailPage() {
   const router = useRouter();
   const [agent, setAgent] = useState<AgentWithDimensions | null>(null);
   const [logs, setLogs] = useState<GrowthLog[]>([]);
+  const [battleLogs, setBattleLogs] = useState<BattleLog[]>([]);
   const [loadingAgent, setLoadingAgent] = useState(true);
 
   useEffect(() => {
@@ -31,12 +33,14 @@ export default function AgentDetailPage() {
     async function load() {
       if (!id) return;
       setLoadingAgent(true);
-      const [a, l] = await Promise.all([
+      const [a, l, bl] = await Promise.all([
         getAgentWithDimensions(id),
         getGrowthLogs(id, 20),
+        getBattleLogs(id),
       ]);
       setAgent(a);
       setLogs(l);
+      setBattleLogs(bl);
       setLoadingAgent(false);
     }
     if (player) load();
@@ -98,6 +102,12 @@ export default function AgentDetailPage() {
       <div>
         <h2 className="text-lg font-mono font-bold mb-4">Growth Log</h2>
         <GrowthTimeline logs={logs} />
+      </div>
+
+      {/* Battle History */}
+      <div>
+        <h2 className="text-lg font-mono font-bold mb-4">Battle History</h2>
+        <BattleHistory logs={battleLogs} agentId={id} />
       </div>
     </main>
   );
