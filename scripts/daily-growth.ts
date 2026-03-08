@@ -83,8 +83,8 @@ export async function runDailyGrowth() {
 
   // Fetch all agents with player ability scores
   const { data: agents, error } = await supabase
-    .from("agents")
-    .select("*, players!inner(ability_score)")
+    .from("levelup_agents")
+    .select("*, levelup_players!inner(ability_score)")
     .order("player_id");
 
   if (error) {
@@ -100,7 +100,7 @@ export async function runDailyGrowth() {
   console.log(`Processing ${agents.length} agents...`);
 
   for (const agent of agents) {
-    const multiplier = getGrowthMultiplier(agent.players.ability_score);
+    const multiplier = getGrowthMultiplier(agent.levelup_players.ability_score);
     const changes = calculateGrowth(agent.role, multiplier);
 
     if (Object.keys(changes).length === 0) {
@@ -113,7 +113,7 @@ export async function runDailyGrowth() {
 
     // Update dimensions
     for (const [dimId, delta] of Object.entries(changes)) {
-      await supabase.rpc("increment_dimension", {
+      await supabase.rpc("levelup_increment_dimension", {
         p_agent_id: agent.id,
         p_dimension_id: Number(dimId),
         p_delta: delta,
@@ -121,7 +121,7 @@ export async function runDailyGrowth() {
     }
 
     // Log growth
-    await supabase.from("growth_logs").upsert({
+    await supabase.from("levelup_growth_logs").upsert({
       agent_id: agent.id,
       date: new Date().toISOString().split("T")[0],
       dimension_changes: changes,

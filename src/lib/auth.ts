@@ -8,7 +8,7 @@ export async function signInWithSolana(publicKey: string): Promise<void> {
 
   // For simplicity, use wallet address as identifier
   // Upsert player by wallet address (creates if not exists)
-  await supabase.from("players").upsert(
+  await supabase.from("levelup_players").upsert(
     { wallet_address: publicKey },
     { onConflict: "wallet_address" }
   );

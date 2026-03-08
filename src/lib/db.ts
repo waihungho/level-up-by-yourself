@@ -71,7 +71,7 @@ export async function getOrCreatePlayer(walletAddress: string): Promise<Player> 
   if (sb) {
     // Check for existing player
     const { data: existing } = await sb
-      .from("players")
+      .from("levelup_players")
       .select("*")
       .eq("wallet_address", walletAddress)
       .single();
@@ -80,7 +80,7 @@ export async function getOrCreatePlayer(walletAddress: string): Promise<Player> 
 
     // Create new player
     const { data: created, error } = await sb
-      .from("players")
+      .from("levelup_players")
       .insert({ wallet_address: walletAddress })
       .select("*")
       .single();
@@ -114,7 +114,7 @@ export async function getPlayerAgents(playerId: string): Promise<Agent[]> {
 
   if (sb) {
     const { data, error } = await sb
-      .from("agents")
+      .from("levelup_agents")
       .select("*")
       .eq("player_id", playerId)
       .order("created_at", { ascending: false });
@@ -137,7 +137,7 @@ export async function getAgentWithDimensions(
 
   if (sb) {
     const { data: agentRow, error: agentError } = await sb
-      .from("agents")
+      .from("levelup_agents")
       .select("*")
       .eq("id", agentId)
       .single();
@@ -145,7 +145,7 @@ export async function getAgentWithDimensions(
     if (agentError || !agentRow) return null;
 
     const { data: dimRows } = await sb
-      .from("agent_dimensions")
+      .from("levelup_agent_dimensions")
       .select("*")
       .eq("agent_id", agentId);
 
@@ -179,7 +179,7 @@ export async function summonAgent(params: {
   const sb = getSupabase();
 
   if (sb) {
-    const { data, error } = await sb.rpc("summon_agent", {
+    const { data, error } = await sb.rpc("levelup_summon_agent", {
       p_player_id: params.playerId,
       p_name: params.name,
       p_role: params.role,
@@ -241,7 +241,7 @@ export async function completeTask(
 
   if (sb) {
     const { error: insertError } = await sb
-      .from("player_task_completions")
+      .from("levelup_player_task_completions")
       .insert({ player_id: playerId, task_name: taskName });
 
     if (insertError) throw insertError;
@@ -259,14 +259,14 @@ export async function completeTask(
     if (updateError) {
       // Fallback: read-then-write
       const { data: player } = await sb
-        .from("players")
+        .from("levelup_players")
         .select("ability_score")
         .eq("id", playerId)
         .single();
 
       if (player) {
         await sb
-          .from("players")
+          .from("levelup_players")
           .update({ ability_score: player.ability_score + points })
           .eq("id", playerId);
       }
@@ -303,7 +303,7 @@ export async function getCompletedTasksToday(
 
   if (sb) {
     const { data, error } = await sb
-      .from("player_task_completions")
+      .from("levelup_player_task_completions")
       .select("task_name")
       .eq("player_id", playerId)
       .gte("created_at", todayISO);
@@ -329,7 +329,7 @@ export async function getGrowthLogs(
 
   if (sb) {
     const { data, error } = await sb
-      .from("growth_logs")
+      .from("levelup_growth_logs")
       .select("*")
       .eq("agent_id", agentId)
       .order("date", { ascending: false })
