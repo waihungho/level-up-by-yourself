@@ -3,6 +3,7 @@ import { useGame } from "@/components/GameProvider";
 import { PlayerStats } from "@/components/PlayerStats";
 import { DailyTasks } from "@/components/DailyTasks";
 import { PixelSprite } from "@/components/PixelSprite";
+import { AgentRoom } from "@/components/AgentRoom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -42,6 +43,14 @@ export default function Dashboard() {
         </div>
       </div>
       <PlayerStats />
+
+      {/* Agent Room */}
+      {agents.length > 0 && (
+        <div className="mt-6 bg-gray-900 border border-gray-800 rounded p-4">
+          <h2 className="text-lg font-mono font-bold text-white mb-3">Agent Room</h2>
+          <AgentRoom agents={agents} />
+        </div>
+      )}
 
       {/* My Agents */}
       {agents.length > 0 && (
