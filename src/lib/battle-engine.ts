@@ -122,15 +122,15 @@ export function resolveBattle(
 
     // --- First strike ---
     const firstCatAvg = getCategoryAvg(first, category);
-    const firstRaw = firstCatAvg * randomInRange(0.8, 1.2);
+    const firstRaw = firstCatAvg * randomInRange(0.8, 1.2) * 8;
     const firstBonused = firstRaw * getRoleBonus(first.role, category);
 
     const secondDefAvg = getCategoryAvg(second, category);
-    const secondReduction = secondDefAvg * 0.3;
+    const secondReduction = secondDefAvg * 2;
 
     const firstNetDamage = Math.max(
       Math.round(firstBonused - secondReduction),
-      1
+      5
     );
 
     // Apply first strike damage
@@ -148,15 +148,15 @@ export function resolveBattle(
 
     if (secondStillAlive) {
       const secondCatAvg = getCategoryAvg(second, category);
-      const secondRaw = secondCatAvg * randomInRange(0.8, 1.2);
+      const secondRaw = secondCatAvg * randomInRange(0.8, 1.2) * 8;
       const secondBonused = secondRaw * getRoleBonus(second.role, category);
 
       const firstDefAvg = getCategoryAvg(first, category);
-      const firstReduction = firstDefAvg * 0.3;
+      const firstReduction = firstDefAvg * 2;
 
       secondNetDamage = Math.max(
         Math.round(secondBonused - firstReduction),
-        1
+        5
       );
 
       if (attackerGoesFirst) {

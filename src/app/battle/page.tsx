@@ -16,69 +16,73 @@ import Link from "next/link";
 
 const MAX_FIGHTS_PER_DAY = 3;
 
-const ROLE_COLORS: Record<string, string> = {
-  future: "border-purple-700 bg-purple-900/30",
-  modern: "border-blue-700 bg-blue-900/30",
-  medieval: "border-amber-700 bg-amber-900/30",
+const ROLE_BADGE: Record<string, string> = {
+  future: "bg-purple-700 text-purple-200",
+  modern: "bg-blue-700 text-blue-200",
+  medieval: "bg-amber-700 text-amber-200",
 };
 
-type Phase = "select" | "pre-battle" | "battle";
+type Phase = "select" | "battle";
+
+function getTotalHp(agent: AgentWithDimensions): number {
+  return DIMENSIONS.reduce((sum, dim) => {
+    const ad = agent.dimensions.find((d) => d.dimensionId === dim.id);
+    return sum + (ad ? ad.value : 10);
+  }, 0);
+}
 
 export default function BattlePage() {
   const { player, agents, loading, refreshAgents } = useGame();
   const router = useRouter();
 
   const [phase, setPhase] = useState<Phase>("select");
-  const [selectStep, setSelectStep] = useState<1 | 2>(1);
-  const [attackerFull, setAttackerFull] = useState<AgentWithDimensions | null>(
-    null
-  );
-  const [defenderFull, setDefenderFull] = useState<AgentWithDimensions | null>(
-    null
-  );
+  const [selected, setSelected] = useState<string[]>([]);
+  const [allAgentsFull, setAllAgentsFull] = useState<AgentWithDimensions[]>([]);
   const [fightsToday, setFightsToday] = useState<Record<string, number>>({});
   const [battleLog, setBattleLog] = useState<BattleLog | null>(null);
   const [playbackDone, setPlaybackDone] = useState(false);
-  const [loadingAgent, setLoadingAgent] = useState(false);
+  const [attackerFull, setAttackerFull] = useState<AgentWithDimensions | null>(null);
+  const [defenderFull, setDefenderFull] = useState<AgentWithDimensions | null>(null);
 
   useEffect(() => {
     if (!loading && !player) router.push("/");
   }, [loading, player, router]);
 
-  // Load fight counts for all agents
+  // Load all agents with dimensions + fight counts
   useEffect(() => {
-    async function loadFights() {
+    async function loadAll() {
+      const fulls: AgentWithDimensions[] = [];
       const counts: Record<string, number> = {};
       for (const agent of agents) {
+        const full = await getAgentWithDimensions(agent.id);
+        if (full) fulls.push(full);
         counts[agent.id] = await getAgentFightsToday(agent.id);
       }
+      setAllAgentsFull(fulls);
       setFightsToday(counts);
     }
-    if (agents.length > 0) loadFights();
+    if (agents.length > 0) loadAll();
   }, [agents]);
 
-  async function selectAgent(agentId: string) {
-    setLoadingAgent(true);
-    const full = await getAgentWithDimensions(agentId);
-    if (!full) {
-      setLoadingAgent(false);
-      return;
-    }
-
-    if (selectStep === 1) {
-      setAttackerFull(full);
-      setSelectStep(2);
-    } else {
-      setDefenderFull(full);
-      setPhase("pre-battle");
-    }
-    setLoadingAgent(false);
+  function toggleAgent(agentId: string) {
+    setSelected((prev) => {
+      if (prev.includes(agentId)) {
+        return prev.filter((id) => id !== agentId);
+      }
+      if (prev.length >= 2) return prev;
+      return [...prev, agentId];
+    });
   }
 
   async function startBattle() {
-    if (!attackerFull || !defenderFull) return;
+    if (selected.length !== 2) return;
+    const atk = allAgentsFull.find((a) => a.id === selected[0]);
+    const def = allAgentsFull.find((a) => a.id === selected[1]);
+    if (!atk || !def) return;
 
-    const log = resolveBattle(attackerFull, defenderFull);
+    setAttackerFull(atk);
+    setDefenderFull(def);
+    const log = resolveBattle(atk, def);
     await saveBattleLog(log);
     await refreshAgents();
     setBattleLog(log);
@@ -91,7 +95,7 @@ export default function BattlePage() {
 
   function resetBattle() {
     setPhase("select");
-    setSelectStep(1);
+    setSelected([]);
     setAttackerFull(null);
     setDefenderFull(null);
     setBattleLog(null);
@@ -112,37 +116,23 @@ export default function BattlePage() {
   // Phase 1: Select Agents
   // --------------------------------------------------
   if (phase === "select") {
-    const availableAgents =
-      selectStep === 2
-        ? agents.filter((a) => a.id !== attackerFull?.id)
-        : agents;
+    const selectedAgents = selected
+      .map((id) => allAgentsFull.find((a) => a.id === id))
+      .filter(Boolean) as AgentWithDimensions[];
 
     return (
       <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-mono font-bold mb-6">Battle Arena</h1>
+        <h1 className="text-2xl font-mono font-bold mb-2 text-center">
+          Battle Arena
+        </h1>
+        <p className="text-center font-mono text-sm text-gray-500 mb-6">
+          Select 2 agents to fight
+        </p>
 
-        <h2 className="text-lg font-mono text-gray-400 mb-4">
-          {selectStep === 1 ? "Select Your Fighter" : "Select Opponent"}
-        </h2>
-
-        {selectStep === 2 && (
-          <button
-            onClick={() => {
-              setSelectStep(1);
-              setAttackerFull(null);
-            }}
-            className="text-sm text-gray-500 font-mono hover:text-gray-400 mb-4 block"
-          >
-            &larr; Back to fighter selection
-          </button>
-        )}
-
-        {availableAgents.length === 0 ? (
+        {allAgentsFull.length < 2 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 font-mono mb-4">
-              {agents.length < 2
-                ? "You need at least 2 agents to battle."
-                : "No opponents available."}
+              You need at least 2 agents to battle.
             </p>
             <Link
               href="/agents"
@@ -152,141 +142,131 @@ export default function BattlePage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {availableAgents.map((agent) => {
-              const fights = fightsToday[agent.id] ?? 0;
-              const remaining = MAX_FIGHTS_PER_DAY - fights;
-              const disabled = remaining <= 0;
+          <>
+            {/* Agent grid */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {allAgentsFull.map((agent) => {
+                const fights = fightsToday[agent.id] ?? 0;
+                const remaining = MAX_FIGHTS_PER_DAY - fights;
+                const disabled = remaining <= 0;
+                const totalHp = getTotalHp(agent);
+                const isSelected = selected.includes(agent.id);
+                const selIndex = selected.indexOf(agent.id);
+                const canSelect = isSelected || selected.length < 2;
 
-              return (
-                <button
-                  key={agent.id}
-                  onClick={() => !disabled && !loadingAgent && selectAgent(agent.id)}
-                  disabled={disabled || loadingAgent}
-                  className={`border rounded p-3 text-left transition-colors ${
-                    disabled
-                      ? "border-gray-800 bg-gray-900/50 opacity-50 cursor-not-allowed"
-                      : "border-gray-700 bg-gray-900 hover:border-purple-600 hover:bg-gray-800 cursor-pointer"
-                  }`}
-                >
-                  <div className="flex justify-center mb-2">
-                    <PixelSprite
-                      spriteSeed={agent.spriteSeed as Record<string, number>}
-                      role={agent.role}
-                      size={56}
-                    />
-                  </div>
-                  <p className="font-mono text-sm font-bold text-white text-center truncate">
-                    {agent.name}
-                  </p>
-                  <p
-                    className={`font-mono text-xs text-center mt-1 ${
-                      disabled ? "text-red-400" : "text-gray-400"
+                return (
+                  <button
+                    key={agent.id}
+                    onClick={() => {
+                      if (disabled || (!canSelect && !isSelected)) return;
+                      toggleAgent(agent.id);
+                    }}
+                    disabled={disabled}
+                    className={`border rounded-lg p-3 text-center transition-all duration-200 relative ${
+                      disabled
+                        ? "border-gray-800 bg-gray-900/50 opacity-40 cursor-not-allowed"
+                        : isSelected
+                        ? "border-purple-500 bg-purple-900/30 ring-1 ring-purple-500/50 scale-[1.03]"
+                        : "border-gray-700 bg-gray-900 hover:border-gray-500 cursor-pointer"
                     }`}
                   >
-                    {remaining}/{MAX_FIGHTS_PER_DAY} fights left
-                  </p>
-                </button>
-              );
-            })}
-          </div>
+                    {/* Selection badge */}
+                    {isSelected && (
+                      <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-purple-600 text-white text-[10px] font-mono font-bold flex items-center justify-center">
+                        {selIndex + 1}
+                      </span>
+                    )}
+                    <div className="flex justify-center mb-1.5">
+                      <PixelSprite
+                        spriteSeed={agent.spriteSeed as Record<string, number>}
+                        role={agent.role}
+                        size={52}
+                      />
+                    </div>
+                    <p className="font-mono text-xs font-bold text-white truncate">
+                      {agent.name}
+                    </p>
+                    <span className={`inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded font-mono ${ROLE_BADGE[agent.role]}`}>
+                      {agent.role}
+                    </span>
+                    <p className="font-mono text-[10px] text-gray-500 mt-1">
+                      HP: {Math.round(totalHp)}
+                    </p>
+                    <p
+                      className={`font-mono text-[10px] mt-0.5 ${
+                        disabled ? "text-red-400" : "text-gray-600"
+                      }`}
+                    >
+                      {remaining}/{MAX_FIGHTS_PER_DAY} fights
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selected agents summary + Fight button */}
+            {selectedAgents.length > 0 && (
+              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 animate-fadeIn">
+                <div className="flex items-center justify-center gap-4 mb-4">
+                  {/* Agent 1 */}
+                  <div className="text-center">
+                    <PixelSprite
+                      spriteSeed={selectedAgents[0].spriteSeed as Record<string, number>}
+                      role={selectedAgents[0].role}
+                      size={64}
+                    />
+                    <p className="font-mono text-xs font-bold text-white mt-1 truncate max-w-[80px]">
+                      {selectedAgents[0].name}
+                    </p>
+                    <span className={`inline-block text-[9px] px-1 py-0.5 rounded font-mono ${ROLE_BADGE[selectedAgents[0].role]}`}>
+                      {selectedAgents[0].role}
+                    </span>
+                  </div>
+
+                  {/* VS */}
+                  {selectedAgents.length === 2 ? (
+                    <span className="font-mono font-black text-2xl text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]">
+                      VS
+                    </span>
+                  ) : (
+                    <span className="font-mono text-sm text-gray-600">vs ?</span>
+                  )}
+
+                  {/* Agent 2 */}
+                  {selectedAgents.length === 2 ? (
+                    <div className="text-center">
+                      <PixelSprite
+                        spriteSeed={selectedAgents[1].spriteSeed as Record<string, number>}
+                        role={selectedAgents[1].role}
+                        size={64}
+                      />
+                      <p className="font-mono text-xs font-bold text-white mt-1 truncate max-w-[80px]">
+                        {selectedAgents[1].name}
+                      </p>
+                      <span className={`inline-block text-[9px] px-1 py-0.5 rounded font-mono ${ROLE_BADGE[selectedAgents[1].role]}`}>
+                        {selectedAgents[1].role}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 border-2 border-dashed border-gray-700 rounded-lg flex items-center justify-center">
+                      <span className="text-gray-600 font-mono text-xs">?</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Fight button — only when 2 selected */}
+                {selectedAgents.length === 2 && (
+                  <button
+                    onClick={startBattle}
+                    className="w-full py-3 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-mono font-bold text-lg rounded-lg transition-all animate-pulseGlow"
+                  >
+                    FIGHT!
+                  </button>
+                )}
+              </div>
+            )}
+          </>
         )}
-      </main>
-    );
-  }
-
-  // --------------------------------------------------
-  // Phase 2: Pre-Battle
-  // --------------------------------------------------
-  if (phase === "pre-battle" && attackerFull && defenderFull) {
-    const attackerHp = attackerFull.dimensions.reduce(
-      (sum, d) => sum + d.value,
-      0
-    );
-    const defenderHp = defenderFull.dimensions.reduce(
-      (sum, d) => sum + d.value,
-      0
-    );
-
-    return (
-      <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-mono font-bold mb-6 text-center">
-          Battle Arena
-        </h1>
-
-        <div className="grid grid-cols-2 gap-6 mb-8">
-          {/* Attacker */}
-          <div
-            className={`border rounded p-4 text-center ${ROLE_COLORS[attackerFull.role]}`}
-          >
-            <div className="flex justify-center mb-3">
-              <PixelSprite
-                spriteSeed={
-                  attackerFull.spriteSeed as Record<string, number>
-                }
-                role={attackerFull.role}
-                size={80}
-              />
-            </div>
-            <p className="font-mono font-bold text-white text-lg">
-              {attackerFull.name}
-            </p>
-            <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-mono bg-gray-800 text-gray-300">
-              {attackerFull.role}
-            </span>
-            <p className="font-mono text-sm text-gray-400 mt-2">
-              HP: {Math.round(attackerHp)}
-            </p>
-          </div>
-
-          {/* Defender */}
-          <div
-            className={`border rounded p-4 text-center ${ROLE_COLORS[defenderFull.role]}`}
-          >
-            <div className="flex justify-center mb-3">
-              <PixelSprite
-                spriteSeed={
-                  defenderFull.spriteSeed as Record<string, number>
-                }
-                role={defenderFull.role}
-                size={80}
-              />
-            </div>
-            <p className="font-mono font-bold text-white text-lg">
-              {defenderFull.name}
-            </p>
-            <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-mono bg-gray-800 text-gray-300">
-              {defenderFull.role}
-            </span>
-            <p className="font-mono text-sm text-gray-400 mt-2">
-              HP: {Math.round(defenderHp)}
-            </p>
-          </div>
-        </div>
-
-        <div className="text-center font-mono text-2xl text-gray-600 mb-8">
-          VS
-        </div>
-
-        <div className="flex flex-col items-center gap-3">
-          <button
-            onClick={startBattle}
-            className="px-8 py-3 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-mono font-bold text-lg rounded transition-all"
-          >
-            Fight!
-          </button>
-          <button
-            onClick={() => {
-              setPhase("select");
-              setSelectStep(1);
-              setAttackerFull(null);
-              setDefenderFull(null);
-            }}
-            className="text-sm text-gray-500 font-mono hover:text-gray-400"
-          >
-            &larr; Back to selection
-          </button>
-        </div>
       </main>
     );
   }
