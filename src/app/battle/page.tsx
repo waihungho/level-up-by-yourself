@@ -18,7 +18,7 @@ import type { AgentWithDimensions, BattleLog } from "@/lib/types";
 import Link from "next/link";
 
 const MAX_FIGHTS_PER_DAY = 3;
-const RECHARGE_COST_SOL = 0.1;
+const RECHARGE_COST_SOL = 0.05;
 
 function getTimeUntilMidnight(): string {
   const now = new Date();
@@ -234,7 +234,7 @@ export default function BattlePage() {
             <div className="grid grid-cols-3 gap-2 mb-4">
               {allAgentsFull.map((agent) => {
                 const fights = fightsToday[agent.id] ?? 0;
-                const remaining = MAX_FIGHTS_PER_DAY - fights;
+                const remaining = Math.max(0, MAX_FIGHTS_PER_DAY - fights);
                 const disabled = remaining <= 0;
                 const totalHp = getTotalHp(agent);
                 const isSelected = selected.includes(agent.id);
