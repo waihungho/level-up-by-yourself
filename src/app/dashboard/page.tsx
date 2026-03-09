@@ -4,6 +4,7 @@ import { PlayerStats } from "@/components/PlayerStats";
 import { DailyTasks } from "@/components/DailyTasks";
 import { PixelSprite } from "@/components/PixelSprite";
 import { AgentRoom } from "@/components/AgentRoom";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -32,15 +33,19 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
-      {/* Player Profile */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-cyan-500 flex items-center justify-center text-2xl font-mono font-bold text-white shrink-0">
-          {player.walletAddress.slice(0, 2).toUpperCase()}
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-mono font-bold text-white">Level Up by Yourself</h1>
         </div>
-        <div>
-          <h1 className="text-2xl font-mono font-bold">Dashboard</h1>
-          <p className="text-sm text-gray-500 font-mono">{walletShort}</p>
-        </div>
+        <p className="text-xs text-gray-500 font-mono shrink-0">{walletShort}</p>
+        <Link
+          href="/seeker-task"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-yellow-400 bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20 hover:border-yellow-400/50 hover:shadow-[0_0_12px_rgba(255,215,0,0.25)] transition-all shrink-0"
+        >
+          <Image src="/seeker-icon.png" alt="Seeker" width={18} height={18} className="rounded-sm" />
+          <span className="font-mono text-[11px] font-bold tracking-wider">SEEKER TASK</span>
+        </Link>
       </div>
       <PlayerStats />
 

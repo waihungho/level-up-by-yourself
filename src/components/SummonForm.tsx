@@ -45,7 +45,7 @@ const WEIGHT_DISPLAY: Record<string, string> = {
 
 const CATEGORY_ORDER: DimensionCategory[] = ["Mental", "Technical", "Social", "Physical", "Spiritual"];
 
-export function SummonForm() {
+export function SummonForm({ free = false }: { free?: boolean }) {
   const router = useRouter();
   const { player, refreshAgents } = useGame();
   const { publicKey, connected, sendTransaction, connection } = useUnifiedWallet();
@@ -62,40 +62,42 @@ export function SummonForm() {
     e.preventDefault();
     if (!player || !role) return;
 
-    if (!publicKey || !connected) {
-      setError("Please connect your wallet to summon an agent.");
-      return;
-    }
-
     setSubmitting(true);
     setError(null);
 
     try {
-      // Payment: 0.1 SOL
-      const tx = await createPaymentTransaction(connection, publicKey, SUMMON_COST_SOL);
-      let signature: string;
-      try {
-        signature = await sendTransaction(tx, connection);
-      } catch (walletErr: unknown) {
-        const em = walletErr instanceof Error ? walletErr.message : "";
-        if (/reject|cancel|denied/i.test(em)) {
-          setError("Transaction cancelled.");
-        } else {
-          setError(`Wallet error: ${em.slice(0, 80)}`);
+      // Payment required only when not a free summon
+      if (!free) {
+        if (!publicKey || !connected) {
+          setError("Please connect your wallet to pay for summon.");
+          setSubmitting(false);
+          return;
         }
-        setSubmitting(false);
-        return;
+
+        const tx = await createPaymentTransaction(connection, publicKey, SUMMON_COST_SOL);
+        let signature: string;
+        try {
+          signature = await sendTransaction(tx, connection);
+        } catch (walletErr: unknown) {
+          const em = walletErr instanceof Error ? walletErr.message : "";
+          if (/reject|cancel|denied/i.test(em)) {
+            setError("Transaction cancelled.");
+          } else {
+            setError(`Wallet error: ${em.slice(0, 80)}`);
+          }
+          setSubmitting(false);
+          return;
+        }
+
+        const confirmed = await confirmTransaction(connection, signature);
+        if (!confirmed) {
+          setError("Transaction not confirmed on chain. Please try again.");
+          setSubmitting(false);
+          return;
+        }
       }
 
-      // Wait for confirmation
-      const confirmed = await confirmTransaction(connection, signature);
-      if (!confirmed) {
-        setError("Transaction not confirmed on chain. Please try again.");
-        setSubmitting(false);
-        return;
-      }
-
-      // Payment confirmed — summon agent
+      // Summon agent
       const initialDimensions = generateInitialDimensions(role);
       const spriteSeed = generateSpriteSeed(role, name, character);
 
@@ -242,7 +244,7 @@ export function SummonForm() {
         disabled={submitting || !name.trim() || !role || !roleTitle.trim() || !character.trim() || !objective.trim()}
         className="w-full py-3 rounded font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-cyan-600 hover:bg-cyan-500 text-white"
       >
-        {submitting ? "Summoning..." : `Summon Agent (${SUMMON_COST_SOL} SOL)`}
+        {submitting ? "Summoning..." : free ? "Summon Agent (Free)" : `Summon Agent (${SUMMON_COST_SOL} SOL)`}
       </button>
     </form>
   );

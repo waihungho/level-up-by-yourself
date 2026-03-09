@@ -52,9 +52,11 @@ CREATE TABLE levelup_player_task_completions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   player_id UUID NOT NULL REFERENCES levelup_players(id) ON DELETE CASCADE,
   task_id UUID NOT NULL REFERENCES levelup_daily_tasks(id),
-  completed_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(player_id, task_id, (completed_at::date))
+  completed_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX levelup_task_completions_daily
+  ON levelup_player_task_completions(player_id, task_id, (cast(completed_at at time zone 'utc' as date)));
 
 -- Growth logs
 CREATE TABLE levelup_growth_logs (

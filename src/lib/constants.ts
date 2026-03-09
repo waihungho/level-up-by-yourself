@@ -78,7 +78,7 @@ export const GROWTH_TIERS: GrowthTier[] = [
 export const SUMMON_COOLDOWN_DAYS = 7;
 export const SUMMON_COST_SOL = 0.1;
 
-export const TREASURY_WALLET = "CUknNpb82DiG6vra4FMkvDk68knVWV8gsJNiH7Vop2fn";
+export const TREASURY_WALLET = "D9SuHgVnCDGcN15CfYN7ahVoByUNAiYDzLvvbteKUvvB";
 
 export const DAILY_TASKS = [
   { name: "Daily Login", description: "Log in to the game", abilityPoints: 5 },

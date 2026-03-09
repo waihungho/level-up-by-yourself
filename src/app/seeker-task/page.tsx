@@ -129,12 +129,6 @@ export default function SeekerTaskPage() {
         </h1>
       </div>
 
-      {/* Stats */}
-      <div className="bg-gray-900/50 border border-gray-800 rounded-lg px-4 py-3">
-        <p className="text-[10px] font-mono text-gray-500 tracking-wider uppercase">Total Transactions</p>
-        <p className="text-xl font-bold font-mono text-green-400 mt-1">{taskCount}</p>
-      </div>
-
       {/* Mission Card */}
       <div className="bg-gray-900/50 border border-green-900/30 rounded-xl p-6 space-y-5">
         <div className="space-y-2">

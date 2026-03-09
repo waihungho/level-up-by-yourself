@@ -178,7 +178,7 @@ export default function BattlePage() {
 
         {/* My Agent Training Section */}
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-2">
             <span className="text-2xl">🏋</span>
             <div className="flex-1">
               <h2 className="text-lg font-mono font-bold text-white">My Agent Training</h2>
@@ -196,6 +196,12 @@ export default function BattlePage() {
                 Fight!
               </button>
             )}
+          </div>
+          <div className="mb-4 px-3 py-2 bg-yellow-500/5 border border-yellow-600/20 rounded-lg flex items-center gap-2">
+            <span className="text-yellow-400 text-sm">⚡</span>
+            <p className="font-mono text-[10px] text-yellow-400/80">
+              {MAX_FIGHTS_PER_DAY} fights per day per agent — Pay {RECHARGE_COST_SOL} SOL to recharge fights instantly
+            </p>
           </div>
 
         {allAgentsFull.length < 2 ? (
