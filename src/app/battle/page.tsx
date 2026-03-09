@@ -125,14 +125,33 @@ export default function BattlePage() {
         <h1 className="text-2xl font-mono font-bold mb-2 text-center">
           Battle Arena
         </h1>
-        <p className="text-center font-mono text-sm text-gray-500 mb-6">
-          Select 2 agents to fight
-        </p>
+
+        {/* PvP Section */}
+        <div className="mb-8 bg-gray-900 border border-gray-800 rounded-lg p-6 text-center">
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <span className="text-3xl">⚔</span>
+            <h2 className="text-xl font-mono font-bold text-red-400">PvP Battle</h2>
+            <span className="text-3xl">⚔</span>
+          </div>
+          <p className="font-mono text-gray-500 text-sm animate-pulse">
+            PvP coming soon.....
+          </p>
+        </div>
+
+        {/* My Agent Training Section */}
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-2xl">🏋</span>
+            <div>
+              <h2 className="text-lg font-mono font-bold text-white">My Agent Training</h2>
+              <p className="font-mono text-xs text-gray-500">Select 2 agents to spar</p>
+            </div>
+          </div>
 
         {allAgentsFull.length < 2 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-8">
             <p className="text-gray-500 font-mono mb-4">
-              You need at least 2 agents to battle.
+              You need at least 2 agents to train.
             </p>
             <Link
               href="/agents"
@@ -267,6 +286,7 @@ export default function BattlePage() {
             )}
           </>
         )}
+        </div>
       </main>
     );
   }

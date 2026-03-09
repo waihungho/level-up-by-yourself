@@ -32,6 +32,16 @@ export function AgentCard({ agent, dimensions }: AgentCardProps) {
               {agent.role}
             </span>
           </div>
+          {agent.character && (
+            <p className="text-xs text-gray-500 font-mono mt-1.5 truncate">
+              <span className="text-gray-600">Character:</span> {agent.character}
+            </p>
+          )}
+          {agent.objective && (
+            <p className="text-xs text-gray-500 font-mono mt-0.5 truncate">
+              <span className="text-gray-600">Objective:</span> {agent.objective}
+            </p>
+          )}
         </div>
         {dimensions && dimensions.length > 0 && (
           <MiniRadar dimMap={dimMap} size={100} />

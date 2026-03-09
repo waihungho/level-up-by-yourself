@@ -28,14 +28,15 @@ const SHADOW_COLOR = "rgba(0,0,0,0.35)";
 const SPRITE_SCALE = 2;
 
 // Movement
-const MIN_SPEED = 0.3; // tiles/sec
-const MAX_SPEED = 0.5;
-const SMOOTHING = 2.0; // lerp factor — higher = snappier, lower = smoother
-const MIN_PAUSE = 1500; // ms
-const MAX_PAUSE = 4000;
+const MIN_SPEED = 0.15; // tiles/sec
+const MAX_SPEED = 0.3;
+const SMOOTHING = 1.5; // lerp factor — higher = snappier, lower = smoother
+const MIN_PAUSE = 2000; // ms
+const MAX_PAUSE = 6000;
+const MAX_INITIAL_DELAY = 5000; // stagger start so agents don't all move at once
 
 // Walk animation
-const WALK_CYCLE_SPEED = 6; // frames per second for walk cycle
+const WALK_CYCLE_SPEED = 3; // frames per second for walk cycle
 
 // --- Internal wandering state per agent ---
 interface WanderState {
@@ -71,11 +72,37 @@ function isoToScreen(
   };
 }
 
+const MIN_AGENT_DIST = 1.2; // minimum grid distance between stopped agents
+
 function pickRandomTile(): { gx: number; gy: number } {
   return {
     gx: Math.random() * (GRID_SIZE - 1) + 0.5,
     gy: Math.random() * (GRID_SIZE - 1) + 0.5,
   };
+}
+
+/** Pick a random tile that doesn't overlap with other agents' targets/positions */
+function pickNonOverlappingTile(
+  others: WanderState[],
+  maxAttempts = 20,
+): { gx: number; gy: number } {
+  for (let i = 0; i < maxAttempts; i++) {
+    const candidate = pickRandomTile();
+    const tooClose = others.some((o) => {
+      // Check against both current position and target
+      const dxCur = candidate.gx - o.gx;
+      const dyCur = candidate.gy - o.gy;
+      const dxTgt = candidate.gx - o.targetGx;
+      const dyTgt = candidate.gy - o.targetGy;
+      return (
+        Math.sqrt(dxCur * dxCur + dyCur * dyCur) < MIN_AGENT_DIST ||
+        Math.sqrt(dxTgt * dxTgt + dyTgt * dyTgt) < MIN_AGENT_DIST
+      );
+    });
+    if (!tooClose) return candidate;
+  }
+  // Fallback: just pick anywhere
+  return pickRandomTile();
 }
 
 function randomSpeed(): number {
@@ -283,8 +310,9 @@ export function AgentRoom({ agents }: AgentRoomProps) {
     // Add new
     for (const agent of agents) {
       if (!map.has(agent.id)) {
-        const start = pickRandomTile();
-        const target = pickRandomTile();
+        const others = [...map.values()];
+        const start = pickNonOverlappingTile(others);
+        const target = pickNonOverlappingTile(others);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const spriteData = generateSpriteData(agent.spriteSeed as any, agent.role);
         map.set(agent.id, {
@@ -293,7 +321,7 @@ export function AgentRoom({ agents }: AgentRoomProps) {
           targetGx: target.gx,
           targetGy: target.gy,
           speed: randomSpeed(),
-          pauseUntil: 0,
+          pauseUntil: performance.now() + Math.random() * MAX_INITIAL_DELAY,
           sprite: spriteData,
           spriteCanvas: buildSpriteCanvas(spriteData),
           walkTime: 0,
@@ -350,11 +378,12 @@ export function AgentRoom({ agents }: AgentRoomProps) {
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist < 0.05) {
-          // Arrived — pause then pick new target
+          // Arrived — pause then pick new target that doesn't overlap others
           state.gx = state.targetGx;
           state.gy = state.targetGy;
           state.pauseUntil = timestamp + randomPause();
-          const next = pickRandomTile();
+          const others = [...map.values()].filter((s) => s !== state);
+          const next = pickNonOverlappingTile(others);
           state.targetGx = next.gx;
           state.targetGy = next.gy;
           state.speed = randomSpeed();
