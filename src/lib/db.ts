@@ -521,6 +521,8 @@ export async function getAllPlayers(): Promise<Player[]> {
 export async function getAgentFightsToday(
   agentId: string
 ): Promise<number> {
+  if (isRechargedToday(agentId)) return 0;
+
   const sb = getSupabase();
   const todayStart = new Date();
   todayStart.setUTCHours(0, 0, 0, 0);
@@ -541,4 +543,76 @@ export async function getAgentFightsToday(
       (l.attackerId === agentId || l.defenderId === agentId) &&
       l.createdAt >= todayISO
   ).length;
+}
+
+// ---------------------------------------------------------------------------
+// rechargeAgentFights — reset today's fight count for an agent
+// ---------------------------------------------------------------------------
+const rechargedAgents = new Set<string>();
+
+export async function rechargeAgentFights(agentId: string): Promise<void> {
+  const todayKey = `${agentId}_${new Date().toISOString().slice(0, 10)}`;
+  rechargedAgents.add(todayKey);
+}
+
+// Patch getAgentFightsToday to respect recharges
+function isRechargedToday(agentId: string): boolean {
+  const todayKey = `${agentId}_${new Date().toISOString().slice(0, 10)}`;
+  return rechargedAgents.has(todayKey);
+}
+
+// ---------------------------------------------------------------------------
+// Seeker Tasks
+// ---------------------------------------------------------------------------
+interface LocalSeekerTask {
+  id: string;
+  playerId: string;
+  txSignature: string;
+  solAmount: number;
+  createdAt: string;
+}
+
+const localSeekerTasks: LocalSeekerTask[] = [];
+
+export async function recordSeekerTask(
+  playerId: string,
+  txSignature: string,
+  solAmount: number
+): Promise<void> {
+  const sb = getSupabase();
+
+  if (sb) {
+    const { error } = await sb
+      .from("levelup_seeker_tasks")
+      .insert({
+        player_id: playerId,
+        tx_signature: txSignature,
+        sol_amount: solAmount,
+      });
+    if (error) throw error;
+    return;
+  }
+
+  localSeekerTasks.push({
+    id: crypto.randomUUID(),
+    playerId,
+    txSignature,
+    solAmount,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function getSeekerTaskCount(playerId: string): Promise<number> {
+  const sb = getSupabase();
+
+  if (sb) {
+    const { count, error } = await sb
+      .from("levelup_seeker_tasks")
+      .select("*", { count: "exact", head: true })
+      .eq("player_id", playerId);
+    if (error) throw error;
+    return count ?? 0;
+  }
+
+  return localSeekerTasks.filter((t) => t.playerId === playerId).length;
 }

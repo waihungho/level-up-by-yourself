@@ -2,19 +2,34 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
+import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { PixelSprite } from "@/components/PixelSprite";
 import { BattlePlayback } from "@/components/BattlePlayback";
 import {
   getAgentWithDimensions,
   saveBattleLog,
   getAgentFightsToday,
+  rechargeAgentFights,
 } from "@/lib/db";
 import { resolveBattle } from "@/lib/battle-engine";
+import { createPaymentTransaction, confirmTransaction } from "@/lib/sol-payment";
 import { DIMENSIONS } from "@/lib/constants";
 import type { AgentWithDimensions, BattleLog } from "@/lib/types";
 import Link from "next/link";
 
 const MAX_FIGHTS_PER_DAY = 3;
+const RECHARGE_COST_SOL = 0.1;
+
+function getTimeUntilMidnight(): string {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  const diff = midnight.getTime() - now.getTime();
+  const h = Math.floor(diff / (1000 * 60 * 60));
+  const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const s = Math.floor((diff % (1000 * 60)) / 1000);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 const ROLE_BADGE: Record<string, string> = {
   future: "bg-purple-700 text-purple-200",
@@ -33,9 +48,11 @@ function getTotalHp(agent: AgentWithDimensions): number {
 
 export default function BattlePage() {
   const { player, agents, loading, refreshAgents } = useGame();
+  const { publicKey, connected, sendTransaction, connection } = useUnifiedWallet();
   const router = useRouter();
 
   const [phase, setPhase] = useState<Phase>("select");
+  const [recharging, setRecharging] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [allAgentsFull, setAllAgentsFull] = useState<AgentWithDimensions[]>([]);
   const [fightsToday, setFightsToday] = useState<Record<string, number>>({});
@@ -43,6 +60,12 @@ export default function BattlePage() {
   const [playbackDone, setPlaybackDone] = useState(false);
   const [attackerFull, setAttackerFull] = useState<AgentWithDimensions | null>(null);
   const [defenderFull, setDefenderFull] = useState<AgentWithDimensions | null>(null);
+  const [resetTimer, setResetTimer] = useState(getTimeUntilMidnight());
+
+  useEffect(() => {
+    const interval = setInterval(() => setResetTimer(getTimeUntilMidnight()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!loading && !player) router.push("/");
@@ -110,6 +133,25 @@ export default function BattlePage() {
     })();
   }
 
+  async function handleRecharge(agentId: string) {
+    if (!publicKey || !connected || !player || recharging) return;
+    setRecharging(agentId);
+    try {
+      const tx = await createPaymentTransaction(connection, publicKey, RECHARGE_COST_SOL);
+      const signature = await sendTransaction(tx, connection);
+      const confirmed = await confirmTransaction(connection, signature);
+      if (!confirmed) {
+        setRecharging(null);
+        return;
+      }
+      await rechargeAgentFights(agentId);
+      setFightsToday((prev) => ({ ...prev, [agentId]: 0 }));
+    } catch {
+      // user cancelled or error
+    }
+    setRecharging(null);
+  }
+
   if (loading || !player) return null;
 
   // --------------------------------------------------
@@ -141,6 +183,10 @@ export default function BattlePage() {
             <div className="flex-1">
               <h2 className="text-lg font-mono font-bold text-white">My Agent Training</h2>
               <p className="font-mono text-xs text-gray-500">Select 2 agents to spar</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="font-mono text-[10px] text-gray-600">Resets in</p>
+              <p className="font-mono text-sm text-yellow-400">{resetTimer}</p>
             </div>
             {selected.length === 2 && (
               <button
@@ -222,6 +268,19 @@ export default function BattlePage() {
                     >
                       {remaining}/{MAX_FIGHTS_PER_DAY} fights
                     </p>
+                    {disabled && connected && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRecharge(agent.id);
+                        }}
+                        disabled={recharging === agent.id}
+                        className="mt-1.5 w-full text-[9px] px-2 py-1 rounded border border-yellow-600/40 bg-yellow-500/10 text-yellow-400 font-mono font-bold hover:bg-yellow-500/20 transition-colors disabled:opacity-50"
+                      >
+                        {recharging === agent.id ? "Paying..." : `Recharge ${RECHARGE_COST_SOL} SOL`}
+                      </button>
+                    )}
                   </button>
                 );
               })}

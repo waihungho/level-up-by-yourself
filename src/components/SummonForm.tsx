@@ -3,29 +3,37 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
+import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { generateInitialDimensions, generateSpriteSeed } from "@/lib/agent-init";
 import { summonAgent } from "@/lib/db";
-import { ROLE_WEIGHTS } from "@/lib/constants";
+import { createPaymentTransaction, confirmTransaction } from "@/lib/sol-payment";
+import { ROLE_WEIGHTS, SUMMON_COST_SOL } from "@/lib/constants";
 import type { RoleCategory, DimensionCategory } from "@/lib/types";
 
-const ROLE_OPTIONS: { value: RoleCategory; label: string }[] = [
-  { value: "future", label: "Future" },
-  { value: "modern", label: "Modern" },
-  { value: "medieval", label: "Medieval" },
+const ROLE_OPTIONS: { value: RoleCategory; label: string; icon: string }[] = [
+  { value: "future", icon: "🤖", label: "Future" },
+  { value: "modern", icon: "💼", label: "Modern" },
+  { value: "medieval", icon: "⚔️", label: "Medieval" },
 ];
 
-const ROLE_TITLES: Record<RoleCategory, string[]> = {
+const ROLE_TITLES: Record<RoleCategory, { title: string; icon: string }[]> = {
   future: [
-    "AI Robot", "AI Brain", "Cyborg", "Quantum Hacker", "Nanosmith", "Starweaver",
-    "Synthoid", "Void Pilot", "Data Wraith", "Chrono Agent", "Plasma Sage", "Neuro Link",
+    { title: "AI Robot", icon: "🤖" }, { title: "AI Brain", icon: "🧠" }, { title: "Cyborg", icon: "🦾" },
+    { title: "Quantum Hacker", icon: "⚛️" }, { title: "Nanosmith", icon: "🔬" }, { title: "Starweaver", icon: "🌌" },
+    { title: "Synthoid", icon: "💠" }, { title: "Void Pilot", icon: "🚀" }, { title: "Data Wraith", icon: "👻" },
+    { title: "Chrono Agent", icon: "⏳" }, { title: "Plasma Sage", icon: "⚡" }, { title: "Neuro Link", icon: "🔗" },
   ],
   modern: [
-    "Developer", "Doctor", "Scientist", "Engineer", "Strategist", "Analyst",
-    "Architect", "Hacker", "Professor", "Diplomat", "Journalist", "Trader",
+    { title: "Developer", icon: "💻" }, { title: "Doctor", icon: "🩺" }, { title: "Scientist", icon: "🔬" },
+    { title: "Engineer", icon: "⚙️" }, { title: "Strategist", icon: "♟️" }, { title: "Analyst", icon: "📊" },
+    { title: "Architect", icon: "🏗️" }, { title: "Hacker", icon: "🖥️" }, { title: "Professor", icon: "📚" },
+    { title: "Diplomat", icon: "🤝" }, { title: "Journalist", icon: "📰" }, { title: "Trader", icon: "📈" },
   ],
   medieval: [
-    "Warrior", "Magician", "Necromancer", "Shaman", "Paladin", "Alchemist",
-    "Ranger", "Druid", "Berserker", "Sorcerer", "Monk", "Assassin",
+    { title: "Warrior", icon: "⚔️" }, { title: "Magician", icon: "🪄" }, { title: "Necromancer", icon: "💀" },
+    { title: "Shaman", icon: "🔮" }, { title: "Paladin", icon: "🛡️" }, { title: "Alchemist", icon: "⚗️" },
+    { title: "Ranger", icon: "🏹" }, { title: "Druid", icon: "🌿" }, { title: "Berserker", icon: "🪓" },
+    { title: "Sorcerer", icon: "✨" }, { title: "Monk", icon: "🧘" }, { title: "Assassin", icon: "🗡️" },
   ],
 };
 
@@ -40,6 +48,7 @@ const CATEGORY_ORDER: DimensionCategory[] = ["Mental", "Technical", "Social", "P
 export function SummonForm() {
   const router = useRouter();
   const { player, refreshAgents } = useGame();
+  const { publicKey, connected, sendTransaction, connection } = useUnifiedWallet();
 
   const [name, setName] = useState("");
   const [role, setRole] = useState<RoleCategory | null>(null);
@@ -53,10 +62,40 @@ export function SummonForm() {
     e.preventDefault();
     if (!player || !role) return;
 
+    if (!publicKey || !connected) {
+      setError("Please connect your wallet to summon an agent.");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
     try {
+      // Payment: 0.1 SOL
+      const tx = await createPaymentTransaction(connection, publicKey, SUMMON_COST_SOL);
+      let signature: string;
+      try {
+        signature = await sendTransaction(tx, connection);
+      } catch (walletErr: unknown) {
+        const em = walletErr instanceof Error ? walletErr.message : "";
+        if (/reject|cancel|denied/i.test(em)) {
+          setError("Transaction cancelled.");
+        } else {
+          setError(`Wallet error: ${em.slice(0, 80)}`);
+        }
+        setSubmitting(false);
+        return;
+      }
+
+      // Wait for confirmation
+      const confirmed = await confirmTransaction(connection, signature);
+      if (!confirmed) {
+        setError("Transaction not confirmed on chain. Please try again.");
+        setSubmitting(false);
+        return;
+      }
+
+      // Payment confirmed — summon agent
       const initialDimensions = generateInitialDimensions(role);
       const spriteSeed = generateSpriteSeed(role, name, character);
 
@@ -113,6 +152,7 @@ export function SummonForm() {
                   : "border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-500"
               }`}
             >
+              <span className="text-2xl mb-1">{opt.icon}</span>
               {opt.label}
             </button>
           ))}
@@ -136,18 +176,19 @@ export function SummonForm() {
         <div>
           <label className="block text-sm text-gray-400 mb-2">Role Title</label>
           <div className="grid grid-cols-4 gap-2">
-            {ROLE_TITLES[role].map((title) => (
+            {ROLE_TITLES[role].map((item) => (
               <button
-                key={title}
+                key={item.title}
                 type="button"
-                onClick={() => setRoleTitle(title)}
+                onClick={() => setRoleTitle(item.title)}
                 className={`px-3 py-2 rounded border text-sm text-center transition-colors ${
-                  roleTitle === title
+                  roleTitle === item.title
                     ? "border-cyan-500 bg-cyan-500/10 text-cyan-400"
                     : "border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-500"
                 }`}
               >
-                {title}
+                <span className="text-lg">{item.icon}</span>
+                <div className="text-[11px] mt-0.5">{item.title}</div>
               </button>
             ))}
           </div>
@@ -201,7 +242,7 @@ export function SummonForm() {
         disabled={submitting || !name.trim() || !role || !roleTitle.trim() || !character.trim() || !objective.trim()}
         className="w-full py-3 rounded font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-cyan-600 hover:bg-cyan-500 text-white"
       >
-        {submitting ? "Summoning..." : "Summon Agent"}
+        {submitting ? "Summoning..." : `Summon Agent (${SUMMON_COST_SOL} SOL)`}
       </button>
     </form>
   );

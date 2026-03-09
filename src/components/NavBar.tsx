@@ -3,12 +3,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
 
-const NAV_ITEMS = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: string;
+  special?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: "⌂" },
   { href: "/agents", label: "Agents", icon: "▦" },
   { href: "/battle", label: "Battle", icon: "⚔" },
   { href: "/rank", label: "Rank", icon: "🏆" },
   { href: "/summon", label: "Summon", icon: "+" },
+  { href: "/seeker-task", label: "Seeker Task", icon: "≡", special: true },
   { href: "/guide", label: "Guide", icon: "?" },
 ];
 
@@ -23,6 +31,25 @@ export function NavBar() {
       <div className="max-w-2xl mx-auto flex">
         {NAV_ITEMS.map((item) => {
           const active = pathname.startsWith(item.href);
+          if (item.special) {
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex-1 flex flex-col items-center py-2.5 font-mono text-[10px] transition-colors ${
+                  active ? "text-green-400" : "text-green-400/70 hover:text-green-300"
+                }`}
+              >
+                <span className={`text-[10px] px-2.5 py-1 rounded border font-bold tracking-wider mb-0.5 ${
+                  active
+                    ? "bg-green-500/20 border-green-500/50 text-green-400"
+                    : "bg-green-500/10 border-green-500/30 text-green-400/80"
+                }`}>
+                  {item.icon} {item.label.toUpperCase()}
+                </span>
+              </Link>
+            );
+          }
           return (
             <Link
               key={item.href}
