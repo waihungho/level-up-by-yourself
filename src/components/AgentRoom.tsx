@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect } from "react";
 import { generateSpriteData } from "@/lib/sprite-renderer";
 import type { Agent } from "@/lib/types";
 
@@ -203,8 +203,12 @@ export function AgentRoom({ agents }: AgentRoomProps) {
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
 
-  // Sync wander states with agents list
-  const syncWanderStates = useCallback(() => {
+  // Keep a ref to agents so the animation loop can read it without depending on it
+  const agentsRef = useRef<Agent[]>(agents);
+  agentsRef.current = agents;
+
+  // Sync wander states when agents list changes
+  useEffect(() => {
     const map = wanderRef.current;
     const agentIds = new Set(agents.map((a) => a.id));
 
@@ -232,15 +236,12 @@ export function AgentRoom({ agents }: AgentRoomProps) {
     }
   }, [agents]);
 
+  // Animation loop — runs once, reads from refs
   useEffect(() => {
-    if (agents.length === 0) return;
-
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
-    syncWanderStates();
 
     // ResizeObserver for responsive width
     const parent = canvas.parentElement;
@@ -263,7 +264,7 @@ export function AgentRoom({ agents }: AgentRoomProps) {
 
     const tick = (timestamp: number) => {
       if (!lastTimeRef.current) lastTimeRef.current = timestamp;
-      const dt = (timestamp - lastTimeRef.current) / 1000; // seconds
+      const dt = Math.min((timestamp - lastTimeRef.current) / 1000, 0.1); // cap to prevent teleporting
       lastTimeRef.current = timestamp;
 
       // Update wander states
@@ -333,7 +334,8 @@ export function AgentRoom({ agents }: AgentRoomProps) {
       lastTimeRef.current = 0;
       resizeObserver.disconnect();
     };
-  }, [agents, syncWanderStates]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (agents.length === 0) return null;
 
