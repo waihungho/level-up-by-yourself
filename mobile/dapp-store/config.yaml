@@ -1,0 +1,82 @@
+publisher:
+  name: Level Up by Yourself
+  website: https://level-up-by-yourself.vercel.app
+  email: solanagamedev@gmail.com
+  support_email: solanagamedev@gmail.com
+app:
+  name: Level Up by Yourself
+  address: '' # Fill after creating App NFT
+  android_package: app.levelup.byyourself
+  urls:
+    license_url: https://level-up-by-yourself.vercel.app/terms.html
+    copyright_url: https://level-up-by-yourself.vercel.app/copyright.html
+    privacy_policy_url: https://level-up-by-yourself.vercel.app/privacy.html
+    website: https://level-up-by-yourself.vercel.app
+  media:
+    - purpose: icon
+      uri: ./assets/icon-512.png
+release:
+  address: '' # Fill after creating Release NFT
+  media:
+    - purpose: icon
+      uri: ./assets/icon-512.png
+    - purpose: banner
+      uri: ./assets/banner-1200x600.png
+    - purpose: screenshot
+      uri: ./assets/screenshot-1.png
+    - purpose: screenshot
+      uri: ./assets/screenshot-2.png
+    - purpose: screenshot
+      uri: ./assets/screenshot-3.png
+    - purpose: screenshot
+      uri: ./assets/screenshot-4.png
+  files:
+    - purpose: install
+      uri: ../android/app/build/outputs/apk/release/app-release-signed.apk
+  catalog:
+    en-US:
+      name: Level Up by Yourself - AI Agent RPG on Solana
+      short_description: Summon AI agents and level up on Solana
+      long_description: |
+        Level Up by Yourself is an idle RPG where you summon, train, and battle
+        AI-powered agents on the Solana blockchain.
+
+        GAMEPLAY:
+        - Summon unique agents with distinct roles and abilities
+        - Train agents through daily tasks and growth dimensions
+        - Battle other players' agents in turn-based combat
+        - Earn ability points and climb the leaderboard
+
+        FEATURES:
+        - Free summon every 7 days or pay SOL to summon instantly
+        - 15 growth dimensions across Mental, Technical, Social, Physical, and Spiritual
+        - AI-generated growth narratives for each agent
+        - Seeker Task missions for bonus rewards
+        - Powered by Solana for fast, low-cost transactions
+      new_in_version: |
+        v1.0.0 Build 1
+        - Initial release
+        - Agent summoning with cooldown system
+        - Turn-based battle system
+        - Daily tasks and growth tracking
+        - Rankings leaderboard
+      saga_features: ''
+  android_details:
+    cert_fingerprint: '' # Fill after generating keystore
+    min_sdk: 24
+    version: 1.0.0
+    version_code: 1
+    locales:
+      - en-US
+solana_mobile_dapp_publisher_portal:
+  google_store_package: ''
+  testing_instructions: |
+    1. Launch the app
+    2. Tap "Connect Wallet" and authorize with Phantom or Solflare
+    3. You will be redirected to the main game screen
+    4. Go to Dashboard to see your stats and agents
+    5. Tap "Summon Agent" to create your first agent
+    6. Visit "Battle" to train and fight other agents
+    7. Check "Rank" to see the leaderboard
+    8. Try "Seeker Task" from the dashboard for bonus missions
+  alpha_testers: []

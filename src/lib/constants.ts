@@ -78,7 +78,9 @@ export const GROWTH_TIERS: GrowthTier[] = [
 export const SUMMON_COOLDOWN_DAYS = 7;
 export const SUMMON_COST_SOL = 0.1;
 
-export const TREASURY_WALLET = "D9SuHgVnCDGcN15CfYN7ahVoByUNAiYDzLvvbteKUvvB";
+export const TREASURY_WALLET = process.env.NEXT_PUBLIC_TREASURY_WALLET || "D9SuHgVnCDGcN15CfYN7ahVoByUNAiYDzLvvbteKUvvB";
+
+export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://level-up-by-yourself.vercel.app";
 
 export const DAILY_TASKS = [
   { name: "Daily Login", description: "Log in to the game", abilityPoints: 5 },

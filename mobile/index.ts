@@ -1,0 +1,24 @@
+// Polyfills must be imported before any Solana libraries
+import { getRandomValues as expoCryptoGetRandomValues } from "expo-crypto";
+import { Buffer } from "buffer";
+
+global.Buffer = Buffer;
+
+class Crypto {
+  getRandomValues = expoCryptoGetRandomValues;
+}
+
+const webCrypto = typeof crypto !== "undefined" ? crypto : new Crypto();
+
+if (typeof crypto === "undefined") {
+  Object.defineProperty(globalThis, "crypto", {
+    configurable: true,
+    enumerable: true,
+    get: () => webCrypto,
+  });
+}
+
+import { registerRootComponent } from "expo";
+import App from "./App";
+
+registerRootComponent(App);

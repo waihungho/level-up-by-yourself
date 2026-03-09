@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { WalletProvider } from "@/components/WalletProvider";
+import { UnifiedWalletProvider } from "@/hooks/useUnifiedWallet";
 import { GameProvider } from "@/components/GameProvider";
 import { NavBar } from "@/components/NavBar";
 
@@ -31,10 +32,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <WalletProvider>
-          <GameProvider>
-            {children}
-            <NavBar />
-          </GameProvider>
+          <UnifiedWalletProvider>
+            <GameProvider>
+              {children}
+              <NavBar />
+            </GameProvider>
+          </UnifiedWalletProvider>
         </WalletProvider>
       </body>
     </html>

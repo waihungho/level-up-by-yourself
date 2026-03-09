@@ -152,23 +152,38 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- RLS policies
+-- Wallet context function for RLS (called from app via supabase.rpc)
+CREATE OR REPLACE FUNCTION set_wallet_context(wallet TEXT)
+RETURNS VOID AS $$
+BEGIN
+  PERFORM set_config('app.wallet_address', wallet, true);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- RLS policies (wallet-based, not auth.uid)
 ALTER TABLE levelup_players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE levelup_agents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE levelup_agent_dimensions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE levelup_player_task_completions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE levelup_growth_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY levelup_players_select ON levelup_players FOR SELECT USING (auth.uid() = id);
-CREATE POLICY levelup_players_update ON levelup_players FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY levelup_players_select ON levelup_players FOR SELECT USING (true);
+CREATE POLICY levelup_players_insert ON levelup_players FOR INSERT WITH CHECK (true);
+CREATE POLICY levelup_players_update ON levelup_players FOR UPDATE
+  USING (wallet_address = current_setting('app.wallet_address', true));
 
 CREATE POLICY levelup_agents_select ON levelup_agents FOR SELECT USING (true);
-CREATE POLICY levelup_agents_insert ON levelup_agents FOR INSERT WITH CHECK (auth.uid() = player_id);
+CREATE POLICY levelup_agents_insert ON levelup_agents FOR INSERT WITH CHECK (
+  player_id IN (SELECT id FROM levelup_players WHERE wallet_address = current_setting('app.wallet_address', true))
+);
 
 CREATE POLICY levelup_agent_dims_select ON levelup_agent_dimensions FOR SELECT USING (true);
+CREATE POLICY levelup_agent_dims_insert ON levelup_agent_dimensions FOR INSERT WITH CHECK (true);
 
-CREATE POLICY levelup_task_completions_select ON levelup_player_task_completions FOR SELECT USING (auth.uid() = player_id);
-CREATE POLICY levelup_task_completions_insert ON levelup_player_task_completions FOR INSERT WITH CHECK (auth.uid() = player_id);
+CREATE POLICY levelup_task_completions_select ON levelup_player_task_completions FOR SELECT USING (true);
+CREATE POLICY levelup_task_completions_insert ON levelup_player_task_completions FOR INSERT WITH CHECK (
+  player_id IN (SELECT id FROM levelup_players WHERE wallet_address = current_setting('app.wallet_address', true))
+);
 
 CREATE POLICY levelup_growth_logs_select ON levelup_growth_logs FOR SELECT USING (true);
 

@@ -1,40 +1,118 @@
 "use client";
-import { useEffect, useState, useMemo } from "react";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { PublicKey, Connection, Transaction } from "@solana/web3.js";
-import { isMobileBridge } from "@/lib/mobile-bridge";
+
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey, Transaction, Connection } from "@solana/web3.js";
+import {
+  isMobileBridge,
+  initMobileBridge,
+  cleanupMobileBridge,
+  mobileSendTransaction,
+  getMobileConnection,
+  mobileRequestConnect,
+  mobileRequestDisconnect,
+} from "@/lib/mobile-bridge";
 
 export interface UnifiedWalletState {
   publicKey: PublicKey | null;
   connected: boolean;
   isMobile: boolean;
   connection: Connection;
+  connect: () => void;
   sendTransaction: (tx: Transaction, conn: Connection) => Promise<string>;
-  signTransaction?: (tx: Transaction) => Promise<Transaction>;
   disconnect: () => void;
   wallet: ReturnType<typeof useWallet>["wallet"];
 }
 
-export function useUnifiedWallet(): UnifiedWalletState {
-  const { publicKey, connected, sendTransaction, signTransaction, disconnect, wallet } = useWallet();
-  const { connection } = useConnection();
-  const [isMobile, setIsMobile] = useState(false);
+const UnifiedWalletContext = createContext<UnifiedWalletState | null>(null);
 
+export function UnifiedWalletProvider({ children }: { children: React.ReactNode }) {
+  const browserWallet = useWallet();
+  const { connection: browserConnection } = useConnection();
+
+  const [mobileAddress, setMobileAddress] = useState<string | null>(null);
+  const [mobile, setMobile] = useState(() => isMobileBridge());
+
+  // Re-check for mobile bridge flag shortly after mount (handles late injection)
   useEffect(() => {
-    setIsMobile(isMobileBridge());
-    // Re-check after 500ms for late injection
-    const timer = setTimeout(() => setIsMobile(isMobileBridge()), 500);
+    if (mobile) return;
+    const timer = setTimeout(() => {
+      if (isMobileBridge()) setMobile(true);
+    }, 500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [mobile]);
 
-  return useMemo(() => ({
-    publicKey,
-    connected,
-    isMobile,
-    connection,
-    sendTransaction,
-    signTransaction: signTransaction ?? undefined,
-    disconnect,
-    wallet,
-  }), [publicKey, connected, isMobile, connection, sendTransaction, signTransaction, disconnect, wallet]);
+  // Initialize mobile bridge ONCE in the provider — never torn down by page navigation
+  useEffect(() => {
+    if (!mobile) return;
+    initMobileBridge(setMobileAddress);
+    return () => cleanupMobileBridge();
+  }, [mobile]);
+
+  const publicKey = mobile && mobileAddress
+    ? new PublicKey(mobileAddress)
+    : browserWallet.publicKey;
+
+  const connected = mobile ? !!mobileAddress : browserWallet.connected;
+
+  const connection = useMemo(
+    () => (mobile ? getMobileConnection() : browserConnection),
+    [mobile, browserConnection]
+  );
+
+  const sendTransaction = useCallback(
+    async (tx: Transaction, conn: Connection) => {
+      if (mobile) {
+        return mobileSendTransaction(tx);
+      }
+      return browserWallet.sendTransaction(tx, conn);
+    },
+    [mobile, browserWallet]
+  );
+
+  const connect = useCallback(() => {
+    if (mobile) {
+      mobileRequestConnect();
+    } else {
+      browserWallet.connect();
+    }
+  }, [mobile, browserWallet]);
+
+  const disconnect = useCallback(() => {
+    if (mobile) {
+      mobileRequestDisconnect();
+      setMobileAddress(null);
+    } else {
+      browserWallet.disconnect();
+    }
+  }, [mobile, browserWallet]);
+
+  const value = useMemo(
+    () => ({
+      publicKey,
+      connected,
+      isMobile: mobile,
+      connection,
+      connect,
+      sendTransaction,
+      disconnect,
+      wallet: browserWallet.wallet,
+    }),
+    [publicKey, connected, mobile, connection, connect, sendTransaction, disconnect, browserWallet.wallet]
+  );
+
+  return (
+    <UnifiedWalletContext.Provider value={value}>
+      {children}
+    </UnifiedWalletContext.Provider>
+  );
+}
+
+export function useUnifiedWallet(): UnifiedWalletState {
+  const ctx = useContext(UnifiedWalletContext);
+  if (!ctx) {
+    throw new Error("useUnifiedWallet must be used within UnifiedWalletProvider");
+  }
+  return ctx;
 }
