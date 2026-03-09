@@ -116,10 +116,6 @@ export default function BattlePage() {
   // Phase 1: Select Agents
   // --------------------------------------------------
   if (phase === "select") {
-    const selectedAgents = selected
-      .map((id) => allAgentsFull.find((a) => a.id === id))
-      .filter(Boolean) as AgentWithDimensions[];
-
     return (
       <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
         <h1 className="text-2xl font-mono font-bold mb-2 text-center">
@@ -142,10 +138,18 @@ export default function BattlePage() {
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
           <div className="flex items-center gap-3 mb-4">
             <span className="text-2xl">🏋</span>
-            <div>
+            <div className="flex-1">
               <h2 className="text-lg font-mono font-bold text-white">My Agent Training</h2>
               <p className="font-mono text-xs text-gray-500">Select 2 agents to spar</p>
             </div>
+            {selected.length === 2 && (
+              <button
+                onClick={startBattle}
+                className="px-5 py-2 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-mono font-bold text-sm rounded-lg transition-all animate-pulseGlow"
+              >
+                Fight!
+              </button>
+            )}
           </div>
 
         {allAgentsFull.length < 2 ? (
@@ -223,67 +227,6 @@ export default function BattlePage() {
               })}
             </div>
 
-            {/* Selected agents summary + Fight button */}
-            {selectedAgents.length > 0 && (
-              <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 animate-fadeIn">
-                <div className="flex items-center justify-center gap-4 mb-4">
-                  {/* Agent 1 */}
-                  <div className="text-center">
-                    <PixelSprite
-                      spriteSeed={selectedAgents[0].spriteSeed as Record<string, number>}
-                      role={selectedAgents[0].role}
-                      size={64}
-                    />
-                    <p className="font-mono text-xs font-bold text-white mt-1 truncate max-w-[80px]">
-                      {selectedAgents[0].name}
-                    </p>
-                    <span className={`inline-block text-[9px] px-1 py-0.5 rounded font-mono ${ROLE_BADGE[selectedAgents[0].role]}`}>
-                      {selectedAgents[0].role}
-                    </span>
-                  </div>
-
-                  {/* VS */}
-                  {selectedAgents.length === 2 ? (
-                    <span className="font-mono font-black text-2xl text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]">
-                      VS
-                    </span>
-                  ) : (
-                    <span className="font-mono text-sm text-gray-600">vs ?</span>
-                  )}
-
-                  {/* Agent 2 */}
-                  {selectedAgents.length === 2 ? (
-                    <div className="text-center">
-                      <PixelSprite
-                        spriteSeed={selectedAgents[1].spriteSeed as Record<string, number>}
-                        role={selectedAgents[1].role}
-                        size={64}
-                      />
-                      <p className="font-mono text-xs font-bold text-white mt-1 truncate max-w-[80px]">
-                        {selectedAgents[1].name}
-                      </p>
-                      <span className={`inline-block text-[9px] px-1 py-0.5 rounded font-mono ${ROLE_BADGE[selectedAgents[1].role]}`}>
-                        {selectedAgents[1].role}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="w-16 h-16 border-2 border-dashed border-gray-700 rounded-lg flex items-center justify-center">
-                      <span className="text-gray-600 font-mono text-xs">?</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Fight button — only when 2 selected */}
-                {selectedAgents.length === 2 && (
-                  <button
-                    onClick={startBattle}
-                    className="w-full py-3 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-mono font-bold text-lg rounded-lg transition-all animate-pulseGlow"
-                  >
-                    FIGHT!
-                  </button>
-                )}
-              </div>
-            )}
           </>
         )}
         </div>
@@ -306,32 +249,30 @@ export default function BattlePage() {
       if (entries.length === 0) return null;
 
       return (
-        <div className="bg-gray-900 border border-gray-800 rounded p-4">
-          <h3 className="font-mono text-sm text-gray-400 mb-2">
-            {agentName} Growth
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {entries.map(([dimIdStr, delta]) => {
-              const dimId = Number(dimIdStr);
-              const dim = DIMENSIONS.find((d) => d.id === dimId);
-              const name = dim?.name ?? `Dim ${dimId}`;
-              return (
-                <span
-                  key={dimId}
-                  className="inline-flex items-center px-2 py-1 rounded text-xs font-mono bg-green-900/50 text-green-400 border border-green-800"
-                >
-                  +{delta.toFixed(1)} {name}
-                </span>
-              );
-            })}
-          </div>
+        <div className="bg-gray-900 border border-gray-800 rounded px-3 py-2 flex items-center gap-2 flex-wrap">
+          <span className="font-mono text-xs text-gray-400 shrink-0">
+            {agentName}:
+          </span>
+          {entries.map(([dimIdStr, delta]) => {
+            const dimId = Number(dimIdStr);
+            const dim = DIMENSIONS.find((d) => d.id === dimId);
+            const name = dim?.name ?? `Dim ${dimId}`;
+            return (
+              <span
+                key={dimId}
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-green-900/50 text-green-400 border border-green-800"
+              >
+                +{delta.toFixed(1)} {name}
+              </span>
+            );
+          })}
         </div>
       );
     }
 
     return (
-      <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-mono font-bold mb-6 text-center">
+      <main className="min-h-screen bg-gray-950 text-white p-4 pb-24 max-w-2xl mx-auto">
+        <h1 className="text-xl font-mono font-bold mb-3 text-center">
           Battle Arena
         </h1>
 
@@ -343,20 +284,14 @@ export default function BattlePage() {
         />
 
         {playbackDone && (
-          <div className="mt-8 space-y-4 animate-fadeIn">
-            <div className="text-center mb-4">
-              <p className="font-mono text-lg text-yellow-400">
-                {winner.name} is victorious!
-              </p>
-            </div>
-
+          <div className="mt-3 space-y-2 animate-fadeIn">
             {renderGrowth(battleLog.attackerGrowth, attackerFull.name)}
             {renderGrowth(battleLog.defenderGrowth, defenderFull.name)}
 
-            <div className="flex flex-col items-center gap-3 mt-6">
+            <div className="flex items-center justify-center gap-4 pt-2">
               <button
                 onClick={resetBattle}
-                className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-mono text-sm rounded transition-colors"
+                className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-mono text-sm rounded transition-colors"
               >
                 Fight Again
               </button>
@@ -364,7 +299,7 @@ export default function BattlePage() {
                 href="/agents"
                 className="text-sm text-gray-500 font-mono hover:text-gray-400"
               >
-                &larr; Back to Agents
+                Back to Agents
               </Link>
             </div>
           </div>

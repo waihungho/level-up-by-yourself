@@ -3,9 +3,18 @@ import { useEffect, useState } from "react";
 import { useGame } from "@/components/GameProvider";
 import { AgentCard } from "@/components/AgentCard";
 import { getAgentWithDimensions } from "@/lib/db";
-import type { AgentDimension } from "@/lib/types";
+import type { Agent, AgentDimension } from "@/lib/types";
+import { DIMENSIONS } from "@/lib/constants";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
+function getTotalAbility(dims: AgentDimension[] | undefined): number {
+  if (!dims) return 0;
+  return DIMENSIONS.reduce((sum, dim) => {
+    const ad = dims.find((d) => d.dimensionId === dim.id);
+    return sum + (ad ? ad.value : 10);
+  }, 0);
+}
 
 export default function AgentsPage() {
   const { player, agents, loading } = useGame();
@@ -48,7 +57,9 @@ export default function AgentsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {agents.map((agent) => (
+          {[...agents]
+            .sort((a, b) => getTotalAbility(agentDimensions[b.id]) - getTotalAbility(agentDimensions[a.id]))
+            .map((agent) => (
             <AgentCard key={agent.id} agent={agent} dimensions={agentDimensions[agent.id]} />
           ))}
         </div>

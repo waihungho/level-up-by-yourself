@@ -190,7 +190,7 @@ export function BattlePlayback({
       )}
 
       {/* Battle arena background */}
-      <div className="relative bg-gradient-to-b from-gray-900 via-gray-950 to-gray-900 border border-gray-800 rounded-lg p-6 overflow-hidden">
+      <div className="relative bg-gradient-to-b from-gray-900 via-gray-950 to-gray-900 border border-gray-800 rounded-lg p-4 overflow-hidden">
         {/* Ambient particles */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute w-1 h-1 bg-purple-500/30 rounded-full top-[20%] left-[15%] animate-idleBounce" style={{ animationDelay: "0s" }} />
@@ -199,7 +199,7 @@ export function BattlePlayback({
         </div>
 
         {/* Fighters */}
-        <div className="flex items-center justify-between gap-4 mb-6">
+        <div className="flex items-center justify-between gap-2 mb-3">
           {/* Attacker (left) */}
           <div
             className={`flex-1 text-center transition-transform duration-200 ${
@@ -221,13 +221,13 @@ export function BattlePlayback({
                 <PixelSprite
                   spriteSeed={attacker.spriteSeed as Record<string, number>}
                   role={attacker.role}
-                  size={80}
+                  size={56}
                 />
               </div>
               {/* Damage number */}
               {damageLeft !== null && (
                 <div className="absolute -top-2 left-1/2 -translate-x-1/2 animate-floatDamage">
-                  <span className="font-mono font-bold text-2xl text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">
+                  <span className="font-mono font-bold text-lg text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">
                     -{damageLeft}
                   </span>
                 </div>
@@ -241,21 +241,21 @@ export function BattlePlayback({
                 </>
               )}
             </div>
-            <p className="font-mono text-sm font-bold text-white mt-2 truncate">
+            <p className="font-mono text-xs font-bold text-white mt-1 truncate">
               {attacker.name}
             </p>
             <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-mono bg-gray-800 text-gray-400">
               {attacker.role}
             </span>
             {/* HP bar */}
-            <div className="mt-2 px-2">
+            <div className="mt-1 px-1">
               <div className="flex justify-between text-[10px] font-mono text-gray-500 mb-0.5">
                 <span>HP</span>
                 <span>
                   {Math.round(currentAttackerHp)}/{Math.round(attackerMaxHp)}
                 </span>
               </div>
-              <div className={`w-full bg-gray-700 rounded-full h-2.5 overflow-hidden ${hpBarGlow(attackerHpPct)}`}>
+              <div className={`w-full bg-gray-700 rounded-full h-2 overflow-hidden ${hpBarGlow(attackerHpPct)}`}>
                 <div
                   className={`h-full rounded-full transition-all duration-700 ease-out ${hpColor(attackerHpPct)}`}
                   style={{ width: `${attackerHpPct}%` }}
@@ -267,7 +267,7 @@ export function BattlePlayback({
           {/* VS */}
           <div className={`shrink-0 ${entered ? "animate-vsSlam" : "opacity-0"}`}>
             <div className="relative">
-              <span className="font-mono font-black text-3xl text-red-500 drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]">
+              <span className="font-mono font-black text-xl text-red-500 drop-shadow-[0_0_12px_rgba(239,68,68,0.6)]">
                 VS
               </span>
             </div>
@@ -296,13 +296,13 @@ export function BattlePlayback({
                 <PixelSprite
                   spriteSeed={defender.spriteSeed as Record<string, number>}
                   role={defender.role}
-                  size={80}
+                  size={56}
                 />
               </div>
               {/* Damage number */}
               {damageRight !== null && (
                 <div className="absolute -top-2 left-1/2 -translate-x-1/2 animate-floatDamage">
-                  <span className="font-mono font-bold text-2xl text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">
+                  <span className="font-mono font-bold text-lg text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">
                     -{damageRight}
                   </span>
                 </div>
@@ -316,21 +316,21 @@ export function BattlePlayback({
                 </>
               )}
             </div>
-            <p className="font-mono text-sm font-bold text-white mt-2 truncate">
+            <p className="font-mono text-xs font-bold text-white mt-1 truncate">
               {defender.name}
             </p>
             <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-mono bg-gray-800 text-gray-400">
               {defender.role}
             </span>
             {/* HP bar */}
-            <div className="mt-2 px-2">
+            <div className="mt-1 px-1">
               <div className="flex justify-between text-[10px] font-mono text-gray-500 mb-0.5">
                 <span>HP</span>
                 <span>
                   {Math.round(currentDefenderHp)}/{Math.round(defenderMaxHp)}
                 </span>
               </div>
-              <div className={`w-full bg-gray-700 rounded-full h-2.5 overflow-hidden ${hpBarGlow(defenderHpPct)}`}>
+              <div className={`w-full bg-gray-700 rounded-full h-2 overflow-hidden ${hpBarGlow(defenderHpPct)}`}>
                 <div
                   className={`h-full rounded-full transition-all duration-700 ease-out ${hpColor(defenderHpPct)}`}
                   style={{ width: `${defenderHpPct}%` }}
@@ -343,7 +343,7 @@ export function BattlePlayback({
         {/* Round log */}
         <div
           ref={roundLogRef}
-          className="space-y-2 max-h-[240px] overflow-y-auto pr-1 scrollbar-thin"
+          className="space-y-1.5 max-h-[120px] overflow-y-auto pr-1 scrollbar-thin"
         >
           {battleLog.rounds.slice(0, visibleRounds).map((round) => {
             const firstIsAttacker = round.firstAttacker === attacker.id;
@@ -353,29 +353,24 @@ export function BattlePlayback({
             return (
               <div
                 key={round.roundNumber}
-                className="bg-gray-800/60 border border-gray-700/50 rounded px-3 py-2 animate-fadeIn"
+                className="bg-gray-800/60 border border-gray-700/50 rounded px-2 py-1.5 animate-fadeIn"
               >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-mono text-[10px] font-bold text-purple-400 bg-purple-900/30 px-1.5 py-0.5 rounded">
+                <div className="flex items-center gap-2 font-mono text-[10px]">
+                  <span className="font-bold text-purple-400 bg-purple-900/30 px-1 py-0.5 rounded shrink-0">
                     R{round.roundNumber}
                   </span>
-                  <span className="font-mono text-[10px] text-gray-500">
-                    {round.category}
-                  </span>
-                </div>
-                <div className="font-mono text-xs text-gray-300 space-y-0.5">
-                  <p>
+                  <span className="text-gray-500 shrink-0">{round.category}</span>
+                  <span className="text-gray-300">
                     <span className="text-white">{firstName}</span>{" "}
                     <span className="text-red-400">-{round.firstDamage}</span>
-                    <span className="text-gray-600"> dmg</span>
-                  </p>
-                  {round.secondDamage > 0 && (
-                    <p>
-                      <span className="text-white">{secondName}</span>{" "}
-                      <span className="text-red-400">-{round.secondDamage}</span>
-                      <span className="text-gray-600"> dmg</span>
-                    </p>
-                  )}
+                    {round.secondDamage > 0 && (
+                      <>
+                        <span className="text-gray-600"> / </span>
+                        <span className="text-white">{secondName}</span>{" "}
+                        <span className="text-red-400">-{round.secondDamage}</span>
+                      </>
+                    )}
+                  </span>
                 </div>
               </div>
             );
@@ -385,18 +380,13 @@ export function BattlePlayback({
 
       {/* Victory banner */}
       {showVictory && (
-        <div className="mt-6 text-center animate-victoryBounce">
-          <div className="inline-block relative">
-            <div className="font-mono font-black text-4xl text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 mb-2 drop-shadow-lg">
-              VICTORY
-            </div>
-            <p className="font-mono text-lg text-white">
-              <span className="text-yellow-400">{winner.name}</span> wins!
-            </p>
-            <p className="font-mono text-xs text-gray-500 mt-1">
-              {loser.name} has been defeated
-            </p>
-          </div>
+        <div className="mt-3 text-center animate-victoryBounce">
+          <span className="font-mono font-black text-2xl text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-400 drop-shadow-lg">
+            VICTORY
+          </span>
+          <span className="font-mono text-sm text-white ml-2">
+            <span className="text-yellow-400">{winner.name}</span> wins!
+          </span>
         </div>
       )}
     </div>

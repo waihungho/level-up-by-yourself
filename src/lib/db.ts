@@ -462,6 +462,60 @@ export async function getBattleLogs(
 }
 
 // ---------------------------------------------------------------------------
+// getAllAgentsWithDimensions (for rankings)
+// ---------------------------------------------------------------------------
+export async function getAllAgentsWithDimensions(): Promise<AgentWithDimensions[]> {
+  const sb = getSupabase();
+
+  if (sb) {
+    const { data: agentRows, error: agentError } = await sb
+      .from("levelup_agents")
+      .select("*");
+
+    if (agentError || !agentRows) return [];
+
+    const agents: AgentWithDimensions[] = [];
+    for (const row of agentRows) {
+      const { data: dimRows } = await sb
+        .from("levelup_agent_dimensions")
+        .select("*")
+        .eq("agent_id", row.id);
+
+      agents.push({
+        ...mapAgentRow(row),
+        dimensions: (dimRows ?? []).map(mapAgentDimensionRow),
+      });
+    }
+    return agents;
+  }
+
+  // Demo mode
+  return localAgents.map((a) => ({
+    ...a,
+    dimensions: localDimensions.filter((d) => d.agentId === a.id),
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// getAllPlayers
+// ---------------------------------------------------------------------------
+export async function getAllPlayers(): Promise<Player[]> {
+  const sb = getSupabase();
+
+  if (sb) {
+    const { data, error } = await sb
+      .from("levelup_players")
+      .select("*");
+
+    if (error) throw error;
+    return (data ?? []).map(mapPlayerRow);
+  }
+
+  // Demo mode
+  return [...localPlayers];
+}
+
+// ---------------------------------------------------------------------------
 // getAgentFightsToday
 // ---------------------------------------------------------------------------
 export async function getAgentFightsToday(

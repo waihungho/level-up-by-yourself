@@ -15,7 +15,7 @@ function createGrid(): PixelGrid {
   return Array.from({ length: 32 }, () => Array(32).fill(null));
 }
 
-function setPixel(grid: PixelGrid, x: number, y: number, color: string) {
+function setPixel(grid: PixelGrid, x: number, y: number, color: string | null) {
   if (x >= 0 && x < 32 && y >= 0 && y < 32) {
     grid[y][x] = color;
   }
