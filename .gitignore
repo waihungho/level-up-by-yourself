@@ -40,3 +40,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# mobile
+mobile/node_modules/
+mobile/android/app/src/main/assets/
+mobile/android/app/src/main/res/drawable-mdpi/
+mobile/android/app/src/main/res/raw/
+mobile/.expo/
