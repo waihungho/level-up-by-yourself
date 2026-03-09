@@ -64,7 +64,7 @@ export default function AgentDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
+    <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto">
       <Link href="/agents" className="text-sm text-gray-500 font-mono hover:text-gray-400 mb-4 block">
         &larr; Back to agents
       </Link>

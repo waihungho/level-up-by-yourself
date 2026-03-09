@@ -43,7 +43,7 @@ export default function SummonPage() {
     const { days, hours, minutes, seconds } = formatCountdown(timeLeft);
 
     return (
-      <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
+      <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto">
         <h1 className="text-2xl font-mono font-bold mb-6 text-center">Summon New Agent</h1>
 
         <div className="space-y-4">
@@ -102,7 +102,7 @@ export default function SummonPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
+    <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto">
       <h1 className="text-2xl font-mono font-bold mb-2">Summon New Agent</h1>
       {canSummon && (
         <p className="text-green-400 font-mono text-xs mb-6 animate-pulse">

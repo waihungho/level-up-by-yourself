@@ -116,6 +116,7 @@ export function SummonForm({ free = false }: { free?: boolean }) {
       router.push(`/agents/${agent.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to summon agent. Please try again.");
+    } finally {
       setSubmitting(false);
     }
   };
@@ -142,13 +143,13 @@ export function SummonForm({ free = false }: { free?: boolean }) {
       {/* Role Category */}
       <div>
         <label className="block text-sm text-gray-400 mb-2">Role Category</label>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2">
           {ROLE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               type="button"
               onClick={() => { setRole(opt.value); setRoleTitle(""); }}
-              className={`px-4 py-3 rounded border text-center transition-colors ${
+              className={`px-2 py-3 rounded border text-center text-sm transition-colors truncate ${
                 role === opt.value
                   ? "border-cyan-500 bg-cyan-500/10 text-cyan-400"
                   : "border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-500"

@@ -103,6 +103,18 @@ export default function BattlePage() {
     const def = allAgentsFull.find((a) => a.id === selected[1]);
     if (!atk || !def) return;
 
+    // Check both agents still have fights remaining
+    const atkRemaining = MAX_FIGHTS_PER_DAY - (fightsToday[atk.id] ?? 0);
+    const defRemaining = MAX_FIGHTS_PER_DAY - (fightsToday[def.id] ?? 0);
+    if (atkRemaining <= 0 || defRemaining <= 0) return;
+
+    // Immediately increment fight counts so UI stays in sync
+    setFightsToday((prev) => ({
+      ...prev,
+      [atk.id]: (prev[atk.id] ?? 0) + 1,
+      [def.id]: (prev[def.id] ?? 0) + 1,
+    }));
+
     setAttackerFull(atk);
     setDefenderFull(def);
     const log = resolveBattle(atk, def);
@@ -159,7 +171,7 @@ export default function BattlePage() {
   // --------------------------------------------------
   if (phase === "select") {
     return (
-      <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
+      <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto">
         <h1 className="text-2xl font-mono font-bold mb-2 text-center">
           Battle Arena
         </h1>
@@ -336,7 +348,7 @@ export default function BattlePage() {
     }
 
     return (
-      <main className="min-h-screen bg-gray-950 text-white p-4 pb-24 max-w-2xl mx-auto">
+      <main className="min-h-screen bg-gray-950 text-white p-4 pb-32 max-w-2xl mx-auto">
         <h1 className="text-xl font-mono font-bold mb-3 text-center">
           Battle Arena
         </h1>

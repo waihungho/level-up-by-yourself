@@ -406,8 +406,32 @@ export async function saveBattleLog(log: BattleLog): Promise<void> {
   const sb = getSupabase();
 
   if (sb) {
-    // Supabase mode: demo-only for now
-    localBattleLogs.push(log);
+    const { error } = await sb.from("levelup_battle_logs").insert({
+      id: log.id,
+      attacker_id: log.attackerId,
+      defender_id: log.defenderId,
+      winner_id: log.winnerId,
+      rounds: log.rounds,
+      attacker_growth: log.attackerGrowth,
+      defender_growth: log.defenderGrowth,
+    });
+    if (error) throw error;
+
+    // Apply dimension growth
+    for (const [dimIdStr, delta] of Object.entries(log.attackerGrowth)) {
+      await sb.rpc("levelup_increment_dimension", {
+        p_agent_id: log.attackerId,
+        p_dimension_id: Number(dimIdStr),
+        p_delta: delta,
+      });
+    }
+    for (const [dimIdStr, delta] of Object.entries(log.defenderGrowth)) {
+      await sb.rpc("levelup_increment_dimension", {
+        p_agent_id: log.defenderId,
+        p_dimension_id: Number(dimIdStr),
+        p_delta: delta,
+      });
+    }
     return;
   }
 
@@ -447,11 +471,24 @@ export async function getBattleLogs(
   const sb = getSupabase();
 
   if (sb) {
-    // Supabase mode: demo-only for now
-    return localBattleLogs
-      .filter((l) => l.attackerId === agentId || l.defenderId === agentId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, limit);
+    const { data, error } = await sb
+      .from("levelup_battle_logs")
+      .select("*")
+      .or(`attacker_id.eq.${agentId},defender_id.eq.${agentId}`)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      attackerId: row.attacker_id,
+      defenderId: row.defender_id,
+      winnerId: row.winner_id,
+      rounds: row.rounds,
+      attackerGrowth: row.attacker_growth,
+      defenderGrowth: row.defender_growth,
+      createdAt: row.created_at,
+    }));
   }
 
   // Demo mode
@@ -529,12 +566,13 @@ export async function getAgentFightsToday(
   const todayISO = todayStart.toISOString();
 
   if (sb) {
-    // Supabase mode: demo-only for now
-    return localBattleLogs.filter(
-      (l) =>
-        (l.attackerId === agentId || l.defenderId === agentId) &&
-        l.createdAt >= todayISO
-    ).length;
+    const { count, error } = await sb
+      .from("levelup_battle_logs")
+      .select("*", { count: "exact", head: true })
+      .or(`attacker_id.eq.${agentId},defender_id.eq.${agentId}`)
+      .gte("created_at", todayISO);
+    if (error) return 0;
+    return count ?? 0;
   }
 
   // Demo mode

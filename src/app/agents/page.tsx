@@ -40,7 +40,7 @@ export default function AgentsPage() {
   if (loading || !player) return null;
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
+    <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-mono font-bold">Your Agents</h1>
         <Link href="/summon" className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-mono text-sm rounded transition-colors">

@@ -8,7 +8,7 @@ import type { Agent } from "@/lib/types";
 const TILE_W = 64;
 const TILE_H = 32;
 const GRID_SIZE = 8;
-const CANVAS_HEIGHT = 360;
+const CANVAS_HEIGHT = 200;
 const SPRITE_SIZE = 32;
 
 // Cyberpunk palette
@@ -22,7 +22,7 @@ const NEON_PURPLE = [160, 80, 255] as const;
 const NEON_BLUE = [40, 120, 255] as const;
 
 // Walls
-const WALL_HEIGHT = 48;
+const WALL_HEIGHT = 32;
 const WALL_FACE = "#040a18";
 const WALL_SIDE = "#0a1428";
 
@@ -729,7 +729,19 @@ export function AgentRoom({ agents }: AgentRoomProps) {
       ctx.fillStyle = BG;
       ctx.fillRect(0, 0, cw, CANVAS_HEIGHT);
 
-      const offsetX = cw / 2;
+      // Scale down the grid to fit narrow screens
+      const gridPixelWidth = GRID_SIZE * TILE_W + TILE_W; // total iso width with margins
+      const scale = Math.min(1, cw / gridPixelWidth);
+
+      ctx.save();
+      if (scale < 1) {
+        ctx.translate(cw / 2, 0);
+        ctx.scale(scale, scale);
+        ctx.translate(-cw / 2 / scale, 0);
+      }
+
+      const scaledCw = scale < 1 ? cw / scale : cw;
+      const offsetX = scaledCw / 2;
       const offsetY = WALL_HEIGHT + 16;
 
       // Walls behind everything
@@ -742,7 +754,7 @@ export function AgentRoom({ agents }: AgentRoomProps) {
       drawEdgeGlow(ctx, offsetX, offsetY);
 
       // Data rain behind agents
-      drawDataRain(ctx, cw, CANVAS_HEIGHT);
+      drawDataRain(ctx, scaledCw, CANVAS_HEIGHT);
 
       // Depth-sort agents
       const sorted: { state: WanderState; depth: number }[] = [];
@@ -762,12 +774,14 @@ export function AgentRoom({ agents }: AgentRoomProps) {
       }
 
       // Holo particles on top
-      drawHoloParticles(ctx, cw, CANVAS_HEIGHT);
+      drawHoloParticles(ctx, scaledCw, CANVAS_HEIGHT);
 
       // Overlays
-      drawScanlines(ctx, cw, CANVAS_HEIGHT);
-      drawVignette(ctx, cw, CANVAS_HEIGHT);
-      drawHUD(ctx, cw, CANVAS_HEIGHT, map.size);
+      drawScanlines(ctx, scaledCw, CANVAS_HEIGHT);
+      drawVignette(ctx, scaledCw, CANVAS_HEIGHT);
+      drawHUD(ctx, scaledCw, CANVAS_HEIGHT, map.size);
+
+      ctx.restore();
 
       rafRef.current = requestAnimationFrame(tick);
     };

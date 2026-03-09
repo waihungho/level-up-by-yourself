@@ -79,7 +79,7 @@ export default function RankPage() {
   const playerMap = new Map(players.map((p) => [p.id, p]));
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
+    <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto">
       <h1 className="text-2xl font-mono font-bold mb-1 text-center">
         Rankings
       </h1>

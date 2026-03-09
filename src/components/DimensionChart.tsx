@@ -240,7 +240,7 @@ export function DimensionChart({ dimensions }: { dimensions: AgentDimension[] })
                         style={{ width: `${Math.min((value / 50) * 100, 100)}%` }}
                       />
                     </div>
-                    <span className="text-gray-400 w-8 text-right">{Math.round(value)}</span>
+                    <span className="text-gray-400 w-10 text-right">{value % 1 === 0 ? value : value.toFixed(1)}</span>
                   </div>
                 );
               })}

@@ -107,7 +107,7 @@ export default function SeekerTaskPage() {
 
   if (!connected || !publicKey) {
     return (
-      <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto">
+      <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto">
         <div className="text-center py-24">
           <p className="text-xs font-mono text-gray-600 tracking-wider">// WALLET REQUIRED</p>
           <p className="text-gray-500 mt-2 text-sm font-mono">Connect your wallet to start Seeker Tasks</p>
@@ -117,7 +117,7 @@ export default function SeekerTaskPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-6 pb-24 max-w-2xl mx-auto space-y-8">
+    <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto space-y-8">
       {/* Header */}
       <div>
         <p className="text-[10px] font-mono text-green-400/60 tracking-[0.2em] uppercase mb-1">

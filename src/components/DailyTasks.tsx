@@ -8,11 +8,16 @@ export function DailyTasks() {
   const { player, refreshPlayer } = useGame();
   const [completedTasks, setCompletedTasks] = useState<string[]>([]);
   const [completing, setCompleting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadCompleted = useCallback(async () => {
     if (!player) return;
-    const completed = await getCompletedTasksToday(player.id);
-    setCompletedTasks(completed);
+    try {
+      const completed = await getCompletedTasksToday(player.id);
+      setCompletedTasks(completed);
+    } catch {
+      // ignore load errors
+    }
   }, [player]);
 
   useEffect(() => {
@@ -22,10 +27,13 @@ export function DailyTasks() {
   const handleComplete = async (taskName: string) => {
     if (!player || completedTasks.includes(taskName)) return;
     setCompleting(taskName);
+    setError(null);
     try {
       await completeTask(player.id, taskName);
+      setCompletedTasks((prev) => [...prev, taskName]);
       await refreshPlayer();
-      await loadCompleted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to complete task");
     } finally {
       setCompleting(null);
     }
@@ -36,6 +44,7 @@ export function DailyTasks() {
   return (
     <div className="bg-gray-900 border border-gray-800 rounded p-4">
       <h2 className="text-lg font-mono font-bold text-white mb-4">Daily Tasks</h2>
+      {error && <p className="text-red-400 text-xs font-mono mb-2">{error}</p>}
       <div className="space-y-2">
         {DAILY_TASKS.map((task) => {
           const done = completedTasks.includes(task.name);
@@ -51,7 +60,7 @@ export function DailyTasks() {
               }`}
             >
               <div className="flex items-center gap-3">
-                <span>{done ? "\u2713" : "\u25CB"}</span>
+                <span>{completing === task.name ? "..." : done ? "\u2713" : "\u25CB"}</span>
                 <div className="text-left">
                   <div>{task.name}</div>
                   <div className="text-xs text-gray-500">{task.description}</div>
