@@ -105,7 +105,58 @@ export async function getOrCreatePlayer(walletAddress: string): Promise<Player> 
     updatedAt: now,
   };
   localPlayers.push(player);
+
+  // Auto-seed 10 demo agents for new players
+  seedDemoAgents(player.id);
+
   return player;
+}
+
+// ---------------------------------------------------------------------------
+// seedDemoAgents (demo mode only)
+// ---------------------------------------------------------------------------
+function seedDemoAgents(playerId: string) {
+  const roles: RoleCategory[] = ["medieval", "modern", "future"];
+  const names = [
+    "Aldric", "Seraph", "Nova", "Kael", "Zephyr",
+    "Riven", "Lyra", "Onyx", "Vega", "Drake",
+  ];
+  const titles = [
+    "Knight", "Hacker", "Pilot", "Mage", "Scout",
+    "Ranger", "Healer", "Tank", "Sniper", "Monk",
+  ];
+
+  for (let i = 0; i < 10; i++) {
+    const role = roles[i % 3];
+    const now = new Date().toISOString();
+    const agent: Agent = {
+      id: crypto.randomUUID(),
+      playerId,
+      name: names[i],
+      role,
+      roleTitle: titles[i],
+      character: `A brave ${titles[i].toLowerCase()}`,
+      objective: "Grow stronger through daily challenges",
+      spriteSeed: {
+        bodyType: (i * 7 + 3) % 20,
+        headType: (i * 11 + 5) % 20,
+        eyeType: (i * 3 + 1) % 20,
+        weaponType: (i * 5 + 2) % 20,
+        auraType: (i * 9 + 4) % 20,
+        colorSeed: i * 37 + 10,
+      },
+      createdAt: now,
+    };
+    localAgents.push(agent);
+
+    for (let d = 1; d <= 50; d++) {
+      localDimensions.push({
+        agentId: agent.id,
+        dimensionId: d,
+        value: 8 + Math.random() * 10,
+      });
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
