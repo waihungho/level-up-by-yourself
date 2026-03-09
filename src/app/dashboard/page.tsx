@@ -44,19 +44,12 @@ export default function Dashboard() {
       </div>
       <PlayerStats />
 
-      {/* Agent Room */}
-      {agents.length > 0 && (
-        <div className="mt-6 bg-gray-900 border border-gray-800 rounded p-4">
-          <h2 className="text-lg font-mono font-bold text-white mb-3">Agent Room</h2>
-          <AgentRoom agents={agents} />
-        </div>
-      )}
-
       {/* My Agents */}
       {agents.length > 0 && (
         <div className="mt-6 bg-gray-900 border border-gray-800 rounded p-4">
           <h2 className="text-lg font-mono font-bold text-white mb-3">My Agents</h2>
-          <div className="flex gap-3 overflow-x-auto pb-2">
+          <AgentRoom agents={agents} />
+          <div className="flex gap-3 overflow-x-auto pb-2 mt-4 pt-4 border-t border-gray-800">
             {agents.map((agent) => (
               <Link
                 key={agent.id}

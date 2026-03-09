@@ -5,11 +5,11 @@ import { generateSpriteData } from "@/lib/sprite-renderer";
 import type { Agent } from "@/lib/types";
 
 // --- Constants ---
-const TILE_W = 32;
-const TILE_H = 16;
+const TILE_W = 64;
+const TILE_H = 32;
 const GRID_SIZE = 8;
-const WALL_HEIGHT = 24;
-const CANVAS_HEIGHT = 320;
+const WALL_HEIGHT = 36;
+const CANVAS_HEIGHT = 310;
 const SPRITE_SIZE = 32;
 
 // Floor colors
@@ -24,11 +24,18 @@ const WALL_TOP = "#2a2a50";
 // Shadow
 const SHADOW_COLOR = "rgba(0,0,0,0.35)";
 
+// Sprite scale (2x = 64px rendered from 32px source)
+const SPRITE_SCALE = 2;
+
 // Movement
-const MIN_SPEED = 0.6; // tiles/sec
-const MAX_SPEED = 1.0;
-const MIN_PAUSE = 1000; // ms
-const MAX_PAUSE = 3000;
+const MIN_SPEED = 0.3; // tiles/sec
+const MAX_SPEED = 0.5;
+const SMOOTHING = 2.0; // lerp factor — higher = snappier, lower = smoother
+const MIN_PAUSE = 1500; // ms
+const MAX_PAUSE = 4000;
+
+// Walk animation
+const WALK_CYCLE_SPEED = 6; // frames per second for walk cycle
 
 // --- Internal wandering state per agent ---
 interface WanderState {
@@ -44,6 +51,12 @@ interface WanderState {
   pauseUntil: number;
   /** Cached sprite pixel grid */
   sprite: (string | null)[][];
+  /** Pre-rendered sprite canvas (32x32) for fast drawImage */
+  spriteCanvas: OffscreenCanvas;
+  /** Walk animation phase accumulator */
+  walkTime: number;
+  /** Whether currently walking */
+  isWalking: boolean;
 }
 
 function isoToScreen(
@@ -164,28 +177,78 @@ function drawShadow(
   ctx.save();
   ctx.fillStyle = SHADOW_COLOR;
   ctx.beginPath();
-  ctx.ellipse(screenX, screenY + 2, 8, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(screenX, screenY + 4, 18, 7, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
 
+// Build an OffscreenCanvas from sprite data
+function buildSpriteCanvas(sprite: (string | null)[][]): OffscreenCanvas {
+  const oc = new OffscreenCanvas(SPRITE_SIZE, SPRITE_SIZE);
+  const octx = oc.getContext("2d")!;
+  for (let y = 0; y < SPRITE_SIZE; y++) {
+    for (let x = 0; x < SPRITE_SIZE; x++) {
+      const color = sprite[y][x];
+      if (color) {
+        octx.fillStyle = color;
+        octx.fillRect(x, y, 1, 1);
+      }
+    }
+  }
+  return oc;
+}
+
 function drawSprite(
   ctx: CanvasRenderingContext2D,
+  spriteCanvas: OffscreenCanvas,
   sprite: (string | null)[][],
   screenX: number,
   screenY: number,
+  walkFrame: number, // 0=standing, 1-3=walk cycle frames
 ) {
-  // Position so feet are at screenX, screenY.
-  // Sprite is 32x32. Feet are at bottom-center, so offset by (-16, -32).
-  const ox = Math.round(screenX - SPRITE_SIZE / 2);
-  const oy = Math.round(screenY - SPRITE_SIZE);
+  const rendered = SPRITE_SIZE * SPRITE_SCALE;
+  const ox = Math.round(screenX - rendered / 2);
+  const oy = Math.round(screenY - rendered);
+
+  if (walkFrame === 0) {
+    // Standing: use pre-rendered canvas for fast, crisp drawing
+    ctx.drawImage(spriteCanvas, ox, oy, rendered, rendered);
+    return;
+  }
+
+  // Walking: draw with leg animation pixel-by-pixel
+  const legTop = 22;
+  const legBottom = 28;
+  const spriteCx = 15;
 
   for (let y = 0; y < SPRITE_SIZE; y++) {
     for (let x = 0; x < SPRITE_SIZE; x++) {
       const color = sprite[y][x];
       if (color) {
+        let yOffset = 0;
+
+        // Leg animation
+        if (y >= legTop && y <= legBottom) {
+          const isLeftLeg = x < spriteCx;
+          if (walkFrame === 1) {
+            yOffset = isLeftLeg ? -1 : 1;
+          } else if (walkFrame === 3) {
+            yOffset = isLeftLeg ? 1 : -1;
+          }
+        }
+
+        // Body bob
+        if (y < legTop && (walkFrame === 1 || walkFrame === 3)) {
+          yOffset = -1;
+        }
+
         ctx.fillStyle = color;
-        ctx.fillRect(ox + x, oy + y, 1, 1);
+        ctx.fillRect(
+          ox + x * SPRITE_SCALE,
+          oy + (y + yOffset) * SPRITE_SCALE,
+          SPRITE_SCALE,
+          SPRITE_SCALE,
+        );
       }
     }
   }
@@ -222,6 +285,8 @@ export function AgentRoom({ agents }: AgentRoomProps) {
       if (!map.has(agent.id)) {
         const start = pickRandomTile();
         const target = pickRandomTile();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const spriteData = generateSpriteData(agent.spriteSeed as any, agent.role);
         map.set(agent.id, {
           gx: start.gx,
           gy: start.gy,
@@ -229,8 +294,10 @@ export function AgentRoom({ agents }: AgentRoomProps) {
           targetGy: target.gy,
           speed: randomSpeed(),
           pauseUntil: 0,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          sprite: generateSpriteData(agent.spriteSeed as any, agent.role),
+          sprite: spriteData,
+          spriteCanvas: buildSpriteCanvas(spriteData),
+          walkTime: 0,
+          isWalking: false,
         });
       }
     }
@@ -252,6 +319,7 @@ export function AgentRoom({ agents }: AgentRoomProps) {
         canvasWidth = entry.contentRect.width;
         canvas.width = canvasWidth;
         canvas.height = CANVAS_HEIGHT;
+        ctx.imageSmoothingEnabled = false;
       }
     });
 
@@ -261,6 +329,7 @@ export function AgentRoom({ agents }: AgentRoomProps) {
     }
     canvas.width = canvasWidth;
     canvas.height = CANVAS_HEIGHT;
+    ctx.imageSmoothingEnabled = false;
 
     const tick = (timestamp: number) => {
       if (!lastTimeRef.current) lastTimeRef.current = timestamp;
@@ -270,7 +339,11 @@ export function AgentRoom({ agents }: AgentRoomProps) {
       // Update wander states
       const map = wanderRef.current;
       for (const state of map.values()) {
-        if (timestamp < state.pauseUntil) continue;
+        if (timestamp < state.pauseUntil) {
+          state.isWalking = false;
+          state.walkTime = 0;
+          continue;
+        }
 
         const dx = state.targetGx - state.gx;
         const dy = state.targetGy - state.gy;
@@ -285,10 +358,15 @@ export function AgentRoom({ agents }: AgentRoomProps) {
           state.targetGx = next.gx;
           state.targetGy = next.gy;
           state.speed = randomSpeed();
+          state.isWalking = false;
+          state.walkTime = 0;
         } else {
-          const step = Math.min(state.speed * dt, dist);
-          state.gx += (dx / dist) * step;
-          state.gy += (dy / dist) * step;
+          // Smooth lerp: ease toward target, slow down as approaching
+          const lerpFactor = 1 - Math.exp(-SMOOTHING * state.speed * dt);
+          state.gx += dx * lerpFactor;
+          state.gy += dy * lerpFactor;
+          state.isWalking = true;
+          state.walkTime += dt;
         }
       }
 
@@ -297,7 +375,7 @@ export function AgentRoom({ agents }: AgentRoomProps) {
 
       const offsetX = canvasWidth / 2;
       // Push the floor down enough to show walls + some margin
-      const offsetY = WALL_HEIGHT + 40;
+      const offsetY = WALL_HEIGHT + 10;
 
       // Draw walls behind the floor
       drawWalls(ctx, offsetX, offsetY);
@@ -320,8 +398,12 @@ export function AgentRoom({ agents }: AgentRoomProps) {
           offsetX,
           offsetY,
         );
+        // Compute walk frame: 0=standing, 1-3=walk cycle
+        const walkFrame = state.isWalking
+          ? Math.floor(state.walkTime * WALK_CYCLE_SPEED) % 4
+          : 0;
         drawShadow(ctx, sx, sy);
-        drawSprite(ctx, state.sprite, sx, sy);
+        drawSprite(ctx, state.spriteCanvas, state.sprite, sx, sy, walkFrame);
       }
 
       rafRef.current = requestAnimationFrame(tick);
