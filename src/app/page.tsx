@@ -37,6 +37,8 @@ export default function Home() {
 
       <WalletConnectButton />
 
+      <p className="text-gray-600 text-xs font-mono mt-8">v1.0.0</p>
+
       {player && (
         <Link
           href="/dashboard"
