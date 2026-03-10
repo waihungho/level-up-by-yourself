@@ -35,6 +35,7 @@ export default function RootLayout({
           <UnifiedWalletProvider>
             <GameProvider>
               {children}
+              <div className="text-center text-gray-600 text-xs font-mono py-2">v1.0.0</div>
               <NavBar />
             </GameProvider>
           </UnifiedWalletProvider>

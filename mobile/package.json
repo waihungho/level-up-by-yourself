@@ -8,8 +8,8 @@
     "prebuild:android": "expo prebuild --platform android --clean",
     "ios": "expo run:ios",
     "build:dapp-store": "eas build --profile solana-dapp-store --platform android --local",
-    "dapp-store:create": "npx dapp-store create -k ~/.config/solana/level-up-by-youself.json -b https://mainnet.helius-rpc.com",
-    "dapp-store:publish": "npx dapp-store publish -k ~/.config/solana/level-up-by-youself.json -b https://mainnet.helius-rpc.com"
+    "dapp-store:create": "npx dapp-store create -k ~/.config/solana/level-up-by-yourself.json -b https://mainnet.helius-rpc.com",
+    "dapp-store:publish": "npx dapp-store publish -k ~/.config/solana/level-up-by-yourself.json -b https://mainnet.helius-rpc.com"
   },
   "dependencies": {
     "@solana-mobile/mobile-wallet-adapter-protocol": "^2.2.5",
