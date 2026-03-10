@@ -376,7 +376,7 @@ export async function getCompletedTasksToday(
 // ---------------------------------------------------------------------------
 export async function getGrowthLogs(
   agentId: string,
-  limit = 30
+  limit = 10
 ): Promise<GrowthLog[]> {
   const sb = getSupabase();
 
@@ -466,7 +466,7 @@ export async function saveBattleLog(log: BattleLog): Promise<void> {
 // ---------------------------------------------------------------------------
 export async function getBattleLogs(
   agentId: string,
-  limit = 20
+  limit = 10
 ): Promise<BattleLog[]> {
   const sb = getSupabase();
 
@@ -496,6 +496,44 @@ export async function getBattleLogs(
     .filter((l) => l.attackerId === agentId || l.defenderId === agentId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// getBattleLogsCount
+// ---------------------------------------------------------------------------
+export async function getBattleLogsCount(agentId: string): Promise<number> {
+  const sb = getSupabase();
+
+  if (sb) {
+    const { count, error } = await sb
+      .from("levelup_battle_logs")
+      .select("*", { count: "exact", head: true })
+      .or(`attacker_id.eq.${agentId},defender_id.eq.${agentId}`);
+    if (error) return 0;
+    return count ?? 0;
+  }
+
+  return localBattleLogs.filter(
+    (l) => l.attackerId === agentId || l.defenderId === agentId
+  ).length;
+}
+
+// ---------------------------------------------------------------------------
+// getGrowthLogsCount
+// ---------------------------------------------------------------------------
+export async function getGrowthLogsCount(agentId: string): Promise<number> {
+  const sb = getSupabase();
+
+  if (sb) {
+    const { count, error } = await sb
+      .from("levelup_growth_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("agent_id", agentId);
+    if (error) return 0;
+    return count ?? 0;
+  }
+
+  return localGrowthLogs.filter((g) => g.agentId === agentId).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -558,19 +596,20 @@ export async function getAllPlayers(): Promise<Player[]> {
 export async function getAgentFightsToday(
   agentId: string
 ): Promise<number> {
-  if (isRechargedToday(agentId)) return 0;
-
   const sb = getSupabase();
-  const todayStart = new Date();
-  todayStart.setUTCHours(0, 0, 0, 0);
-  const todayISO = todayStart.toISOString();
+  // Count fights since the last recharge (or since midnight if no recharge)
+  const sinceISO = getRechargeTimestamp(agentId) ?? (() => {
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    return todayStart.toISOString();
+  })();
 
   if (sb) {
     const { count, error } = await sb
       .from("levelup_battle_logs")
       .select("*", { count: "exact", head: true })
       .or(`attacker_id.eq.${agentId},defender_id.eq.${agentId}`)
-      .gte("created_at", todayISO);
+      .gte("created_at", sinceISO);
     if (error) return 0;
     return count ?? 0;
   }
@@ -579,24 +618,23 @@ export async function getAgentFightsToday(
   return localBattleLogs.filter(
     (l) =>
       (l.attackerId === agentId || l.defenderId === agentId) &&
-      l.createdAt >= todayISO
+      l.createdAt >= sinceISO
   ).length;
 }
 
 // ---------------------------------------------------------------------------
-// rechargeAgentFights — reset today's fight count for an agent
+// rechargeAgentFights — store timestamp so we only count fights after recharge
 // ---------------------------------------------------------------------------
-const rechargedAgents = new Set<string>();
+const rechargeTimestamps = new Map<string, string>();
 
 export async function rechargeAgentFights(agentId: string): Promise<void> {
   const todayKey = `${agentId}_${new Date().toISOString().slice(0, 10)}`;
-  rechargedAgents.add(todayKey);
+  rechargeTimestamps.set(todayKey, new Date().toISOString());
 }
 
-// Patch getAgentFightsToday to respect recharges
-function isRechargedToday(agentId: string): boolean {
+function getRechargeTimestamp(agentId: string): string | undefined {
   const todayKey = `${agentId}_${new Date().toISOString().slice(0, 10)}`;
-  return rechargedAgents.has(todayKey);
+  return rechargeTimestamps.get(todayKey);
 }
 
 // ---------------------------------------------------------------------------

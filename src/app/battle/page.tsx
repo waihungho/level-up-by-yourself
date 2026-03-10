@@ -242,18 +242,17 @@ export default function BattlePage() {
                 const canSelect = isSelected || selected.length < 2;
 
                 return (
-                  <button
+                  <div
                     key={agent.id}
                     onClick={() => {
                       if (disabled || (!canSelect && !isSelected)) return;
                       toggleAgent(agent.id);
                     }}
-                    disabled={disabled}
                     className={`border rounded-lg p-3 text-center transition-all duration-200 relative ${
                       disabled
-                        ? "border-gray-800 bg-gray-900/50 opacity-40 cursor-not-allowed"
+                        ? "border-gray-800 bg-gray-900/50 opacity-60"
                         : isSelected
-                        ? "border-purple-500 bg-purple-900/30 ring-1 ring-purple-500/50 scale-[1.03]"
+                        ? "border-purple-500 bg-purple-900/30 ring-1 ring-purple-500/50 scale-[1.03] cursor-pointer"
                         : "border-gray-700 bg-gray-900 hover:border-gray-500 cursor-pointer"
                     }`}
                   >
@@ -299,7 +298,7 @@ export default function BattlePage() {
                         {recharging === agent.id ? "Paying..." : `Recharge ${RECHARGE_COST_SOL} SOL`}
                       </button>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>

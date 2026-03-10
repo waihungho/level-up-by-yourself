@@ -2,7 +2,7 @@
 import type { GrowthLog } from "@/lib/types";
 import { DIMENSIONS } from "@/lib/constants";
 
-export function GrowthTimeline({ logs }: { logs: GrowthLog[] }) {
+export function GrowthTimeline({ logs, totalCount }: { logs: GrowthLog[]; totalCount: number }) {
   if (logs.length === 0) {
     return (
       <div className="text-center py-8">
@@ -13,6 +13,9 @@ export function GrowthTimeline({ logs }: { logs: GrowthLog[] }) {
 
   return (
     <div className="space-y-4">
+      <p className="font-mono text-xs text-gray-500">
+        Total: {totalCount} growth record{totalCount !== 1 ? "s" : ""} · Showing latest {logs.length}
+      </p>
       {logs.map((log, i) => {
         const changes = Object.entries(log.dimensionChanges).map(([dimId, delta]) => {
           const dim = DIMENSIONS.find((d) => d.id === Number(dimId));

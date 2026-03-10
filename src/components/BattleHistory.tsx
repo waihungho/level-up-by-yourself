@@ -2,7 +2,7 @@
 import type { BattleLog } from "@/lib/types";
 import { DIMENSIONS } from "@/lib/constants";
 
-export function BattleHistory({ logs, agentId }: { logs: BattleLog[]; agentId: string }) {
+export function BattleHistory({ logs, agentId, totalCount }: { logs: BattleLog[]; agentId: string; totalCount: number }) {
   if (logs.length === 0) {
     return (
       <div className="text-center py-8">
@@ -13,6 +13,9 @@ export function BattleHistory({ logs, agentId }: { logs: BattleLog[]; agentId: s
 
   return (
     <div className="space-y-4">
+      <p className="font-mono text-xs text-gray-500">
+        Total: {totalCount} battle{totalCount !== 1 ? "s" : ""} · Showing latest {logs.length}
+      </p>
       {logs.map((log) => {
         const isWinner = log.winnerId === agentId;
         const opponentId = log.attackerId === agentId ? log.defenderId : log.attackerId;

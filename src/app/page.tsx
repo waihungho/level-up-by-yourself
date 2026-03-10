@@ -1,10 +1,17 @@
 "use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import Link from "next/link";
 
 export default function Home() {
   const { player } = useGame();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (player) router.push("/dashboard");
+  }, [player, router]);
 
   return (
     <main className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-8">

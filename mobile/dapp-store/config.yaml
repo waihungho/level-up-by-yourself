@@ -8,9 +8,9 @@ app:
   address: '' # Fill after creating App NFT
   android_package: app.levelup.byyourself
   urls:
-    license_url: https://level-up-by-yourself.vercel.app/terms.html
-    copyright_url: https://level-up-by-yourself.vercel.app/copyright.html
-    privacy_policy_url: https://level-up-by-yourself.vercel.app/privacy.html
+    license_url: https://level-up-by-yourself.vercel.app/terms
+    copyright_url: https://level-up-by-yourself.vercel.app/copyright
+    privacy_policy_url: https://level-up-by-yourself.vercel.app/privacy
     website: https://level-up-by-yourself.vercel.app
   media:
     - purpose: icon
@@ -32,7 +32,7 @@ release:
       uri: ./assets/screenshot-4.png
   files:
     - purpose: install
-      uri: ../android/app/build/outputs/apk/release/app-release-signed.apk
+      uri: ../android/app/build/outputs/apk/release/app-release.apk
   catalog:
     en-US:
       name: Level Up by Yourself - AI Agent RPG on Solana
@@ -62,7 +62,7 @@ release:
         - Rankings leaderboard
       saga_features: ''
   android_details:
-    cert_fingerprint: '' # Fill after generating keystore
+    cert_fingerprint: '58:FF:23:A2:3C:B5:F2:E5:1A:06:BE:59:AA:54:38:4F:01:C9:C5:32:8C:39:B0:AF:89:32:9F:65:4E:9A:0E:B4'
     min_sdk: 24
     version: 1.0.0
     version_code: 1

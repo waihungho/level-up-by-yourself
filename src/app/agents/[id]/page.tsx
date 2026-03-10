@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
-import { getAgentWithDimensions, getGrowthLogs, getBattleLogs } from "@/lib/db";
+import { getAgentWithDimensions, getGrowthLogs, getBattleLogs, getBattleLogsCount, getGrowthLogsCount } from "@/lib/db";
 import { DimensionChart } from "@/components/DimensionChart";
 import { GrowthTimeline } from "@/components/GrowthTimeline";
 import { BattleHistory } from "@/components/BattleHistory";
@@ -23,6 +23,8 @@ export default function AgentDetailPage() {
   const [agent, setAgent] = useState<AgentWithDimensions | null>(null);
   const [logs, setLogs] = useState<GrowthLog[]>([]);
   const [battleLogs, setBattleLogs] = useState<BattleLog[]>([]);
+  const [battleCount, setBattleCount] = useState(0);
+  const [growthCount, setGrowthCount] = useState(0);
   const [loadingAgent, setLoadingAgent] = useState(true);
 
   useEffect(() => {
@@ -33,14 +35,18 @@ export default function AgentDetailPage() {
     async function load() {
       if (!id) return;
       setLoadingAgent(true);
-      const [a, l, bl] = await Promise.all([
+      const [a, l, bl, bc, gc] = await Promise.all([
         getAgentWithDimensions(id),
-        getGrowthLogs(id, 20),
+        getGrowthLogs(id),
         getBattleLogs(id),
+        getBattleLogsCount(id),
+        getGrowthLogsCount(id),
       ]);
       setAgent(a);
       setLogs(l);
       setBattleLogs(bl);
+      setBattleCount(bc);
+      setGrowthCount(gc);
       setLoadingAgent(false);
     }
     if (player) load();
@@ -101,13 +107,13 @@ export default function AgentDetailPage() {
       {/* Growth Timeline */}
       <div>
         <h2 className="text-lg font-mono font-bold mb-4">Growth Log</h2>
-        <GrowthTimeline logs={logs} />
+        <GrowthTimeline logs={logs} totalCount={growthCount} />
       </div>
 
       {/* Battle History */}
       <div>
         <h2 className="text-lg font-mono font-bold mb-4">Battle History</h2>
-        <BattleHistory logs={battleLogs} agentId={id} />
+        <BattleHistory logs={battleLogs} agentId={id} totalCount={battleCount} />
       </div>
     </main>
   );
