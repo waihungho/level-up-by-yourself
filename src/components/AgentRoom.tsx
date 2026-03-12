@@ -13,7 +13,7 @@ const TILE_H = 48;
 const GRID_SIZE = 8;
 const CANVAS_ASPECT = 0.72; // height = width * aspect
 const SPRITE_SIZE = 32;
-const SPRITE_SCALE = 6;
+const SPRITE_SCALE = 5;
 const WALL_HEIGHT = 96;
 
 // Movement
