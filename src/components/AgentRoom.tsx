@@ -11,7 +11,7 @@ import { GlowFilter } from "@pixi/filter-glow";
 const TILE_W = 96;
 const TILE_H = 48;
 const GRID_SIZE = 8;
-const CANVAS_HEIGHT = 340;
+const CANVAS_ASPECT = 0.72; // height = width * aspect
 const SPRITE_SIZE = 32;
 const SPRITE_SCALE = 4;
 const WALL_HEIGHT = 96;
@@ -168,7 +168,7 @@ interface SceneRefs {
   ambientParticles: Array<{ s: PIXI.Sprite; vx: number; vy: number; phase: number }>;
 }
 
-function buildScene(app: PIXI.Application, offsetX: number, offsetY: number): SceneRefs {
+function buildScene(app: PIXI.Application, offsetX: number, offsetY: number, canvasHeight: number): SceneRefs {
   const bgLayer = new PIXI.Container();
   const floorFxLayer = new PIXI.Container();
   const agentLayer = new PIXI.Container();
@@ -332,7 +332,7 @@ function buildScene(app: PIXI.Application, offsetX: number, offsetY: number): Sc
     const s = new PIXI.Sprite(particleTexture);
     s.anchor.set(0.5);
     s.x = Math.random() * app.renderer.width;
-    s.y = Math.random() * CANVAS_HEIGHT;
+    s.y = Math.random() * canvasHeight;
     s.scale.set(0.15 + Math.random() * 0.2);
     s.tint = Math.random() > 0.5 ? NEON_CYAN : NEON_PURPLE;
     s.alpha = 0.15 + Math.random() * 0.2;
@@ -357,7 +357,7 @@ function buildScene(app: PIXI.Application, offsetX: number, offsetY: number): Sc
       fill: isCyan ? NEON_CYAN : NEON_PURPLE,
     });
     t.x = Math.random() * app.renderer.width;
-    t.y = Math.random() * CANVAS_HEIGHT;
+    t.y = Math.random() * canvasHeight;
     t.alpha = 0.08 + Math.random() * 0.12;
     overlayLayer.addChild(t);
     dataRain.push({ text: t, vy: 0.3 + Math.random() * 0.8, phase: Math.random() * Math.PI * 2 });
@@ -366,7 +366,7 @@ function buildScene(app: PIXI.Application, offsetX: number, offsetY: number): Sc
   // === HUD ===
   const hud = new PIXI.Graphics();
   const W = app.renderer.width;
-  const H = CANVAS_HEIGHT;
+  const H = canvasHeight;
   const bLen = 20;
   hud.lineStyle(1.2, NEON_CYAN, 0.45);
   hud.moveTo(8, 8 + bLen); hud.lineTo(8, 8); hud.lineTo(8 + bLen, 8);
@@ -388,7 +388,7 @@ function buildScene(app: PIXI.Application, offsetX: number, offsetY: number): Sc
   // Scanlines
   const scanlines = new PIXI.Graphics();
   scanlines.beginFill(0x000000, 0.03);
-  for (let y = 0; y < CANVAS_HEIGHT; y += 2) scanlines.drawRect(0, y, app.renderer.width, 1);
+  for (let y = 0; y < canvasHeight; y += 2) scanlines.drawRect(0, y, app.renderer.width, 1);
   scanlines.endFill();
   overlayLayer.addChild(scanlines);
 
@@ -443,9 +443,10 @@ export function AgentRoom({ agents }: AgentRoomProps) {
     if (!container) return;
 
     const cw = container.clientWidth || 480;
+    const ch = Math.round(cw * CANVAS_ASPECT);
     const app = new PIXI.Application({
       width: cw,
-      height: CANVAS_HEIGHT,
+      height: ch,
       backgroundColor: BG_COLOR,
       antialias: false,
       resolution: 1,
@@ -454,7 +455,7 @@ export function AgentRoom({ agents }: AgentRoomProps) {
 
     const canvas = app.view as HTMLCanvasElement;
     canvas.style.width = "100%";
-    canvas.style.height = `${CANVAS_HEIGHT}px`;
+    canvas.style.height = `${ch}px`;
     canvas.style.imageRendering = "pixelated";
     container.appendChild(canvas);
 
@@ -468,7 +469,7 @@ export function AgentRoom({ agents }: AgentRoomProps) {
       app.stage.scale.set(scale);
     }
 
-    const scene = buildScene(app, offsetX, offsetY);
+    const scene = buildScene(app, offsetX, offsetY, ch);
     sceneRef.current = scene;
 
     const cx = isoToScreen(GRID_SIZE / 2, GRID_SIZE / 2, offsetX, offsetY).sx;
@@ -477,7 +478,9 @@ export function AgentRoom({ agents }: AgentRoomProps) {
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const newW = entry.contentRect.width;
-        app.renderer.resize(newW, CANVAS_HEIGHT);
+        const newH = Math.round(newW * CANVAS_ASPECT);
+        app.renderer.resize(newW, newH);
+        (app.view as HTMLCanvasElement).style.height = `${newH}px`;
         scene.hudText.timer.x = newW - 14;
       }
     });
@@ -529,7 +532,7 @@ export function AgentRoom({ agents }: AgentRoomProps) {
       for (const p of scene.dataRain) {
         p.text.y += p.vy * dt * 30;
         p.text.alpha = 0.07 + 0.06 * Math.sin(pulse * 0.6 + p.phase);
-        if (p.text.y > CANVAS_HEIGHT) { p.text.y = -8; p.text.x = Math.random() * W; }
+        if (p.text.y > app.renderer.height) { p.text.y = -8; p.text.x = Math.random() * W; }
       }
 
       // Ambient embers
@@ -537,7 +540,7 @@ export function AgentRoom({ agents }: AgentRoomProps) {
         p.s.x += (p.vx + Math.sin(pulse * 0.2 + p.phase) * 3) * dt;
         p.s.y += p.vy * dt;
         p.s.alpha = 0.15 + 0.1 * Math.sin(pulse * 0.5 + p.phase);
-        if (p.s.y < -8) { p.s.y = CANVAS_HEIGHT + 4; p.s.x = Math.random() * W; }
+        if (p.s.y < -8) { p.s.y = app.renderer.height + 4; p.s.x = Math.random() * W; }
         if (p.s.x < 0) p.s.x = W;
         if (p.s.x > W) p.s.x = 0;
       }
@@ -710,7 +713,7 @@ export function AgentRoom({ agents }: AgentRoomProps) {
   return (
     <div
       ref={containerRef}
-      style={{ width: "100%", height: CANVAS_HEIGHT, overflow: "hidden", display: "block" }}
+      style={{ width: "100%", overflow: "hidden", display: "block" }}
     />
   );
 }
