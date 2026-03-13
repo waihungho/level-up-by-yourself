@@ -82,6 +82,7 @@ export function GameWebView({
 
             const signatures = await wallet.signAndSendTransactions({
               transactions: [transaction],
+              commitment: "confirmed",
             });
 
             return signatures[0];

@@ -29,11 +29,11 @@ export async function confirmTransaction(
   connection: Connection,
   signature: string,
   onProgress?: (check: number, total: number) => void,
-  maxChecks = 4
+  maxChecks = 10
 ): Promise<boolean> {
   for (let i = 0; i < maxChecks; i++) {
     if (onProgress) onProgress(i + 1, maxChecks);
-    await new Promise((r) => setTimeout(r, 8000));
+    await new Promise((r) => setTimeout(r, 4000));
     try {
       const status = await connection.getSignatureStatus(signature);
       if (status.value?.err) return false;

@@ -62,10 +62,10 @@ release:
         - Rankings leaderboard
       saga_features: ''
   android_details:
-    cert_fingerprint: fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c
+    cert_fingerprint: 0a2f223b76b3645c86ddba599d4bcd6e62e1b6854f6ccea19632593c0d2759c2
     min_sdk: 24
     version: 1.0.0
-    version_code: 1
+    version_code: 2
     locales:
       - en-US
 solana_mobile_dapp_publisher_portal:
