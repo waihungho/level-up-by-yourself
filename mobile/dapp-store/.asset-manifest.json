@@ -1,39 +1,45 @@
 {
+  "schema_version": "0.1",
   "assets": {
     "./assets/icon-512.png": {
       "path": "./assets/icon-512.png",
       "sha256": "ksvxAc3NyS2+8VhhKby9E4BXV4pLFgJES/tuujZ9eM8=",
-      "uri": "https://arweave.net/pT-SSDXtdJIOkW0amMVjL0_2DPLs_xvpqbGW3wXuTVY"
+      "uri": "https://dappstorecontent.com/pT-SSDXtdJIOkW0amMVjL0_2DPLs_xvpqbGW3wXuTVY"
     },
     "../android/app/build/outputs/apk/release/app-release.apk": {
       "path": "../android/app/build/outputs/apk/release/app-release.apk",
-      "sha256": "+oDizKuHUdmZk7bwL8KKjS861sLZPsRIuUAI67ny99I=",
-      "uri": "https://arweave.net/uilmHt7HcGDKqnggUcGsqRsUeiIuI2YUbxu0vlKyJ84"
+      "sha256": "vho+ycaj3hblm48GlVdgGlfCI2nlAc+gY4NAKZAz7C0=",
+      "uri": "https://dappstorecontent.com/Mw3QqaT3lfz0mJhk5lGJ8OAZug8mUzDCNHG75mTGmh8"
     },
     "./assets/banner-1200x600.png": {
       "path": "./assets/banner-1200x600.png",
       "sha256": "yVvwnC3HxJN/L6jVSzq+oRxUEVfyvcFM42lwhCawFnA=",
-      "uri": "https://arweave.net/MKbG6A_BYHh1bdA-R3J8YsaFcyhMYf0a705ZiaO-23k"
+      "uri": "https://dappstorecontent.com/MKbG6A_BYHh1bdA-R3J8YsaFcyhMYf0a705ZiaO-23k"
     },
     "./assets/screenshot-1.png": {
       "path": "./assets/screenshot-1.png",
       "sha256": "5okWQjm4Vj7TtMAkeD3kBDeICH/P156nuqX7YXCelIw=",
-      "uri": "https://arweave.net/QDCfIjiz5xTI8nLgULeqD4M49LTNMtilNH8zxd1gv7w"
+      "uri": "https://dappstorecontent.com/QDCfIjiz5xTI8nLgULeqD4M49LTNMtilNH8zxd1gv7w"
     },
     "./assets/screenshot-2.png": {
       "path": "./assets/screenshot-2.png",
       "sha256": "bJF3E3s0ARh45Gf5I21LYCeV0SyCZgsj+T+bX+snTQ0=",
-      "uri": "https://arweave.net/kYXdu6Gm9ykn7scerhT0jJW0W4R-Ng4svZiqPEwHPBE"
+      "uri": "https://dappstorecontent.com/kYXdu6Gm9ykn7scerhT0jJW0W4R-Ng4svZiqPEwHPBE"
     },
     "./assets/screenshot-3.png": {
       "path": "./assets/screenshot-3.png",
       "sha256": "37r1j45yyYw9DT4f8c2hpMrNd8uStYTzdl4+KsyQ0dU=",
-      "uri": "https://arweave.net/WchxfXFpF6j89UMejqC12CLsEuZHubkoOIDRGkOTGUU"
+      "uri": "https://dappstorecontent.com/WchxfXFpF6j89UMejqC12CLsEuZHubkoOIDRGkOTGUU"
     },
     "./assets/screenshot-4.png": {
       "path": "./assets/screenshot-4.png",
       "sha256": "tPZaizh6NoD3AaeFoeud1ps/CetIT/CNuw0Jgl93iY8=",
-      "uri": "https://arweave.net/1NYOQHATUOq6-tJSsSGK5a91wWAxTlobwpRwZuqKTt8"
+      "uri": "https://dappstorecontent.com/1NYOQHATUOq6-tJSsSGK5a91wWAxTlobwpRwZuqKTt8"
+    },
+    "./assets/feature-1200x1200.png": {
+      "path": "./assets/feature-1200x1200.png",
+      "sha256": "LPahUjQlQo+xIu0uhIY76KqpoXJPUcfXsshib14YuUI=",
+      "uri": "https://dappstorecontent.com/F796eSN09gbXzvOtzuOEHNzDfN-YiOhuEtgBGHl9apA"
     }
   }
 }

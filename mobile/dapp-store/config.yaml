@@ -16,12 +16,14 @@ app:
     - purpose: icon
       uri: ./assets/icon-512.png
 release:
-  address: 23vKjJSqmfdLd2wWd8FBsrYmzMgZoEMxYhxejWbv16BQ
+  address: BU2v8xkbMZeCbuq4ToS3G8MA9BTGL6SZgT2V7GLmV6Ja
   media:
     - purpose: icon
       uri: ./assets/icon-512.png
     - purpose: banner
       uri: ./assets/banner-1200x600.png
+    - purpose: feature
+      uri: ./assets/feature-1200x1200.png
     - purpose: screenshot
       uri: ./assets/screenshot-1.png
     - purpose: screenshot
@@ -54,12 +56,10 @@ release:
         - Seeker Task missions for bonus rewards
         - Powered by Solana for fast, low-cost transactions
       new_in_version: |
-        v1.0.0 Build 1
-        - Initial release
-        - Agent summoning with cooldown system
-        - Turn-based battle system
-        - Daily tasks and growth tracking
-        - Rankings leaderboard
+        v1.0.0 Build 2
+        - Added feature graphic for dApp Store
+        - Optimized APK for Seeker (arm64-v8a only)
+        - Performance and stability improvements
       saga_features: ''
   android_details:
     cert_fingerprint: 0a2f223b76b3645c86ddba599d4bcd6e62e1b6854f6ccea19632593c0d2759c2
@@ -81,8 +81,8 @@ solana_mobile_dapp_publisher_portal:
     8. Try "Seeker Task" from the dashboard for bonus missions
   alpha_testers: []
 lastSubmittedVersionOnChain:
-  address: 23vKjJSqmfdLd2wWd8FBsrYmzMgZoEMxYhxejWbv16BQ
-  version_code: 1
-  apk_hash: +oDizKuHUdmZk7bwL8KKjS861sLZPsRIuUAI67ny99I=
+  address: BU2v8xkbMZeCbuq4ToS3G8MA9BTGL6SZgT2V7GLmV6Ja
+  version_code: 2
+  apk_hash: vho+ycaj3hblm48GlVdgGlfCI2nlAc+gY4NAKZAz7C0=
 lastUpdatedVersionOnStore:
-  address: 23vKjJSqmfdLd2wWd8FBsrYmzMgZoEMxYhxejWbv16BQ
+  address: BU2v8xkbMZeCbuq4ToS3G8MA9BTGL6SZgT2V7GLmV6Ja
