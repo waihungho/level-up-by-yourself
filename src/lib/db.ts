@@ -543,25 +543,25 @@ export async function getAllAgentsWithDimensions(): Promise<AgentWithDimensions[
   const sb = getSupabase();
 
   if (sb) {
-    const { data: agentRows, error: agentError } = await sb
-      .from("levelup_agents")
-      .select("*");
+    const [{ data: agentRows, error: agentError }, { data: allDimRows }] =
+      await Promise.all([
+        sb.from("levelup_agents").select("*"),
+        sb.from("levelup_agent_dimensions").select("*"),
+      ]);
 
     if (agentError || !agentRows) return [];
 
-    const agents: AgentWithDimensions[] = [];
-    for (const row of agentRows) {
-      const { data: dimRows } = await sb
-        .from("levelup_agent_dimensions")
-        .select("*")
-        .eq("agent_id", row.id);
-
-      agents.push({
-        ...mapAgentRow(row),
-        dimensions: (dimRows ?? []).map(mapAgentDimensionRow),
-      });
+    const dimsByAgent = new Map<string, typeof allDimRows>();
+    for (const row of allDimRows ?? []) {
+      const list = dimsByAgent.get(row.agent_id) ?? [];
+      list.push(row);
+      dimsByAgent.set(row.agent_id, list);
     }
-    return agents;
+
+    return agentRows.map((row) => ({
+      ...mapAgentRow(row),
+      dimensions: (dimsByAgent.get(row.id) ?? []).map(mapAgentDimensionRow),
+    }));
   }
 
   // Demo mode
