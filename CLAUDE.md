@@ -51,3 +51,17 @@ The dApp Store rejects APKs signed with the debug keystore ("dApp must be a prod
 - New submissions: 2-4 weeks (can be slow, ping Solana Mobile Discord `#dapp-store`)
 - Updates: 1-2 business days
 - No automated status notifications — check proactively
+
+## Daily Agent Growth
+
+Run manually from Claude Code whenever needed (once per day):
+
+```bash
+pnpm daily-growth
+```
+
+- Scans all agents in Supabase and applies passive dimension growth
+- Growth is role-weighted: `medieval` agents grow Physical faster, `future` grows Technical, `modern` grows Mental
+- Growth amount scales with the player's `ability_score` via `GROWTH_TIERS` multiplier
+- Idempotent — safe to re-run, agents already grown today are skipped
+- Script: `scripts/daily-growth.ts` | Growth logic: `scripts/daily-growth.ts:calculateGrowth`

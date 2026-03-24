@@ -678,6 +678,42 @@ export async function recordSeekerTask(
   });
 }
 
+// ---------------------------------------------------------------------------
+// saveGrowthLog
+// ---------------------------------------------------------------------------
+export async function saveGrowthLog(log: GrowthLog): Promise<void> {
+  const sb = getSupabase();
+
+  if (sb) {
+    const { error } = await sb.from("levelup_growth_logs").insert({
+      agent_id: log.agentId,
+      date: log.date,
+      dimension_changes: log.dimensionChanges,
+      narrative: log.narrative ?? null,
+    });
+    if (error) throw error;
+
+    for (const [dimIdStr, delta] of Object.entries(log.dimensionChanges)) {
+      await sb.rpc("levelup_increment_dimension", {
+        p_agent_id: log.agentId,
+        p_dimension_id: Number(dimIdStr),
+        p_delta: delta,
+      });
+    }
+    return;
+  }
+
+  // Demo mode
+  localGrowthLogs.push(log);
+  for (const [dimIdStr, delta] of Object.entries(log.dimensionChanges)) {
+    const dimId = Number(dimIdStr);
+    const dim = localDimensions.find(
+      (d) => d.agentId === log.agentId && d.dimensionId === dimId
+    );
+    if (dim) dim.value += delta;
+  }
+}
+
 export async function getSeekerTaskCount(playerId: string): Promise<number> {
   const sb = getSupabase();
 

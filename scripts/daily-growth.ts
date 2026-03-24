@@ -30,56 +30,21 @@ export function calculateGrowth(
   return changes;
 }
 
-// --- Main cron function (uses Supabase + Anthropic) ---
-
-async function generateNarrative(
-  anthropicModule: any,
-  agent: { name: string; role: string; roleTitle: string; character: string; objective: string },
-  changes: Record<number, number>
-): Promise<string> {
-  const grownDims = Object.entries(changes)
-    .map(([id, delta]) => {
-      const dim = DIMENSIONS.find((d) => d.id === Number(id));
-      return `${dim?.name} +${delta}`;
-    })
-    .join(", ");
-
-  const Anthropic = anthropicModule.default || anthropicModule;
-  const client = new Anthropic();
-
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 150,
-    messages: [
-      {
-        role: "user",
-        content: `Write a 1-2 sentence narrative for an agent's daily growth.
-Agent: ${agent.name} (${agent.roleTitle}, ${agent.role})
-Character: ${agent.character}
-Objective: ${agent.objective}
-Today's growth: ${grownDims}
-Write in third person, atmospheric, brief.`,
-      },
-    ],
-  });
-
-  return response.content[0].type === "text" ? response.content[0].text : "";
-}
+// --- Main function ---
 
 export async function runDailyGrowth() {
-  // Dynamic imports for Node.js modules that aren't needed for testing
   const { createClient } = await import("@supabase/supabase-js");
-  const anthropicModule = await import("@anthropic-ai/sdk");
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY");
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
     process.exit(1);
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  const today = new Date().toISOString().split("T")[0];
 
   // Fetch all agents with player ability scores
   const { data: agents, error } = await supabase
@@ -97,19 +62,32 @@ export async function runDailyGrowth() {
     return;
   }
 
-  console.log(`Processing ${agents.length} agents...`);
+  // Find agents already grown today
+  const { data: existingLogs } = await supabase
+    .from("levelup_growth_logs")
+    .select("agent_id")
+    .eq("date", today);
+  const alreadyGrown = new Set((existingLogs ?? []).map((r: any) => r.agent_id));
+
+  console.log(`Processing ${agents.length} agents (${alreadyGrown.size} already done today)...`);
+
+  let grown = 0;
+  let skipped = 0;
 
   for (const agent of agents) {
+    if (alreadyGrown.has(agent.id)) {
+      skipped++;
+      continue;
+    }
+
     const multiplier = getGrowthMultiplier(agent.levelup_players.ability_score);
     const changes = calculateGrowth(agent.role, multiplier);
 
     if (Object.keys(changes).length === 0) {
-      console.log(`${agent.name}: no growth today`);
+      console.log(`  ${agent.name}: no growth today`);
+      skipped++;
       continue;
     }
-
-    // Generate narrative
-    const narrative = await generateNarrative(anthropicModule, agent, changes);
 
     // Update dimensions
     for (const [dimId, delta] of Object.entries(changes)) {
@@ -121,26 +99,43 @@ export async function runDailyGrowth() {
     }
 
     // Log growth
-    await supabase.from("levelup_growth_logs").upsert({
+    const { error: logError } = await supabase.from("levelup_growth_logs").insert({
       agent_id: agent.id,
-      date: new Date().toISOString().split("T")[0],
+      date: today,
       dimension_changes: changes,
-      narrative,
+      narrative: null,
     });
 
-    console.log(`${agent.name}: ${Object.keys(changes).length} dimensions grew`);
+    if (logError) {
+      console.error(`  ${agent.name}: failed to save log -`, logError.message);
+      continue;
+    }
+
+    const dimSummary = Object.entries(changes)
+      .map(([id, delta]) => {
+        const dim = DIMENSIONS.find((d) => d.id === Number(id));
+        return `${dim?.name} +${delta}`;
+      })
+      .join(", ");
+    console.log(`  ✓ ${agent.name}: ${dimSummary}`);
+    grown++;
   }
 
-  console.log("Daily growth complete!");
+  console.log(`\nDone. ${grown} grown, ${skipped} skipped.`);
 }
 
 // Run if called directly
-const isMainModule = typeof process !== "undefined" && process.argv[1] &&
-  (process.argv[1].endsWith("daily-growth.ts") || process.argv[1].endsWith("daily-growth.js"));
+const isMainModule =
+  typeof process !== "undefined" &&
+  process.argv[1] &&
+  (process.argv[1].endsWith("daily-growth.ts") ||
+    process.argv[1].endsWith("daily-growth.js"));
 
 if (isMainModule) {
-  runDailyGrowth().then(() => process.exit(0)).catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+  runDailyGrowth()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }
