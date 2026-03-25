@@ -28,7 +28,7 @@ Add async PvP battles to the Battle Arena. A player selects one of their agents,
 ALTER TABLE levelup_battle_logs ADD COLUMN pvp boolean NOT NULL DEFAULT false;
 ```
 
-This distinguishes PvP battles from training battles in fight-count queries. The existing `getAgentFightsToday` continues counting only training fights (`pvp = false`). A new `getPvpFightsToday` counts only PvP fights (`pvp = true`).
+This distinguishes PvP battles from training battles in fight-count queries. The existing `getAgentFightsToday` must be updated to add a `pvp = false` filter (Supabase: `.eq("pvp", false)`; demo mode: filter `localBattleLogs` to exclude `pvp: true` entries) so PvP battles are not counted against the training limit. A new `getPvpFightsToday` counts only PvP fights (`pvp = true`).
 
 ### 2. New table `levelup_pvp_stats`
 
@@ -71,7 +71,7 @@ One row per agent, upserted after each PvP battle. Drives the ranking display.
 1. Parse and validate `agentId` + `walletAddress` from request body
 2. Look up the player by `walletAddress`; verify agent's `player_id` matches → 403 if not
 3. Call `getPvpFightsToday(agentId)`; reject with 429 if ≥ 3
-4. Fetch all agents from other players (`player_id != requestingPlayerId`); pick one at random → 409 if none
+4. Fetch all agents from other players (`player_id != requestingPlayerId`); pick one at random → 409 if none. Repeat fights against the same opponent are allowed — no deduplication required.
 5. Fetch full agent-with-dimensions for both attacker and opponent
 6. Call `resolveBattle(attacker, opponent)` (existing engine, unchanged)
 7. Call `savePvpBattleLog(log)` — saves to `levelup_battle_logs` with `pvp: true`, applies dimension growth via `levelup_increment_dimension` RPC
@@ -82,25 +82,43 @@ One row per agent, upserted after each PvP battle. Drives the ranking display.
 
 ## New DB Functions (`src/lib/db.ts`)
 
+All new functions follow the same dual-path pattern as existing ones: Supabase when configured, in-memory fallback otherwise. Add the following in-memory stores alongside the existing local arrays:
+```ts
+let localPvpBattleLogs: BattleLog[] = [];  // pvp-only mirror
+let localPvpStats: PvpStats[] = [];
+```
+
 ### `getPvpFightsToday(agentId: string): Promise<number>`
-Counts rows in `levelup_battle_logs` where agent is attacker or defender, `pvp = true`, and `created_at >= today midnight UTC`. Mirrors `getAgentFightsToday` with the `pvp` filter.
+Counts rows in `levelup_battle_logs` where agent is attacker or defender, `pvp = true`, and `created_at >= today midnight UTC`.
+
+**Important:** Unlike `getAgentFightsToday`, this function always uses midnight UTC as the cutoff — PvP recharge is out of scope, so there is no recharge timestamp to check. Do not use `getRechargeTimestamp` here.
+
+Demo mode: count from `localPvpBattleLogs` where agent matches and `createdAt >= today midnight`.
 
 ### `savePvpBattleLog(log: BattleLog): Promise<void>`
 Same as `saveBattleLog` but inserts with `pvp: true`. Applies dimension growth for both agents via `levelup_increment_dimension` RPC.
+
+Demo mode: push to `localPvpBattleLogs`; apply dimension growth to `localDimensions` (same as demo path in `saveBattleLog`).
+
+**Note on atomicity:** `savePvpBattleLog` and `updatePvpStats` are called sequentially in the route handler, not in a transaction. If `updatePvpStats` fails after `savePvpBattleLog` succeeds, the fight is counted and growth is applied but the W/L record is not updated. This is an accepted risk for this casual game — no rollback is required.
 
 ### `updatePvpStats(winnerId: string, loserId: string): Promise<void>`
 Upserts `levelup_pvp_stats`:
 - Winner: `wins += 1`
 - Loser: `losses += 1`
 
-Uses Supabase upsert with `on_conflict: agent_id`.
+Uses Supabase upsert with `onConflict: 'agent_id'` and `ignoreDuplicates: false`.
+
+Demo mode: find or create entry in `localPvpStats` and increment.
 
 ### `getPvpStatsForAgents(agentIds: string[]): Promise<Record<string, PvpStats>>`
-Bulk fetch of `levelup_pvp_stats` rows for a list of agent IDs. Returns a map `{ [agentId]: { wins, losses } }`. Used by the rank page to load all stats in one query.
+Bulk fetch of `levelup_pvp_stats` rows for a list of agent IDs. Returns a map `{ [agentId]: { wins, losses } }`. Agent IDs with no row return `{ agentId, wins: 0, losses: 0 }`.
+
+Demo mode: filter `localPvpStats`; return zeros for missing entries.
 
 ---
 
-## New Type (`src/lib/types.ts`)
+## New Types (`src/lib/types.ts`)
 
 ```ts
 export interface PvpStats {
@@ -109,6 +127,17 @@ export interface PvpStats {
   losses: number;
 }
 ```
+
+Also add `pvp?: boolean` to `BattleLog` so the type reflects what is stored:
+
+```ts
+export interface BattleLog {
+  // ... existing fields ...
+  pvp?: boolean;  // true for PvP battles, undefined/false for training
+}
+```
+
+`savePvpBattleLog` passes `pvp: true` when inserting. Existing `saveBattleLog` (training) does not set this field — the DB default of `false` applies.
 
 ---
 
@@ -145,10 +174,17 @@ Load `levelup_pvp_stats` for all listed agents in one bulk query. Add a `W-L` co
 |------|--------|
 | Supabase (migration) | Add `pvp` column to `levelup_battle_logs`; create `levelup_pvp_stats` table |
 | `src/lib/types.ts` | Add `PvpStats` interface |
-| `src/lib/db.ts` | Add `getPvpFightsToday`, `savePvpBattleLog`, `updatePvpStats`, `getPvpStatsForAgents` |
+| `src/lib/db.ts` | Update `getAgentFightsToday` to filter `pvp = false`; add `getPvpFightsToday`, `savePvpBattleLog`, `updatePvpStats`, `getPvpStatsForAgents` |
 | `src/app/api/pvp/battle/route.ts` | New POST route handler |
 | `src/app/battle/page.tsx` | Replace PvP stub with functional section |
 | `src/app/rank/page.tsx` | Add W-L column using bulk pvp stats fetch |
+
+---
+
+## Known Accepted Risks
+
+- **No signature verification on `walletAddress`:** The route trusts the client-supplied wallet address for ownership checks, consistent with all other endpoints in this app. A malicious client could spoof another wallet and fight as their agents. Acceptable for this game's threat model.
+- **No fight-limit race condition guard:** Two concurrent requests for the same agent could both pass the `getPvpFightsToday < 3` check before either saves. Acceptable for this use case — the daily limit is a soft cap, not a hard security boundary.
 
 ---
 
