@@ -412,7 +412,7 @@ export default function BattlePage() {
               disabled={!pvpSelected || pvpLoading || (pvpFightsToday[pvpSelected ?? ""] ?? 0) >= MAX_PVP_FIGHTS}
               className="px-6 py-2.5 bg-gradient-to-r from-red-700 to-red-500 hover:from-red-600 hover:to-red-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-mono font-bold text-sm rounded-lg transition-all"
             >
-              {pvpLoading ? "Searching..." : "Find Opponent ⚔"}
+              {pvpLoading ? "Searching..." : "Find Opponent and Fight ⚔"}
             </button>
           </div>
         </div>
