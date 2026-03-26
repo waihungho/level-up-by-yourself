@@ -167,7 +167,8 @@ export default function BattlePage() {
   }
 
   async function startPvpBattle() {
-    if (!pvpSelected || !publicKey) return;
+    const selectedId = pvpSelected;
+    if (!selectedId || !publicKey) return;
     setPvpLoading(true);
     setPvpError(null);
     try {
@@ -175,7 +176,7 @@ export default function BattlePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          agentId: pvpSelected,
+          agentId: selectedId,
           walletAddress: publicKey.toBase58(),
         }),
       });
@@ -183,10 +184,13 @@ export default function BattlePage() {
       if (!res.ok) {
         if (data.error === "fight_limit_reached") {
           setPvpError("Your agent has used all 3 PvP fights today.");
+          setPvpSelected(null);
         } else if (data.error === "no_opponent") {
           setPvpError("No opponents available yet. Check back soon!");
+          setPvpSelected(null);
         } else {
           setPvpError("Something went wrong. Please try again.");
+          setPvpSelected(null);
         }
         return;
       }
@@ -195,13 +199,14 @@ export default function BattlePage() {
       setPvpAttacker(data.attackerAgent);
       setPvpFightsToday((prev) => ({
         ...prev,
-        [pvpSelected]: (prev[pvpSelected] ?? 0) + 1,
+        [selectedId]: (prev[selectedId] ?? 0) + 1,
       }));
-      const updatedStats = await getPvpStatsForAgents([pvpSelected]);
-      setPvpMyStats(updatedStats[pvpSelected] ?? null);
+      const updatedStats = await getPvpStatsForAgents([selectedId]);
+      setPvpMyStats(updatedStats[selectedId] ?? null);
       setPvpPhase("battle");
     } catch {
       setPvpError("Network error. Please try again.");
+      setPvpSelected(null);
     } finally {
       setPvpLoading(false);
     }
@@ -237,8 +242,6 @@ export default function BattlePage() {
     setRecharging(null);
   }
 
-  if (loading || !player) return null;
-
   function renderGrowth(growth: Record<number, number>, agentName: string) {
     const entries = Object.entries(growth);
     if (entries.length === 0) return null;
@@ -262,10 +265,12 @@ export default function BattlePage() {
     );
   }
 
+  if (loading || !player) return null;
+
   // --------------------------------------------------
   // PvP Battle Phase
   // --------------------------------------------------
-  if (pvpPhase === "battle" && pvpBattleLog && pvpOpponent && pvpAttacker) {
+  if (pvpPhase === "battle" && pvpBattleLog && pvpOpponent && pvpAttacker && phase === "select") {
     const myAgentId = pvpBattleLog.attackerId;
     const didWin = pvpBattleLog.winnerId === myAgentId;
 
