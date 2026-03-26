@@ -10,14 +10,17 @@ import {
   saveBattleLog,
   getAgentFightsToday,
   rechargeAgentFights,
+  getPvpFightsToday,
+  getPvpStatsForAgents,
 } from "@/lib/db";
 import { resolveBattle } from "@/lib/battle-engine";
 import { createPaymentTransaction, confirmTransaction } from "@/lib/sol-payment";
 import { DIMENSIONS } from "@/lib/constants";
-import type { AgentWithDimensions, BattleLog } from "@/lib/types";
+import type { AgentWithDimensions, BattleLog, PvpStats } from "@/lib/types";
 import Link from "next/link";
 
 const MAX_FIGHTS_PER_DAY = 3;
+const MAX_PVP_FIGHTS = 3;
 const RECHARGE_COST_SOL = 0.05;
 
 function getTimeUntilMidnight(): string {
@@ -62,6 +65,18 @@ export default function BattlePage() {
   const [defenderFull, setDefenderFull] = useState<AgentWithDimensions | null>(null);
   const [resetTimer, setResetTimer] = useState(getTimeUntilMidnight());
 
+  // PvP state
+  const [pvpSelected, setPvpSelected] = useState<string | null>(null);
+  const [pvpFightsToday, setPvpFightsToday] = useState<Record<string, number>>({});
+  const [pvpLoading, setPvpLoading] = useState(false);
+  const [pvpError, setPvpError] = useState<string | null>(null);
+  const [pvpBattleLog, setPvpBattleLog] = useState<BattleLog | null>(null);
+  const [pvpOpponent, setPvpOpponent] = useState<AgentWithDimensions | null>(null);
+  const [pvpAttacker, setPvpAttacker] = useState<AgentWithDimensions | null>(null);
+  const [pvpPhase, setPvpPhase] = useState<"select" | "battle">("select");
+  const [pvpPlaybackDone, setPvpPlaybackDone] = useState(false);
+  const [pvpMyStats, setPvpMyStats] = useState<PvpStats | null>(null);
+
   useEffect(() => {
     const interval = setInterval(() => setResetTimer(getTimeUntilMidnight()), 1000);
     return () => clearInterval(interval);
@@ -83,6 +98,12 @@ export default function BattlePage() {
       }
       setAllAgentsFull(fulls);
       setFightsToday(counts);
+
+      const pvpCounts: Record<string, number> = {};
+      for (const agent of agents) {
+        pvpCounts[agent.id] = await getPvpFightsToday(agent.id);
+      }
+      setPvpFightsToday(pvpCounts);
     }
     if (agents.length > 0) loadAll();
   }, [agents]);
@@ -145,6 +166,58 @@ export default function BattlePage() {
     })();
   }
 
+  async function startPvpBattle() {
+    if (!pvpSelected || !publicKey) return;
+    setPvpLoading(true);
+    setPvpError(null);
+    try {
+      const res = await fetch("/api/pvp/battle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId: pvpSelected,
+          walletAddress: publicKey.toBase58(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === "fight_limit_reached") {
+          setPvpError("Your agent has used all 3 PvP fights today.");
+        } else if (data.error === "no_opponent") {
+          setPvpError("No opponents available yet. Check back soon!");
+        } else {
+          setPvpError("Something went wrong. Please try again.");
+        }
+        return;
+      }
+      setPvpBattleLog(data.battleLog);
+      setPvpOpponent(data.opponentAgent);
+      setPvpAttacker(data.attackerAgent);
+      setPvpFightsToday((prev) => ({
+        ...prev,
+        [pvpSelected]: (prev[pvpSelected] ?? 0) + 1,
+      }));
+      const updatedStats = await getPvpStatsForAgents([pvpSelected]);
+      setPvpMyStats(updatedStats[pvpSelected] ?? null);
+      setPvpPhase("battle");
+    } catch {
+      setPvpError("Network error. Please try again.");
+    } finally {
+      setPvpLoading(false);
+    }
+  }
+
+  function resetPvp() {
+    setPvpPhase("select");
+    setPvpSelected(null);
+    setPvpBattleLog(null);
+    setPvpOpponent(null);
+    setPvpAttacker(null);
+    setPvpMyStats(null);
+    setPvpPlaybackDone(false);
+    setPvpError(null);
+  }
+
   async function handleRecharge(agentId: string) {
     if (!publicKey || !connected || !player || recharging) return;
     setRecharging(agentId);
@@ -166,6 +239,88 @@ export default function BattlePage() {
 
   if (loading || !player) return null;
 
+  function renderGrowth(growth: Record<number, number>, agentName: string) {
+    const entries = Object.entries(growth);
+    if (entries.length === 0) return null;
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded px-3 py-2 flex items-center gap-2 flex-wrap">
+        <span className="font-mono text-xs text-gray-400 shrink-0">{agentName}:</span>
+        {entries.map(([dimIdStr, delta]) => {
+          const dimId = Number(dimIdStr);
+          const dim = DIMENSIONS.find((d) => d.id === dimId);
+          const name = dim?.name ?? `Dim ${dimId}`;
+          return (
+            <span
+              key={dimId}
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-green-900/50 text-green-400 border border-green-800"
+            >
+              +{delta.toFixed(1)} {name}
+            </span>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // --------------------------------------------------
+  // PvP Battle Phase
+  // --------------------------------------------------
+  if (pvpPhase === "battle" && pvpBattleLog && pvpOpponent && pvpAttacker) {
+    const myAgentId = pvpBattleLog.attackerId;
+    const didWin = pvpBattleLog.winnerId === myAgentId;
+
+    return (
+      <main className="min-h-screen bg-gray-950 text-white p-4 pb-32 max-w-2xl mx-auto">
+        <h1 className="text-xl font-mono font-bold mb-1 text-center">PvP Battle</h1>
+        <p className="font-mono text-xs text-center text-gray-500 mb-3">
+          vs {pvpOpponent.name} ({pvpOpponent.role})
+        </p>
+
+        <BattlePlayback
+          battleLog={pvpBattleLog}
+          attacker={pvpAttacker}
+          defender={pvpOpponent}
+          onComplete={() => setPvpPlaybackDone(true)}
+        />
+
+        {pvpPlaybackDone && (
+          <div className="mt-3 space-y-3">
+            <div className={`text-center py-3 rounded-lg font-mono font-bold text-lg ${
+              didWin
+                ? "bg-green-900/30 border border-green-700/40 text-green-400"
+                : "bg-red-900/20 border border-red-800/30 text-red-400"
+            }`}>
+              {didWin ? "Victory! ⚔" : "Defeat"}
+            </div>
+
+            {pvpMyStats && (
+              <p className="text-center font-mono text-xs text-gray-400">
+                Your record: <span className="text-green-400">{pvpMyStats.wins}W</span>
+                {" - "}
+                <span className="text-red-400">{pvpMyStats.losses}L</span>
+              </p>
+            )}
+
+            {renderGrowth(pvpBattleLog.attackerGrowth, pvpAttacker.name)}
+            {renderGrowth(pvpBattleLog.defenderGrowth, pvpOpponent.name)}
+
+            <div className="flex items-center justify-center gap-4 pt-2">
+              <button
+                onClick={resetPvp}
+                className="px-5 py-2 bg-red-700 hover:bg-red-600 text-white font-mono text-sm rounded transition-colors"
+              >
+                Fight Again
+              </button>
+              <Link href="/agents" className="text-sm text-gray-500 font-mono hover:text-gray-400">
+                Back to Agents
+              </Link>
+            </div>
+          </div>
+        )}
+      </main>
+    );
+  }
+
   // --------------------------------------------------
   // Phase 1: Select Agents
   // --------------------------------------------------
@@ -177,15 +332,71 @@ export default function BattlePage() {
         </h1>
 
         {/* PvP Section */}
-        <div className="mb-8 bg-gray-900 border border-gray-800 rounded-lg p-6 text-center">
-          <div className="flex items-center justify-center gap-3 mb-3">
+        <div className="mb-8 bg-gray-900 border border-gray-800 rounded-lg p-6">
+          <div className="flex items-center justify-center gap-3 mb-4">
             <span className="text-3xl">⚔</span>
             <h2 className="text-xl font-mono font-bold text-red-400">PvP Battle</h2>
             <span className="text-3xl">⚔</span>
           </div>
-          <p className="font-mono text-gray-500 text-sm animate-pulse">
-            PvP coming soon.....
+          <p className="font-mono text-xs text-gray-500 text-center mb-4">
+            Select an agent — we'll find a random opponent from another player
           </p>
+
+          {pvpError && (
+            <div className="mb-3 px-3 py-2 bg-red-500/10 border border-red-700/30 rounded text-red-400 font-mono text-xs text-center">
+              {pvpError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {allAgentsFull.map((agent) => {
+              const pvpFights = pvpFightsToday[agent.id] ?? 0;
+              const pvpRemaining = Math.max(0, MAX_PVP_FIGHTS - pvpFights);
+              const disabled = pvpRemaining <= 0;
+              const isSelected = pvpSelected === agent.id;
+              return (
+                <div
+                  key={agent.id}
+                  onClick={() => {
+                    if (disabled) return;
+                    setPvpSelected(isSelected ? null : agent.id);
+                  }}
+                  className={`border rounded-lg p-3 text-center transition-all duration-200 relative ${
+                    disabled
+                      ? "border-gray-800 bg-gray-900/50 opacity-60 cursor-not-allowed"
+                      : isSelected
+                      ? "border-red-500 bg-red-900/20 ring-1 ring-red-500/50 scale-[1.03] cursor-pointer"
+                      : "border-gray-700 bg-gray-900 hover:border-gray-500 cursor-pointer"
+                  }`}
+                >
+                  <div className="flex justify-center mb-1.5">
+                    <PixelSprite
+                      spriteSeed={agent.spriteSeed as Record<string, number>}
+                      role={agent.role}
+                      size={52}
+                    />
+                  </div>
+                  <p className="font-mono text-xs font-bold text-white truncate">{agent.name}</p>
+                  <span className={`inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded font-mono ${ROLE_BADGE[agent.role]}`}>
+                    {agent.role}
+                  </span>
+                  <p className={`font-mono text-[10px] mt-1 ${disabled ? "text-red-400" : "text-gray-500"}`}>
+                    PvP: {pvpRemaining}/{MAX_PVP_FIGHTS}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex justify-center">
+            <button
+              onClick={startPvpBattle}
+              disabled={!pvpSelected || pvpLoading}
+              className="px-6 py-2.5 bg-gradient-to-r from-red-700 to-red-500 hover:from-red-600 hover:to-red-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-mono font-bold text-sm rounded-lg transition-all"
+            >
+              {pvpLoading ? "Searching..." : "Find Opponent ⚔"}
+            </button>
+          </div>
         </div>
 
         {/* My Agent Training Section */}
@@ -314,38 +525,6 @@ export default function BattlePage() {
   // Phase 3: Battle Playback & Results
   // --------------------------------------------------
   if (phase === "battle" && battleLog && attackerFull && defenderFull) {
-    const winner =
-      battleLog.winnerId === attackerFull.id ? attackerFull : defenderFull;
-
-    function renderGrowth(
-      growth: Record<number, number>,
-      agentName: string
-    ) {
-      const entries = Object.entries(growth);
-      if (entries.length === 0) return null;
-
-      return (
-        <div className="bg-gray-900 border border-gray-800 rounded px-3 py-2 flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-xs text-gray-400 shrink-0">
-            {agentName}:
-          </span>
-          {entries.map(([dimIdStr, delta]) => {
-            const dimId = Number(dimIdStr);
-            const dim = DIMENSIONS.find((d) => d.id === dimId);
-            const name = dim?.name ?? `Dim ${dimId}`;
-            return (
-              <span
-                key={dimId}
-                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-green-900/50 text-green-400 border border-green-800"
-              >
-                +{delta.toFixed(1)} {name}
-              </span>
-            );
-          })}
-        </div>
-      );
-    }
-
     return (
       <main className="min-h-screen bg-gray-950 text-white p-4 pb-32 max-w-2xl mx-auto">
         <h1 className="text-xl font-mono font-bold mb-3 text-center">
