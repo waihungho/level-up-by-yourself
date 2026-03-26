@@ -24,7 +24,7 @@ function makePvpLog(attackerId: string, defenderId: string, winnerId: string) {
 describe("PvP DB functions (demo mode)", () => {
   describe("getPvpFightsToday", () => {
     it("returns 0 when agent has no PvP fights today", async () => {
-      const count = await getPvpFightsToday("agent-no-pvp");
+      const count = await getPvpFightsToday("agent-no-pvp-" + crypto.randomUUID());
       expect(count).toBe(0);
     });
 

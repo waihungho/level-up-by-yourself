@@ -828,8 +828,10 @@ export async function updatePvpStats(
 
   if (sb) {
     // Use atomic RPC for upsert+increment (defined in supabase/migrations/pvp.sql)
-    await sb.rpc("levelup_pvp_increment", { p_agent_id: winnerId, p_wins: 1, p_losses: 0 });
-    await sb.rpc("levelup_pvp_increment", { p_agent_id: loserId, p_wins: 0, p_losses: 1 });
+    const { error: winError } = await sb.rpc("levelup_pvp_increment", { p_agent_id: winnerId, p_wins: 1, p_losses: 0 });
+    if (winError) throw winError;
+    const { error: lossError } = await sb.rpc("levelup_pvp_increment", { p_agent_id: loserId, p_wins: 0, p_losses: 1 });
+    if (lossError) throw lossError;
     return;
   }
 
