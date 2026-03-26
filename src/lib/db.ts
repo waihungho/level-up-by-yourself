@@ -6,6 +6,7 @@ import type {
   BattleLog,
   GrowthLog,
   Player,
+  PvpStats,
   RoleCategory,
 } from "./types";
 
@@ -18,6 +19,8 @@ let localDimensions: AgentDimension[] = [];
 let localTaskCompletions: { playerId: string; taskName: string; completedAt: string }[] = [];
 let localGrowthLogs: GrowthLog[] = [];
 const localBattleLogs: BattleLog[] = [];
+const localPvpBattleLogs: BattleLog[] = [];  // const — mutated via .push, not reassigned
+const localPvpStats: PvpStats[] = [];
 
 // ---------------------------------------------------------------------------
 // Row mappers (snake_case DB rows → camelCase TS types)
@@ -609,14 +612,16 @@ export async function getAgentFightsToday(
       .from("levelup_battle_logs")
       .select("*", { count: "exact", head: true })
       .or(`attacker_id.eq.${agentId},defender_id.eq.${agentId}`)
+      .eq("pvp", false)           // exclude PvP battles from training count
       .gte("created_at", sinceISO);
     if (error) return 0;
     return count ?? 0;
   }
 
-  // Demo mode
+  // Demo mode — exclude pvp battles
   return localBattleLogs.filter(
     (l) =>
+      !l.pvp &&                                          // exclude PvP battles
       (l.attackerId === agentId || l.defenderId === agentId) &&
       l.createdAt >= sinceISO
   ).length;
@@ -727,4 +732,155 @@ export async function getSeekerTaskCount(playerId: string): Promise<number> {
   }
 
   return localSeekerTasks.filter((t) => t.playerId === playerId).length;
+}
+
+// ---------------------------------------------------------------------------
+// getPvpFightsToday
+// ---------------------------------------------------------------------------
+export async function getPvpFightsToday(agentId: string): Promise<number> {
+  const sb = getSupabase();
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const sinceISO = todayStart.toISOString();
+
+  if (sb) {
+    const { count, error } = await sb
+      .from("levelup_battle_logs")
+      .select("*", { count: "exact", head: true })
+      .or(`attacker_id.eq.${agentId},defender_id.eq.${agentId}`)
+      .eq("pvp", true)
+      .gte("created_at", sinceISO);
+    if (error) return 0;
+    return count ?? 0;
+  }
+
+  // Demo mode — always uses midnight cutoff (no recharge for PvP)
+  return localPvpBattleLogs.filter(
+    (l) =>
+      (l.attackerId === agentId || l.defenderId === agentId) &&
+      l.createdAt >= sinceISO
+  ).length;
+}
+
+// ---------------------------------------------------------------------------
+// savePvpBattleLog
+// ---------------------------------------------------------------------------
+export async function savePvpBattleLog(log: BattleLog): Promise<void> {
+  const sb = getSupabase();
+
+  if (sb) {
+    const { error } = await sb.from("levelup_battle_logs").insert({
+      id: log.id,
+      attacker_id: log.attackerId,
+      defender_id: log.defenderId,
+      winner_id: log.winnerId,
+      rounds: log.rounds,
+      attacker_growth: log.attackerGrowth,
+      defender_growth: log.defenderGrowth,
+      pvp: true,
+    });
+    if (error) throw error;
+
+    for (const [dimIdStr, delta] of Object.entries(log.attackerGrowth)) {
+      await sb.rpc("levelup_increment_dimension", {
+        p_agent_id: log.attackerId,
+        p_dimension_id: Number(dimIdStr),
+        p_delta: delta,
+      });
+    }
+    for (const [dimIdStr, delta] of Object.entries(log.defenderGrowth)) {
+      await sb.rpc("levelup_increment_dimension", {
+        p_agent_id: log.defenderId,
+        p_dimension_id: Number(dimIdStr),
+        p_delta: delta,
+      });
+    }
+    return;
+  }
+
+  // Demo mode
+  localPvpBattleLogs.push({ ...log, pvp: true });
+
+  for (const [dimIdStr, delta] of Object.entries(log.attackerGrowth)) {
+    const dimId = Number(dimIdStr);
+    const dim = localDimensions.find(
+      (d) => d.agentId === log.attackerId && d.dimensionId === dimId
+    );
+    if (dim) dim.value += delta;
+  }
+  for (const [dimIdStr, delta] of Object.entries(log.defenderGrowth)) {
+    const dimId = Number(dimIdStr);
+    const dim = localDimensions.find(
+      (d) => d.agentId === log.defenderId && d.dimensionId === dimId
+    );
+    if (dim) dim.value += delta;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// updatePvpStats
+// ---------------------------------------------------------------------------
+export async function updatePvpStats(
+  winnerId: string,
+  loserId: string
+): Promise<void> {
+  const sb = getSupabase();
+
+  if (sb) {
+    // Use atomic RPC for upsert+increment (defined in supabase/migrations/pvp.sql)
+    await sb.rpc("levelup_pvp_increment", { p_agent_id: winnerId, p_wins: 1, p_losses: 0 });
+    await sb.rpc("levelup_pvp_increment", { p_agent_id: loserId, p_wins: 0, p_losses: 1 });
+    return;
+  }
+
+  // Demo mode
+  for (const [id, isWinner] of [[winnerId, true], [loserId, false]] as [string, boolean][]) {
+    const existing = localPvpStats.find((s) => s.agentId === id);
+    if (existing) {
+      if (isWinner) existing.wins += 1;
+      else existing.losses += 1;
+    } else {
+      localPvpStats.push({
+        agentId: id,
+        wins: isWinner ? 1 : 0,
+        losses: isWinner ? 0 : 1,
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// getPvpStatsForAgents
+// ---------------------------------------------------------------------------
+export async function getPvpStatsForAgents(
+  agentIds: string[]
+): Promise<Record<string, PvpStats>> {
+  const sb = getSupabase();
+  const result: Record<string, PvpStats> = {};
+
+  if (sb) {
+    const { data, error } = await sb
+      .from("levelup_pvp_stats")
+      .select("*")
+      .in("agent_id", agentIds);
+
+    const rows = error ? [] : (data ?? []);
+    for (const row of rows) {
+      result[row.agent_id] = { agentId: row.agent_id, wins: row.wins, losses: row.losses };
+    }
+  } else {
+    // Demo mode
+    for (const stat of localPvpStats) {
+      if (agentIds.includes(stat.agentId)) {
+        result[stat.agentId] = { ...stat };
+      }
+    }
+  }
+
+  // Fill zeros for agents with no history
+  for (const id of agentIds) {
+    if (!result[id]) result[id] = { agentId: id, wins: 0, losses: 0 };
+  }
+
+  return result;
 }
