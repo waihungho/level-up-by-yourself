@@ -27,10 +27,11 @@ export default function AgentsPage() {
 
   useEffect(() => {
     async function loadDimensions() {
+      const results = await Promise.all(agents.map((a) => getAgentWithDimensions(a.id)));
       const dims: Record<string, AgentDimension[]> = {};
-      for (const agent of agents) {
-        const full = await getAgentWithDimensions(agent.id);
-        if (full) dims[agent.id] = full.dimensions;
+      for (let i = 0; i < agents.length; i++) {
+        const full = results[i];
+        if (full) dims[agents[i].id] = full.dimensions;
       }
       setAgentDimensions(dims);
     }
