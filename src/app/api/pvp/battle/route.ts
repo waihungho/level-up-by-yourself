@@ -78,6 +78,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "internal" }, { status: 500 });
       }
 
+      if (!attacker.dimensions.length || !defender.dimensions.length) {
+        return NextResponse.json({ error: "internal" }, { status: 500 });
+      }
+
       // --- 5. Resolve battle ---
       const battleLog = resolveBattle(attacker, defender);
 
@@ -93,7 +97,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ battleLog, opponentAgent: defender, attackerAgent: attacker });
     }
 
-    // Demo mode — no Supabase, use statically-imported getAllAgentsWithDimensions
+    // Demo mode — no Supabase. Ownership check skipped; accepted limitation per spec.
     const allAgents = await getAllAgentsWithDimensions();
     const attackerAgent = allAgents.find((a) => a.id === agentId);
     if (!attackerAgent) {
@@ -111,13 +115,19 @@ export async function POST(req: NextRequest) {
     }
 
     const opponent = others[Math.floor(Math.random() * others.length)];
+
+    if (!attackerAgent.dimensions.length || !opponent.dimensions.length) {
+      return NextResponse.json({ error: "internal" }, { status: 500 });
+    }
+
     const battleLog = resolveBattle(attackerAgent, opponent);
     await savePvpBattleLog(battleLog);
     const loserId = battleLog.winnerId === attackerAgent.id ? opponent.id : attackerAgent.id;
     await updatePvpStats(battleLog.winnerId, loserId);
 
     return NextResponse.json({ battleLog, opponentAgent: opponent, attackerAgent });
-  } catch {
+  } catch (e) {
+    console.error("[pvp/battle] Unexpected error:", e);
     return NextResponse.json({ error: "internal" }, { status: 500 });
   }
 }
