@@ -6,13 +6,13 @@ ALTER TABLE levelup_battle_logs ADD COLUMN IF NOT EXISTS pvp boolean NOT NULL DE
 
 -- 2. Create PvP stats table
 CREATE TABLE IF NOT EXISTS levelup_pvp_stats (
-  agent_id  TEXT PRIMARY KEY REFERENCES levelup_agents(id) ON DELETE CASCADE,
+  agent_id  UUID PRIMARY KEY REFERENCES levelup_agents(id) ON DELETE CASCADE,
   wins      INT NOT NULL DEFAULT 0,
   losses    INT NOT NULL DEFAULT 0
 );
 
 -- 3. Atomic upsert+increment function used by updatePvpStats
-CREATE OR REPLACE FUNCTION levelup_pvp_increment(p_agent_id text, p_wins int, p_losses int)
+CREATE OR REPLACE FUNCTION levelup_pvp_increment(p_agent_id uuid, p_wins int, p_losses int)
 RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO levelup_pvp_stats (agent_id, wins, losses)
