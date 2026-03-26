@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
 import { PixelSprite } from "@/components/PixelSprite";
-import { getAllAgentsWithDimensions, getAllPlayers } from "@/lib/db";
+import { getAllAgentsWithDimensions, getAllPlayers, getPvpStatsForAgents } from "@/lib/db";
 import { DIMENSIONS } from "@/lib/constants";
-import type { AgentWithDimensions, Player } from "@/lib/types";
+import type { AgentWithDimensions, Player, PvpStats } from "@/lib/types";
 import Link from "next/link";
 
 const ROLE_BADGE: Record<string, string> = {
@@ -52,6 +52,7 @@ export default function RankPage() {
 
   const [agents, setAgents] = useState<AgentWithDimensions[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [pvpStats, setPvpStats] = useState<Record<string, PvpStats>>({});
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
@@ -69,6 +70,10 @@ export default function RankPage() {
       allAgents.sort((a, b) => getTotalAbility(b) - getTotalAbility(a));
       setAgents(allAgents);
       setPlayers(allPlayers);
+      // Load PvP stats for top 100 agents (or all if fewer)
+      const top100Ids = allAgents.slice(0, 100).map((a) => a.id);
+      const stats = await getPvpStatsForAgents(top100Ids);
+      setPvpStats(stats);
       setLoadingData(false);
     }
     if (player) load();
@@ -197,6 +202,27 @@ export default function RankPage() {
                       AP
                     </div>
                   </div>
+
+                  {/* PvP Record */}
+                  {(() => {
+                    const stat = pvpStats[agent.id];
+                    if (!stat || (stat.wins === 0 && stat.losses === 0)) return (
+                      <div className="shrink-0 text-right ml-2">
+                        <div className="font-mono text-[10px] text-gray-600">—</div>
+                        <div className="font-mono text-[10px] text-gray-600">W-L</div>
+                      </div>
+                    );
+                    return (
+                      <div className="shrink-0 text-right ml-2">
+                        <div className="font-mono text-xs font-bold">
+                          <span className="text-green-400">{stat.wins}W</span>
+                          <span className="text-gray-600"> - </span>
+                          <span className="text-red-400">{stat.losses}L</span>
+                        </div>
+                        <div className="font-mono text-[10px] text-gray-500">PvP</div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </Link>
             );
