@@ -78,6 +78,7 @@ export interface BattleLog {
   attackerGrowth: Record<number, number>;
   defenderGrowth: Record<number, number>;
   createdAt: string;
+  pvp?: boolean;
 }
 
 export type CategoryWeight = "low" | "medium" | "high";
@@ -88,4 +89,10 @@ export interface RoleWeightMap {
   Social: CategoryWeight;
   Spiritual: CategoryWeight;
   Technical: CategoryWeight;
+}
+
+export interface PvpStats {
+  agentId: string;
+  wins: number;
+  losses: number;
 }
