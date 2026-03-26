@@ -293,13 +293,26 @@ export default function BattlePage() {
               {didWin ? "Victory! ⚔" : "Defeat"}
             </div>
 
-            {pvpMyStats && (
-              <p className="text-center font-mono text-xs text-gray-400">
-                Your record: <span className="text-green-400">{pvpMyStats.wins}W</span>
-                {" - "}
-                <span className="text-red-400">{pvpMyStats.losses}L</span>
-              </p>
-            )}
+            {/* Opponent identity */}
+            <p className="text-center font-mono text-xs text-gray-400">
+              vs <span className="text-white font-bold">{pvpOpponent.name}</span>
+              <span className={`ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-mono ${ROLE_BADGE[pvpOpponent.role]}`}>
+                {pvpOpponent.role}
+              </span>
+            </p>
+
+            <p className="text-center font-mono text-xs text-gray-400">
+              Your record:{" "}
+              {pvpMyStats ? (
+                <>
+                  <span className="text-green-400">{pvpMyStats.wins}W</span>
+                  {" / "}
+                  <span className="text-red-400">{pvpMyStats.losses}L</span>
+                </>
+              ) : (
+                <span className="text-gray-600">—</span>
+              )}
+            </p>
 
             {renderGrowth(pvpBattleLog.attackerGrowth, pvpAttacker.name)}
             {renderGrowth(pvpBattleLog.defenderGrowth, pvpOpponent.name)}
@@ -391,7 +404,7 @@ export default function BattlePage() {
           <div className="flex justify-center">
             <button
               onClick={startPvpBattle}
-              disabled={!pvpSelected || pvpLoading}
+              disabled={!pvpSelected || pvpLoading || (pvpFightsToday[pvpSelected ?? ""] ?? 0) >= MAX_PVP_FIGHTS}
               className="px-6 py-2.5 bg-gradient-to-r from-red-700 to-red-500 hover:from-red-600 hover:to-red-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-mono font-bold text-sm rounded-lg transition-all"
             >
               {pvpLoading ? "Searching..." : "Find Opponent ⚔"}
