@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Level Up By Yourself — Solana Mobile Builder Grant Application</title>
+  <style>
+    :root {
+      --purple: #9945FF;
+      --green: #14F195;
+      --dark: #0a0a0f;
+      --card: #111118;
+      --border: #1e1e2e;
+      --muted: #6b7280;
+      --text: #e2e8f0;
+      --amber: #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--dark);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      line-height: 1.6;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 60px 24px;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(153,69,255,0.25) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 40% at 80% 110%, rgba(20,241,149,0.12) 0%, transparent 60%),
+        var(--dark);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(153,69,255,0.15);
+      border: 1px solid rgba(153,69,255,0.4);
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-size: 13px;
+      color: #c4b5fd;
+      margin-bottom: 32px;
+      letter-spacing: 0.02em;
+    }
+    .badge-dot {
+      width: 7px; height: 7px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .hero h1 {
+      font-size: clamp(2.8rem, 7vw, 5.5rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      margin-bottom: 16px;
+    }
+    .hero h1 .accent { color: var(--green); }
+    .hero h1 .accent2 { color: var(--purple); }
+
+    .hero .sub {
+      font-size: clamp(1rem, 2.5vw, 1.3rem);
+      color: var(--muted);
+      max-width: 660px;
+      margin: 0 auto 48px;
+    }
+
+    /* ── STATS STRIP ── */
+    .stats {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+    }
+    .stat-item {
+      flex: 1;
+      min-width: 160px;
+      text-align: center;
+      padding: 28px 24px;
+      border-right: 1px solid var(--border);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-num {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--green);
+      display: block;
+    }
+    .stat-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+    /* ── SECTIONS ── */
+    section { padding: 80px 24px; max-width: 1080px; margin: 0 auto; }
+
+    .section-tag {
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--purple);
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+
+    .lead {
+      font-size: 1.1rem;
+      color: var(--muted);
+      max-width: 680px;
+      margin-bottom: 48px;
+    }
+
+    /* ── CARDS ── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 24px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .card:hover {
+      border-color: rgba(153,69,255,0.4);
+      transform: translateY(-3px);
+    }
+
+    .card-icon {
+      font-size: 2rem;
+      margin-bottom: 16px;
+      display: block;
+    }
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .card p {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    /* ── DIMENSION VISUAL ── */
+    .dimensions {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .dim-col {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 16px;
+      text-align: center;
+    }
+    .dim-col .dim-icon { font-size: 1.6rem; margin-bottom: 8px; }
+    .dim-col h4 { font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--text); }
+    .dim-col .dim-stats {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+    .dim-col .dim-stats span {
+      display: block;
+      padding: 2px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    /* ── GRANT FIT ── */
+    .fit-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .fit-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    .fit-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--purple), var(--green));
+    }
+
+    .fit-check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px; height: 28px;
+      background: rgba(20,241,149,0.15);
+      border-radius: 50%;
+      color: var(--green);
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .fit-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .fit-card p {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── ROADMAP ── */
+    .roadmap {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      position: relative;
+    }
+    .roadmap::before {
+      content: '';
+      position: absolute;
+      left: 20px; top: 0; bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--purple), var(--green));
+    }
+
+    .roadmap-item {
+      display: flex;
+      gap: 24px;
+      padding: 0 0 40px 0;
+      position: relative;
+    }
+
+    .roadmap-dot {
+      flex-shrink: 0;
+      width: 42px; height: 42px;
+      background: var(--card);
+      border: 2px solid var(--purple);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .roadmap-content {
+      padding-top: 8px;
+    }
+    .roadmap-content h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .roadmap-content p {
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .roadmap-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 999px;
+      margin-bottom: 8px;
+      background: rgba(153,69,255,0.15);
+      color: #c4b5fd;
+      border: 1px solid rgba(153,69,255,0.3);
+    }
+    .roadmap-tag.done {
+      background: rgba(20,241,149,0.12);
+      color: var(--green);
+      border-color: rgba(20,241,149,0.3);
+    }
+
+    /* ── SKR SECTION ── */
+    .skr-box {
+      background: linear-gradient(135deg, rgba(153,69,255,0.1), rgba(20,241,149,0.08));
+      border: 1px solid rgba(153,69,255,0.3);
+      border-radius: 20px;
+      padding: 48px 40px;
+      text-align: center;
+    }
+    .skr-box h2 { margin-bottom: 12px; }
+    .skr-box .lead { margin: 0 auto 36px; }
+
+    .skr-ideas {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+    }
+    .skr-pill {
+      background: rgba(20,241,149,0.1);
+      border: 1px solid rgba(20,241,149,0.25);
+      border-radius: 999px;
+      padding: 8px 20px;
+      font-size: 14px;
+      color: #a7f3d0;
+    }
+
+    /* ── TEAM ── */
+    .team-meta {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+    }
+    .team-item .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+    .team-item .value { font-size: 15px; font-weight: 600; word-break: break-all; }
+    .team-item .value a { color: var(--green); text-decoration: none; }
+    .team-item .value a:hover { text-decoration: underline; }
+
+    /* ── PITCH DECK CTA ── */
+    .pitch-cta {
+      text-align: center;
+      padding: 80px 24px;
+      background:
+        radial-gradient(ellipse 70% 50% at 50% 100%, rgba(20,241,149,0.1) 0%, transparent 70%),
+        var(--dark);
+      border-top: 1px solid var(--border);
+    }
+    .pitch-cta h2 { margin-bottom: 12px; }
+    .pitch-cta p { color: var(--muted); margin-bottom: 36px; font-size: 1.05rem; }
+
+    /* ── GAMEPLAY FLOW ── */
+    .flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 32px;
+    }
+    .flow-step {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      text-align: center;
+      min-width: 140px;
+    }
+    .flow-step .flow-icon { font-size: 1.5rem; margin-bottom: 6px; }
+    .flow-step .flow-label { font-size: 13px; font-weight: 600; }
+    .flow-step .flow-desc { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .flow-arrow { font-size: 1.4rem; color: var(--purple); }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--muted);
+    }
+    footer a { color: var(--purple); text-decoration: none; }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+    @media (max-width: 768px) {
+      .dimensions { grid-template-columns: repeat(2, 1fr); }
+      .dimensions .dim-col:last-child { grid-column: span 2; }
+    }
+    @media (max-width: 600px) {
+      .stat-item { min-width: 50%; }
+      .skr-box { padding: 32px 20px; }
+      .team-meta { grid-template-columns: 1fr; }
+      .dimensions { grid-template-columns: 1fr; }
+      .dimensions .dim-col:last-child { grid-column: span 1; }
+      .flow { flex-direction: column; }
+      .flow-arrow { transform: rotate(90deg); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════ HERO ═══════════════════ -->
+<div class="hero">
+  <div class="badge">
+    <span class="badge-dot"></span>
+    Live on Solana dApp Store
+  </div>
+
+  <h1>
+    Summon. Grow.<br/>
+    <span class="accent">Battle</span> on <span class="accent2">Chain.</span>
+  </h1>
+
+  <p class="sub">
+    Level Up By Yourself is an <strong>idle AI-powered RPG</strong> built exclusively for the
+    <strong>Solana Seeker</strong> — where players summon unique agents with 50 ability dimensions,
+    grow them daily through AI-driven training, and compete in async PvP battles on mainnet.
+  </p>
+</div>
+
+<!-- ═══════════════════ STATS ═══════════════════ -->
+<div class="stats">
+  <div class="stat-item">
+    <span class="stat-num">v1.0</span>
+    <div class="stat-label">Live on dApp Store</div>
+  </div>
+  <div class="stat-item">
+    <span class="stat-num">50</span>
+    <div class="stat-label">Unique Ability Dimensions</div>
+  </div>
+  <div class="stat-item">
+    <span class="stat-num">AI-Driven</span>
+    <div class="stat-label">Daily Growth Narratives</div>
+  </div>
+  <div class="stat-item">
+    <span class="stat-num">Seeker-Native</span>
+    <div class="stat-label">ARM64 · MWA · Mainnet</div>
+  </div>
+</div>
+
+<!-- ═══════════════════ WHAT IS IT ═══════════════════ -->
+<section>
+  <div class="section-tag">The Product</div>
+  <h2>An Idle RPG That Plays Itself — On Chain</h2>
+  <p class="lead">
+    Players summon AI-powered agents with unique stat distributions across 50 dimensions, watch them grow autonomously every day,
+    train them through battles, and compete for global dominance — all from their Seeker phone.
+  </p>
+
+  <div class="cards">
+    <div class="card">
+      <span class="card-icon">🧬</span>
+      <h3>50-Dimension Agent DNA</h3>
+      <p>Every agent is born with unique stats across Physical, Mental, Social, Spiritual, and Technical categories. No two agents are alike — each is a one-of-a-kind digital being.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">🤖</span>
+      <h3>AI-Powered Daily Growth</h3>
+      <p>Claude AI generates unique growth narratives every day. Agents evolve based on their role archetype — medieval warriors grow Physical stats, future agents grow Technical.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">⚔️</span>
+      <h3>Async PvP Battles</h3>
+      <p>Challenge other players' agents in dimension-based combat. 3 battles per agent per day — no need for both players online. Strategy meets idle mechanics.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">🏆</span>
+      <h3>Global Leaderboard</h3>
+      <p>Compete on the rankings with your W/L record. Climb the ladder by building the strongest team of agents across all dimensions.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">💰</span>
+      <h3>SOL-Powered Summoning</h3>
+      <p>Free summon every 7 days, or pay SOL via Mobile Wallet Adapter for instant summons. On-chain transactions, zero friction on Seeker.</p>
+    </div>
+    <div class="card">
+      <span class="card-icon">📱</span>
+      <h3>Seeker-Native Build</h3>
+      <p>ARM64-only APK at just 21MB. Optimized for the Seeker hardware with Solana MWA — no QR codes, no browser redirects, pure native feel.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ═══════════════════ 50 DIMENSIONS ═══════════════════ -->
+<section>
+  <div class="section-tag">Agent Architecture</div>
+  <h2>50 Dimensions of Uniqueness</h2>
+  <p class="lead">
+    Each agent is defined by 50 ability stats across 5 categories. Role archetypes (Medieval, Modern, Future)
+    weight growth differently, making every agent a strategic choice.
+  </p>
+
+  <div class="dimensions">
+    <div class="dim-col">
+      <div class="dim-icon">💪</div>
+      <h4>Physical</h4>
+      <div class="dim-stats">
+        <span>Strength</span>
+        <span>Agility</span>
+        <span>Endurance</span>
+        <span>Speed</span>
+        <span>Reflexes</span>
+        <span>Vitality</span>
+        <span>Flexibility</span>
+        <span>Balance</span>
+        <span>Precision</span>
+        <span>Toughness</span>
+      </div>
+    </div>
+    <div class="dim-col">
+      <div class="dim-icon">🧠</div>
+      <h4>Mental</h4>
+      <div class="dim-stats">
+        <span>Intelligence</span>
+        <span>Wisdom</span>
+        <span>Focus</span>
+        <span>Creativity</span>
+        <span>Memory</span>
+        <span>Logic</span>
+        <span>Perception</span>
+        <span>Willpower</span>
+        <span>Adaptability</span>
+        <span>Intuition</span>
+      </div>
+    </div>
+    <div class="dim-col">
+      <div class="dim-icon">🤝</div>
+      <h4>Social</h4>
+      <div class="dim-stats">
+        <span>Charisma</span>
+        <span>Empathy</span>
+        <span>Leadership</span>
+        <span>Persuasion</span>
+        <span>Diplomacy</span>
+        <span>Intimidation</span>
+        <span>Deception</span>
+        <span>Inspiration</span>
+        <span>Networking</span>
+        <span>Negotiation</span>
+      </div>
+    </div>
+    <div class="dim-col">
+      <div class="dim-icon">✨</div>
+      <h4>Spiritual</h4>
+      <div class="dim-stats">
+        <span>Meditation</span>
+        <span>Aura</span>
+        <span>Faith</span>
+        <span>Harmony</span>
+        <span>Destiny</span>
+        <span>Resilience</span>
+        <span>Enlightenment</span>
+        <span>Serenity</span>
+        <span>Courage</span>
+        <span>Compassion</span>
+      </div>
+    </div>
+    <div class="dim-col">
+      <div class="dim-icon">⚙️</div>
+      <h4>Technical</h4>
+      <div class="dim-stats">
+        <span>Engineering</span>
+        <span>Hacking</span>
+        <span>Strategy</span>
+        <span>Analytics</span>
+        <span>Mechanics</span>
+        <span>Electronics</span>
+        <span>Programming</span>
+        <span>Robotics</span>
+        <span>Biotech</span>
+        <span>Weapons</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ═══════════════════ GAMEPLAY LOOP ═══════════════════ -->
+<section>
+  <div class="section-tag">Core Loop</div>
+  <h2>Built for Daily Return</h2>
+  <p class="lead">
+    The idle loop is designed for daily engagement without demanding constant screen time.
+    Players check in, collect growth, battle, and come back tomorrow.
+  </p>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-icon">🧬</div>
+      <div class="flow-label">Summon</div>
+      <div class="flow-desc">Free every 7 days<br/>or instant with SOL</div>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">
+      <div class="flow-icon">📈</div>
+      <div class="flow-label">Daily Growth</div>
+      <div class="flow-desc">AI-powered<br/>passive stat gains</div>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">
+      <div class="flow-icon">⚔️</div>
+      <div class="flow-label">Battle</div>
+      <div class="flow-desc">Train + PvP<br/>3 fights/day</div>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">
+      <div class="flow-icon">🏆</div>
+      <div class="flow-label">Climb Rankings</div>
+      <div class="flow-desc">Global leaderboard<br/>W/L records</div>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">
+      <div class="flow-icon">🔁</div>
+      <div class="flow-label">Come Back</div>
+      <div class="flow-desc">New growth awaits<br/>daily streaks</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ═══════════════════ GRANT FIT ═══════════════════ -->
+<section>
+  <div class="section-tag">Grant Criteria Alignment</div>
+  <h2>Why Level Up Fits All Four Categories</h2>
+  <p class="lead">
+    The Solana Mobile Builder Grant seeks four types of products. Level Up By Yourself addresses every single one.
+  </p>
+
+  <div class="fit-grid">
+    <div class="fit-card">
+      <div class="fit-check">✓</div>
+      <h3>Viral &amp; Sticky by Design</h3>
+      <p>
+        Idle RPGs are the highest-retention genre in mobile gaming. Daily AI growth creates
+        "check-in" moments, PvP creates rivalry, and the 50-dimension system gives every agent
+        a unique story worth sharing. Players naturally compare agents, brag about rare stat rolls,
+        and challenge friends — all organic virality without paid UA.
+      </p>
+    </div>
+    <div class="fit-card">
+      <div class="fit-check">✓</div>
+      <h3>$SKR Token Integration</h3>
+      <p>
+        Our roadmap integrates $SKR as the premium game currency: exclusive agent skins purchasable
+        with $SKR, seasonal tournament entry fees in $SKR, accelerated growth boosts paid in $SKR,
+        and $SKR prize pools for top-ranked PvP players. This gives $SKR holders real utility
+        inside a game with proven daily engagement.
+      </p>
+    </div>
+    <div class="fit-card">
+      <div class="fit-check">✓</div>
+      <h3>Developer Tools for the Ecosystem</h3>
+      <p>
+        Level Up demonstrates a replicable pattern: AI-powered game mechanics + Supabase backend
+        + Solana MWA payments + dApp Store distribution. Our async PvP system, daily growth engine,
+        and 68% APK optimization techniques can be packaged as open-source building blocks for
+        other Seeker game developers.
+      </p>
+    </div>
+    <div class="fit-card">
+      <div class="fit-check">✓</div>
+      <h3>Genuinely Improves the Seeker Experience</h3>
+      <p>
+        The Seeker needs games that keep users coming back daily. Level Up is live on the dApp Store
+        today — not a concept. Players summon agents, watch them grow with AI narratives, battle
+        PvP on mainnet, and climb leaderboards — all on their Seeker, right now.
+      </p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ═══════════════════ SKR INTEGRATION ═══════════════════ -->
+<section>
+  <div class="skr-box">
+    <div class="section-tag" style="text-align:center;">$SKR Token Vision</div>
+    <h2>Making $SKR the Game's Premium Currency</h2>
+    <p class="lead">
+      Grant funds will accelerate native $SKR integration, creating a closed-loop economy
+      where Seeker users spend $SKR for competitive advantages and earn $SKR through top-tier play.
+    </p>
+    <div class="skr-ideas">
+      <span class="skr-pill">$SKR-Exclusive Agent Skins</span>
+      <span class="skr-pill">$SKR Tournament Entry Fees</span>
+      <span class="skr-pill">$SKR PvP Prize Pools</span>
+      <span class="skr-pill">Accelerated Growth for $SKR</span>
+      <span class="skr-pill">$SKR Season Pass</span>
+      <span class="skr-pill">$SKR Referral Rewards</span>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ═══════════════════ ROADMAP ═══════════════════ -->
+<section>
+  <div class="section-tag">Roadmap</div>
+  <h2>Where We're Headed</h2>
+  <p class="lead">Shipped fast, iterating faster. Here's the trajectory with grant support.</p>
+
+  <div class="roadmap">
+    <div class="roadmap-item">
+      <div class="roadmap-dot">✅</div>
+      <div class="roadmap-content">
+        <div class="roadmap-tag done">Shipped</div>
+        <h3>Core Agent System &amp; 50-Dimension DNA</h3>
+        <p>Agent summoning, unique stat generation, role archetypes (Medieval, Modern, Future), daily passive growth.</p>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot">✅</div>
+      <div class="roadmap-content">
+        <div class="roadmap-tag done">Shipped</div>
+        <h3>AI-Powered Daily Growth Engine</h3>
+        <p>Claude AI generates unique growth narratives. Role-weighted stat progression. Idempotent daily execution.</p>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot">✅</div>
+      <div class="roadmap-content">
+        <div class="roadmap-tag done">Shipped</div>
+        <h3>SOL Payments &amp; MWA Integration</h3>
+        <p>Instant summon via SOL on mainnet. Mobile Wallet Adapter for seamless transactions on Seeker.</p>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot">✅</div>
+      <div class="roadmap-content">
+        <div class="roadmap-tag done">Shipped</div>
+        <h3>Async PvP Battle System</h3>
+        <p>Dimension-based combat, opponent matching, W/L tracking, PvP stats on leaderboard. 3 battles per agent per day.</p>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot">✅</div>
+      <div class="roadmap-content">
+        <div class="roadmap-tag done">Shipped</div>
+        <h3>Live on Solana dApp Store</h3>
+        <p>Published, reviewed, and available to all Seeker users. 21MB ARM64 APK, 68% size reduction.</p>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot">🔜</div>
+      <div class="roadmap-content">
+        <div class="roadmap-tag">Q2 2026</div>
+        <h3>$SKR Token Integration</h3>
+        <p>Native $SKR economy: exclusive skins, tournament fees, prize pools, growth boosters.</p>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot">🔜</div>
+      <div class="roadmap-content">
+        <div class="roadmap-tag">Q3 2026</div>
+        <h3>Guild System &amp; Team Battles</h3>
+        <p>Form guilds with other Seeker players. Guild leaderboards, team PvP, shared growth bonuses.</p>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot">🔜</div>
+      <div class="roadmap-content">
+        <div class="roadmap-tag">Q3 2026</div>
+        <h3>Agent NFT Minting</h3>
+        <p>Mint your agents as on-chain NFTs. Trade, collect, and showcase rare stat combinations on Solana.</p>
+      </div>
+    </div>
+    <div class="roadmap-item">
+      <div class="roadmap-dot">🔜</div>
+      <div class="roadmap-content">
+        <div class="roadmap-tag">Q4 2026</div>
+        <h3>Seeker AI Game Starter Kit (Open Source)</h3>
+        <p>Package our AI growth engine, async PvP, MWA payment, and dApp Store patterns as a reusable template for other developers.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ═══════════════════ TEAM ═══════════════════ -->
+<section>
+  <div class="section-tag">Team &amp; Contact</div>
+  <h2>Built by Seeker Believers</h2>
+  <p class="lead" style="margin-bottom: 32px;">
+    Independent developer, shipping fast, already live on mainnet with two dApp Store titles.
+  </p>
+
+  <div class="team-meta">
+    <div class="team-item">
+      <div class="label">Project</div>
+      <div class="value">Level Up By Yourself</div>
+    </div>
+    <div class="team-item">
+      <div class="label">Also Built</div>
+      <div class="value"><a href="https://solminer-nine.vercel.app" target="_blank">SolMiner (Live on dApp Store)</a></div>
+    </div>
+    <div class="team-item">
+      <div class="label">Contact Email</div>
+      <div class="value"><a href="mailto:wk.t202@gmail.com">wk.t202@gmail.com</a></div>
+    </div>
+    <div class="team-item">
+      <div class="label">Website</div>
+      <div class="value"><a href="https://level-up-by-yourself.vercel.app" target="_blank">level-up-by-yourself.vercel.app</a></div>
+    </div>
+    <div class="team-item">
+      <div class="label">Android Package</div>
+      <div class="value" style="font-family: monospace; font-size: 13px;">app.levelup.byyourself</div>
+    </div>
+    <div class="team-item">
+      <div class="label">App NFT (Mainnet)</div>
+      <div class="value" style="font-family: monospace; font-size: 12px;">8U6X99rkxbh3mtE1RoKz7kTmRE2QR7sxTRknxdoRbQAY</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- ═══════════════════ FINAL CTA ═══════════════════ -->
+<div class="pitch-cta">
+  <div class="section-tag" style="display:inline-block; margin-bottom: 12px;">Ready to Build Together</div>
+  <h2>Let's Bring AI-Powered Idle RPG to 100k+ Seeker Users</h2>
+  <p>
+    Level Up By Yourself is live, growing, and ready to scale.<br/>
+    With Solana Mobile's grant support, we'll make it the defining AI game of the Seeker ecosystem.
+  </p>
+</div>
+
+<!-- ═══════════════════ FOOTER ═══════════════════ -->
+<footer>
+  <p>
+    © 2026 Level Up By Yourself · Built for the
+    <a href="https://solanamobile.com" target="_blank">Solana Seeker</a> ·
+    <a href="https://level-up-by-yourself.vercel.app" target="_blank">Play Now</a>
+  </p>
+</footer>
+
+</body>
+</html>
