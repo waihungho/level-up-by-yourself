@@ -39,8 +39,7 @@ export async function runDailyGrowth() {
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
-    process.exit(1);
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey);
@@ -53,8 +52,7 @@ export async function runDailyGrowth() {
     .order("player_id");
 
   if (error) {
-    console.error("Failed to fetch agents:", error);
-    process.exit(1);
+    throw new Error(`Failed to fetch agents: ${error.message}`);
   }
 
   if (!agents?.length) {
