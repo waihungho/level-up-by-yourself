@@ -236,8 +236,36 @@ export default function GuidePage() {
         </div>
       </Section>
 
+      <Section title="8. Squad Battles (3v3)">
+        <div className="space-y-3 text-sm text-gray-300 font-mono">
+          <p>Field 3 agents against a rival squad near your rating. One agent fights at a time; when it is knocked out, the next steps in.</p>
+          <div className="bg-gray-900 border border-gray-800 rounded p-4">
+            <ul className="list-none space-y-2 ml-4">
+              <li><span className="text-emerald-400 mr-2">Swap</span> - Uses your turn; the incoming agent takes half damage that round</li>
+              <li><span className="text-emerald-400 mr-2">Tag</span> - Swap with 3+ team Focus and the incoming agent fires its Special as it enters</li>
+              <li><span className="text-emerald-400 mr-2">Synergy</span> - 3 different roles: Trinity (+10% all). 2 of a role: Pair (+15% on that role&apos;s category). 3 of a role: Legion (+30% role category, −12% others)</li>
+              <li><span className="text-emerald-400 mr-2">Rating</span> - Elo rating, 2 squad battles per day. Build your squad in the Squad Builder</li>
+            </ul>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="9. World Boss Raids">
+        <div className="space-y-3 text-sm text-gray-300 font-mono">
+          <p>Every Monday a new world boss appears. Everyone attacks the same HP bar until it falls or the week ends.</p>
+          <div className="bg-gray-900 border border-gray-800 rounded p-4">
+            <ul className="list-none space-y-2 ml-4">
+              <li><span className="text-red-400 mr-2">Attempts</span> - 3 per day, up to 10 rounds each with your squad (solo players deal ×1.5)</li>
+              <li><span className="text-red-400 mr-2">Weakness</span> - Strike the weakness for ×1.5, the resistance only does ×0.5. The weakness changes at 66% HP</li>
+              <li><span className="text-red-400 mr-2">ULTIMATE</span> - Below 66% HP the boss telegraphs an ULTIMATE: guard it or take triple damage. Below 33% it enrages</li>
+              <li><span className="text-red-400 mr-2">Rewards</span> - Ranked by total damage: Champion, Elite (top 3), Vanguard (top 10), Participant. The killing blow earns the Slayer trophy</li>
+            </ul>
+          </div>
+        </div>
+      </Section>
+
       {/* Tips */}
-      <Section title="8. Tips">
+      <Section title="10. Tips">
         <div className="space-y-2 text-sm text-gray-300 font-mono">
           <div className="flex gap-2">
             <span className="text-yellow-400 shrink-0">*</span>

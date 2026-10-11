@@ -5,6 +5,27 @@ import { useGame } from "@/components/GameProvider";
 import { PixelSprite } from "@/components/PixelSprite";
 import { getAllAgentsWithDimensions, getAllPlayers, getPvpStatsForAgents } from "@/lib/db";
 import { getSquadLeaderboard, type SquadStats } from "@/lib/squads";
+import { getAllTrophies, getContributions, getPastBosses, type RaidBoss, type TrophyTier } from "@/lib/raid/raid-db";
+import { bossByKey } from "@/lib/raid/bosses";
+import { TrophyBadges } from "@/components/TrophyBadges";
+
+interface HallEntry {
+  boss: RaidBoss;
+  champion: string | null;
+  slayer: string | null;
+}
+
+async function loadHallOfFame(): Promise<{ hall: HallEntry[]; trophies: { playerId: string; tier: TrophyTier }[] }> {
+  const [past, trophies] = await Promise.all([getPastBosses(10), getAllTrophies()]);
+  const hall = await Promise.all(
+    past.map(async (boss) => {
+      const contributions = await getContributions(boss.id);
+      const label = (playerId: string | null) => contributions.find((c) => c.playerId === playerId)?.label || null;
+      return { boss, champion: contributions[0]?.label || null, slayer: label(boss.lastHitPlayerId) };
+    })
+  );
+  return { hall, trophies };
+}
 import { DIMENSIONS } from "@/lib/constants";
 import type { AgentWithDimensions, Player, PvpStats } from "@/lib/types";
 import Link from "next/link";
@@ -55,7 +76,15 @@ export default function RankPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [pvpStats, setPvpStats] = useState<Record<string, PvpStats>>({});
   const [loadingData, setLoadingData] = useState(true);
-  const [tab, setTab] = useState<"agents" | "squads">("agents");
+  const [tab, setTab] = useState<"agents" | "squads" | "raid">("agents");
+  const [raidData, setRaidData] = useState<Awaited<ReturnType<typeof loadHallOfFame>> | null>(null);
+
+  useEffect(() => {
+    if (tab !== "raid" || raidData) return;
+    loadHallOfFame()
+      .then(setRaidData)
+      .catch(() => setRaidData({ hall: [], trophies: [] }));
+  }, [tab, raidData]);
   const [squadBoard, setSquadBoard] = useState<(SquadStats & { agentIds: string[] })[] | null>(null);
 
   useEffect(() => {
@@ -119,7 +148,7 @@ export default function RankPage() {
       )}
 
       <div className="flex justify-center gap-2 mb-4" role="tablist">
-        {(["agents", "squads"] as const).map((t) => (
+        {(["agents", "squads", "raid"] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -130,12 +159,63 @@ export default function RankPage() {
               tab === t ? "border-purple-500 bg-purple-900/30 text-white" : "border-gray-700 text-gray-400"
             }`}
           >
-            {t === "agents" ? "Agents" : "Squads"}
+            {t === "agents" ? "Agents" : t === "squads" ? "Squads" : "Raid"}
           </button>
         ))}
       </div>
 
-      {tab === "squads" ? (
+      {tab === "raid" ? (
+        !raidData ? (
+          <p className="text-center font-mono text-sm text-gray-500 py-12">Loading hall of fame...</p>
+        ) : (
+          <div className="space-y-6">
+            <section>
+              <h2 className="font-mono text-sm font-bold mb-2">Hall of Fame</h2>
+              {raidData.hall.length === 0 ? (
+                <p className="font-mono text-xs text-gray-500">No bosses have fallen yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {raidData.hall.map(({ boss, champion, slayer }) => (
+                    <li key={boss.id} className="border border-gray-800 bg-gray-900 rounded-lg p-3 font-mono text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-white font-bold">{bossByKey(boss.bossKey)?.name ?? boss.bossKey}</span>
+                        <span className={boss.status === "defeated" ? "text-green-400" : "text-gray-500"}>
+                          {boss.status === "defeated" ? "Defeated" : "Escaped"} · week of {boss.weekStart}
+                        </span>
+                      </div>
+                      <div className="text-gray-400 mt-1">
+                        👑 {champion ?? "—"}
+                        {slayer && <span className="ml-3">🗡 {slayer}</span>}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            <section>
+              <h2 className="font-mono text-sm font-bold mb-2">Most decorated raiders</h2>
+              {(() => {
+                const byPlayer = new Map<string, { tier: TrophyTier }[]>();
+                for (const t of raidData.trophies) byPlayer.set(t.playerId, [...(byPlayer.get(t.playerId) ?? []), t]);
+                const rows = [...byPlayer.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 20);
+                if (!rows.length) return <p className="font-mono text-xs text-gray-500">No trophies awarded yet.</p>;
+                return (
+                  <ul className="space-y-1">
+                    {rows.map(([playerId, list], i) => (
+                      <li key={playerId} className={`flex items-center justify-between gap-2 border rounded px-3 py-2 ${playerId === player.id ? "border-purple-700/50 bg-purple-900/10" : "border-gray-800 bg-gray-900"}`}>
+                        <span className="font-mono text-xs text-gray-400">
+                          #{i + 1} {shortWallet(playerId)}
+                        </span>
+                        <TrophyBadges trophies={list} />
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
+            </section>
+          </div>
+        )
+      ) : tab === "squads" ? (
         !squadBoard ? (
           <p className="text-center font-mono text-sm text-gray-500 py-12">Loading squads...</p>
         ) : squadBoard.length === 0 ? (

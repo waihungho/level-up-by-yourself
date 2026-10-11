@@ -73,3 +73,7 @@ pnpm daily-growth
 - Set `SUPABASE_SERVICE_ROLE_KEY` in Vercel (production + preview, sensitive). Without it, routes throw when Supabase is configured.
 - Balance constants live in `src/lib/tactical/constants.ts`; `src/lib/tactical/__tests__/balance.test.ts` enforces the targets. Re-run it after any tuning.
 - Demo mode (no Supabase) cannot run full battles in the browser: demo data lives client-side while routes run server-side.
+- Squads: `src/lib/squads.ts` (persistence, Elo, matchmaking), `src/lib/tactical/squad.ts` (engine), `/api/squad`, `/squad` builder page.
+- Raids: `src/lib/raid/*`. Weekly cron `/api/cron/raid-weekly` (Monday 00:00 UTC, `vercel.json`) expires/pays the old boss and spawns the next one; requires `CRON_SECRET`.
+- Enable Supabase Realtime for `levelup_raid_bosses` and `levelup_raid_hits` (migration 005 adds them to the `supabase_realtime` publication; check Database → Replication). Without it `/raid` falls back to polling every 15s.
+- To spawn the first boss right after deploying, call the cron once: `curl -H "Authorization: Bearer $CRON_SECRET" https://<app>/api/cron/raid-weekly`.
