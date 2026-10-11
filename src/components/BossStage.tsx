@@ -4,7 +4,7 @@ import { PixelSprite } from "@/components/PixelSprite";
 import { SlainOverlay } from "@/components/SlainOverlay";
 import { CATEGORY_STYLE } from "@/components/tactical/categoryStyle";
 import type { BossDef } from "@/lib/raid/bosses";
-import type { RaidBoss } from "@/lib/raid/raid-db";
+import type { RaidBoss } from "@/lib/raid/raid-read";
 import type { RaidPhase } from "@/lib/raid/raid-engine";
 import type { Category } from "@/lib/tactical/types";
 

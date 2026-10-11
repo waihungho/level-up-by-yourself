@@ -1,50 +1,16 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { addAbilityPoints, applyAgentGrowth, getAgentWithDimensions, getPlayerAgents } from "@/lib/db";
 import { getOrBuildSquad } from "@/lib/squads";
-import { getSupabase, isSupabaseConfigured } from "@/lib/supabase";
-import { getAdminSupabase } from "@/lib/supabase-admin";
+import { getWriteClient } from "@/lib/supabase-admin";
 import { DIMENSIONS } from "@/lib/constants";
 import type { AgentWithDimensions } from "@/lib/types";
 import { bossByKey, type BossStats } from "./bosses";
+import { getBossById, getBossByWeek, getContributions, mapBoss, mem, type RaidBoss, type RaidContribution, type TrophyTier } from "./raid-read";
 
-export type BossStatus = "active" | "defeated" | "expired";
+export * from "./raid-read";
 
-export interface RaidBoss {
-  id: string;
-  bossKey: string;
-  weekStart: string;
-  stats: BossStats;
-  maxHp: number;
-  hpRemaining: number;
-  status: BossStatus;
-  lastHitPlayerId: string | null;
-  defeatedAt: string | null;
-  paidOutAt: string | null;
-  createdAt: string;
-}
-
-export interface RaidContribution {
-  bossId: string;
-  playerId: string;
-  damage: number;
-  attempts: number;
-  bestHit: number;
-  /** Latest attack label (lead agent name) for display. */
-  label: string;
-}
-
-export interface RaidHit {
-  id: string;
-  bossId: string;
-  playerId: string;
-  damage: number;
-  counters: number;
-  label: string;
-  createdAt: string;
-}
+const writer = getWriteClient;
 
 export type RewardTier = "champion" | "elite" | "vanguard" | "participant";
-export type TrophyTier = "champion" | "elite" | "vanguard" | "slayer";
 
 /** growthTotal is spread evenly across the boss's weakness-category dimensions for each reward agent. */
 export const REWARDS: Record<RewardTier, { ability: number; growthTotal: number }> = {
@@ -58,112 +24,8 @@ export const EXPIRED_REWARD_FACTOR = 0.5;
 export const MAX_RAID_ATTEMPTS = 3;
 
 // ---------------------------------------------------------------------------
-// Demo-mode stores
-// ---------------------------------------------------------------------------
-let memBosses: RaidBoss[] = [];
-let memContribs: RaidContribution[] = [];
-let memHits: RaidHit[] = [];
-let memTrophies: { playerId: string; bossId: string; tier: TrophyTier }[] = [];
-let memPayouts = new Set<string>();
-
-/** Clears demo-mode raid data (tests). */
-export function resetRaidMemory(): void {
-  memBosses = [];
-  memContribs = [];
-  memHits = [];
-  memTrophies = [];
-  memPayouts = new Set<string>();
-}
-
-function reader(): SupabaseClient | null {
-  return getSupabase();
-}
-
-function writer(): SupabaseClient | null {
-  const admin = getAdminSupabase();
-  if (!admin && isSupabaseConfigured) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
-  return admin;
-}
-
-function todayStartISO(): string {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapBoss(r: any): RaidBoss {
-  return {
-    id: r.id,
-    bossKey: r.boss_key,
-    weekStart: r.week_start,
-    stats: r.stats,
-    maxHp: Number(r.max_hp),
-    hpRemaining: Number(r.hp_remaining),
-    status: r.status,
-    lastHitPlayerId: r.last_hit_player_id,
-    defeatedAt: r.defeated_at,
-    paidOutAt: r.paid_out_at,
-    createdAt: r.created_at,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Bosses
 // ---------------------------------------------------------------------------
-
-export async function getActiveBoss(): Promise<RaidBoss | null> {
-  const sb = reader();
-  if (sb) {
-    const { data, error } = await sb.from("levelup_raid_bosses").select("*").eq("status", "active").order("week_start", { ascending: false }).limit(1).maybeSingle();
-    if (error) throw error;
-    return data ? mapBoss(data) : null;
-  }
-  return memBosses.filter((b) => b.status === "active").sort((a, b) => b.weekStart.localeCompare(a.weekStart))[0] ?? null;
-}
-
-export async function getBossById(id: string): Promise<RaidBoss | null> {
-  const sb = reader();
-  if (sb) {
-    const { data, error } = await sb.from("levelup_raid_bosses").select("*").eq("id", id).maybeSingle();
-    if (error) throw error;
-    return data ? mapBoss(data) : null;
-  }
-  const b = memBosses.find((x) => x.id === id);
-  return b ? { ...b } : null;
-}
-
-export async function getBossByWeek(weekStart: string): Promise<RaidBoss | null> {
-  const sb = reader();
-  if (sb) {
-    const { data, error } = await sb.from("levelup_raid_bosses").select("*").eq("week_start", weekStart).maybeSingle();
-    if (error) throw error;
-    return data ? mapBoss(data) : null;
-  }
-  const b = memBosses.find((x) => x.weekStart === weekStart);
-  return b ? { ...b } : null;
-}
-
-export async function getLatestBoss(): Promise<RaidBoss | null> {
-  const sb = reader();
-  if (sb) {
-    const { data, error } = await sb.from("levelup_raid_bosses").select("*").order("week_start", { ascending: false }).limit(1).maybeSingle();
-    if (error) throw error;
-    return data ? mapBoss(data) : null;
-  }
-  const b = [...memBosses].sort((a, x) => x.weekStart.localeCompare(a.weekStart))[0];
-  return b ? { ...b } : null;
-}
-
-export async function getPastBosses(limit = 10): Promise<RaidBoss[]> {
-  const sb = reader();
-  if (sb) {
-    const { data, error } = await sb.from("levelup_raid_bosses").select("*").neq("status", "active").order("week_start", { ascending: false }).limit(limit);
-    if (error) throw error;
-    return (data ?? []).map(mapBoss);
-  }
-  return memBosses.filter((b) => b.status !== "active").sort((a, b) => b.weekStart.localeCompare(a.weekStart)).slice(0, limit);
-}
 
 /** Creates the boss for a week; if one already exists for that week it is returned unchanged. */
 export async function createBoss(input: { bossKey: string; weekStart: string; stats: BossStats; maxHp: number }): Promise<RaidBoss> {
@@ -195,7 +57,7 @@ export async function createBoss(input: { bossKey: string; weekStart: string; st
     paidOutAt: null,
     createdAt: new Date().toISOString(),
   };
-  memBosses.push(boss);
+  mem.bosses.push(boss);
   return { ...boss };
 }
 
@@ -206,7 +68,7 @@ export async function setBossStatus(id: string, status: "expired"): Promise<void
     if (error) throw error;
     return;
   }
-  const b = memBosses.find((x) => x.id === id);
+  const b = mem.bosses.find((x) => x.id === id);
   if (b && b.status === "active") b.status = status;
 }
 
@@ -248,7 +110,7 @@ export async function applyRaidDamage(input: {
   }
 
   // Demo mode: no awaits below, so this block is atomic in JS.
-  const boss = memBosses.find((b) => b.id === input.bossId);
+  const boss = mem.bosses.find((b) => b.id === input.bossId);
   if (!boss) throw new Error("boss not found");
   let killed = false;
   let applied = 0;
@@ -263,57 +125,17 @@ export async function applyRaidDamage(input: {
       boss.defeatedAt = new Date().toISOString();
     }
   }
-  const c = memContribs.find((x) => x.bossId === input.bossId && x.playerId === input.playerId);
+  const c = mem.contribs.find((x) => x.bossId === input.bossId && x.playerId === input.playerId);
   if (c) {
     c.damage += applied;
     c.attempts += 1;
     c.bestHit = Math.max(c.bestHit, input.bestHit);
     c.label = input.label;
   } else {
-    memContribs.push({ bossId: input.bossId, playerId: input.playerId, damage: applied, attempts: 1, bestHit: input.bestHit, label: input.label });
+    mem.contribs.push({ bossId: input.bossId, playerId: input.playerId, damage: applied, attempts: 1, bestHit: input.bestHit, label: input.label });
   }
-  memHits.push({ id: crypto.randomUUID(), bossId: input.bossId, playerId: input.playerId, damage: applied, counters: input.counters, label: input.label, createdAt });
+  mem.hits.push({ id: crypto.randomUUID(), bossId: input.bossId, playerId: input.playerId, damage: applied, counters: input.counters, label: input.label, createdAt });
   return { hpRemaining: boss.hpRemaining, killed, applied };
-}
-
-export async function getContributions(bossId: string): Promise<RaidContribution[]> {
-  const sb = reader();
-  if (sb) {
-    const { data, error } = await sb.from("levelup_raid_contributions").select("*").eq("boss_id", bossId).order("damage", { ascending: false });
-    if (error) throw error;
-    return (data ?? []).map((r) => ({ bossId: r.boss_id, playerId: r.player_id, damage: Number(r.damage), attempts: r.attempts, bestHit: r.best_hit, label: r.label ?? "" }));
-  }
-  return memContribs.filter((c) => c.bossId === bossId).sort((a, b) => b.damage - a.damage).map((c) => ({ ...c }));
-}
-
-export async function getTotalDamage(bossId: string): Promise<number> {
-  return (await getContributions(bossId)).reduce((s, c) => s + c.damage, 0);
-}
-
-export async function getRecentHits(bossId: string, n: number): Promise<RaidHit[]> {
-  const sb = reader();
-  if (sb) {
-    const { data, error } = await sb.from("levelup_raid_hits").select("*").eq("boss_id", bossId).order("created_at", { ascending: false }).limit(n);
-    if (error) throw error;
-    return (data ?? []).map((r) => ({ id: r.id, bossId: r.boss_id, playerId: r.player_id, damage: Number(r.damage), counters: r.counters, label: r.label, createdAt: r.created_at }));
-  }
-  return memHits
-    .filter((h) => h.bossId === bossId)
-    .map((h, i) => ({ h, i }))
-    .sort((a, b) => b.h.createdAt.localeCompare(a.h.createdAt) || b.i - a.i)
-    .slice(0, n)
-    .map(({ h }) => ({ ...h }));
-}
-
-export async function countRaidAttemptsToday(playerId: string): Promise<number> {
-  const since = todayStartISO();
-  const sb = reader();
-  if (sb) {
-    const { count, error } = await sb.from("levelup_raid_hits").select("id", { count: "exact", head: true }).eq("player_id", playerId).gte("created_at", since);
-    if (error) throw error;
-    return count ?? 0;
-  }
-  return memHits.filter((h) => h.playerId === playerId && h.createdAt >= since).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -339,8 +161,8 @@ async function claimPlayerPayout(bossId: string, playerId: string): Promise<bool
     return (data ?? []).length === 1;
   }
   const key = `${bossId}:${playerId}`;
-  if (memPayouts.has(key)) return false;
-  memPayouts.add(key);
+  if (mem.payouts.has(key)) return false;
+  mem.payouts.add(key);
   return true;
 }
 
@@ -356,7 +178,7 @@ async function markPaidOut(bossId: string): Promise<boolean> {
     if (error) throw error;
     return (data ?? []).length === 1;
   }
-  const b = memBosses.find((x) => x.id === bossId);
+  const b = mem.bosses.find((x) => x.id === bossId);
   if (!b || b.paidOutAt) return false;
   b.paidOutAt = new Date().toISOString();
   return true;
@@ -378,7 +200,7 @@ async function addTrophy(playerId: string, bossId: string, tier: TrophyTier): Pr
     if (error) throw error;
     return;
   }
-  if (!memTrophies.some((t) => t.playerId === playerId && t.bossId === bossId && t.tier === tier)) memTrophies.push({ playerId, bossId, tier });
+  if (!mem.trophies.some((t) => t.playerId === playerId && t.bossId === bossId && t.tier === tier)) mem.trophies.push({ playerId, bossId, tier });
 }
 
 async function payContributor(boss: RaidBoss, c: RaidContribution, rank: number, weakDims: number[]): Promise<void> {
@@ -434,41 +256,6 @@ async function releasePlayerPayout(bossId: string, playerId: string): Promise<vo
     if (error) throw error;
     return;
   }
-  memPayouts.delete(`${bossId}:${playerId}`);
+  mem.payouts.delete(`${bossId}:${playerId}`);
 }
 
-/** Bosses that were defeated/expired but whose payout has not completed (retry target). */
-export async function getUnpaidFinishedBoss(): Promise<RaidBoss | null> {
-  const sb = reader();
-  if (sb) {
-    const { data, error } = await sb.from("levelup_raid_bosses").select("*").neq("status", "active").is("paid_out_at", null).limit(1).maybeSingle();
-    if (error) throw error;
-    return data ? mapBoss(data) : null;
-  }
-  return memBosses.find((b) => b.status !== "active" && !b.paidOutAt) ?? null;
-}
-
-export async function getTrophies(playerIds: string[]): Promise<Record<string, { bossId: string; tier: TrophyTier }[]>> {
-  const out: Record<string, { bossId: string; tier: TrophyTier }[]> = {};
-  for (const id of playerIds) out[id] = [];
-  if (!playerIds.length) return out;
-  const sb = reader();
-  if (sb) {
-    const { data, error } = await sb.from("levelup_player_trophies").select("*").in("player_id", playerIds);
-    if (error) throw error;
-    for (const r of data ?? []) out[r.player_id]?.push({ bossId: r.boss_id, tier: r.tier });
-    return out;
-  }
-  for (const t of memTrophies) out[t.playerId]?.push({ bossId: t.bossId, tier: t.tier });
-  return out;
-}
-
-export async function getAllTrophies(): Promise<{ playerId: string; bossId: string; tier: TrophyTier }[]> {
-  const sb = reader();
-  if (sb) {
-    const { data, error } = await sb.from("levelup_player_trophies").select("*");
-    if (error) throw error;
-    return (data ?? []).map((r) => ({ playerId: r.player_id, bossId: r.boss_id, tier: r.tier }));
-  }
-  return memTrophies.map((t) => ({ ...t }));
-}

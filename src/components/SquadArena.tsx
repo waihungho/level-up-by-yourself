@@ -5,7 +5,7 @@ import { PixelSprite } from "@/components/PixelSprite";
 import { SquadBattle, type SquadResult } from "@/components/SquadBattle";
 import { synergyLabel } from "@/components/tactical/synergyLabel";
 import { DIMENSIONS } from "@/lib/constants";
-import type { SquadStats } from "@/lib/squads";
+import type { SquadStats } from "@/lib/squads-read";
 import type { Synergy, SquadState } from "@/lib/tactical/squad";
 import type { AgentWithDimensions } from "@/lib/types";
 

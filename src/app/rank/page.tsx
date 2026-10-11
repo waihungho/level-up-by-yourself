@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
 import { PixelSprite } from "@/components/PixelSprite";
 import { getAllAgentsWithDimensions, getAllPlayers, getPvpStatsForAgents } from "@/lib/db";
-import { getSquadLeaderboard, type SquadStats } from "@/lib/squads";
-import { getAllTrophies, getContributions, getPastBosses, type RaidBoss, type TrophyTier } from "@/lib/raid/raid-db";
+import { getSquadLeaderboard, type SquadStats } from "@/lib/squads-read";
+import { getAllTrophies, getContributions, getPastBosses, type RaidBoss, type TrophyTier } from "@/lib/raid/raid-read";
 import { bossByKey } from "@/lib/raid/bosses";
 import { TrophyBadges } from "@/components/TrophyBadges";
 

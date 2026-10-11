@@ -10,7 +10,7 @@ import type { AgentWithDimensions, BattleLog, GrowthLog } from "@/lib/types";
 import Link from "next/link";
 import { PixelSprite } from "@/components/PixelSprite";
 import { TrophyBadges } from "@/components/TrophyBadges";
-import { getTrophies, type TrophyTier } from "@/lib/raid/raid-db";
+import { getTrophies, type TrophyTier } from "@/lib/raid/raid-read";
 
 const ROLE_COLORS = {
   future: "border-purple-700 bg-purple-900/30",

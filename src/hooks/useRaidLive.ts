@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import type { BossDef } from "@/lib/raid/bosses";
-import type { RaidBoss, RaidContribution, RaidHit } from "@/lib/raid/raid-db";
+import type { RaidBoss, RaidContribution, RaidHit } from "@/lib/raid/raid-read";
 import type { RaidPhase } from "@/lib/raid/raid-engine";
 import type { Category } from "@/lib/tactical/types";
 

@@ -1,4 +1,4 @@
-import type { TrophyTier } from "@/lib/raid/raid-db";
+import type { TrophyTier } from "@/lib/raid/raid-read";
 
 const TIERS: { tier: TrophyTier; icon: string; name: string; style: string }[] = [
   { tier: "champion", icon: "👑", name: "Champion", style: "border-yellow-500/60 bg-yellow-900/30 text-yellow-300" },
