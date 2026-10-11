@@ -2,11 +2,12 @@ import { getAgentWithDimensions, getPlayerByWallet } from "@/lib/db";
 import { memRecordRecharge } from "@/lib/recharges";
 import { getWriteClient } from "@/lib/supabase-admin";
 import { RECHARGE_COST_SOL } from "@/lib/constants";
+import { rechargeMemo } from "@/lib/payment-memos";
 import { fail, type ServiceResult } from "./service-common";
 
 export interface RechargeDeps {
   /** Confirms on-chain that the signature paid RECHARGE_COST_SOL from the wallet to the treasury. */
-  verify: (input: { signature: string; payer: string; minSol: number }) => Promise<boolean>;
+  verify: (input: { signature: string; payer: string; minSol: number; memo?: string }) => Promise<boolean>;
 }
 
 /** Records a paid recharge after verifying the payment; training fights then count from this moment. */
@@ -21,7 +22,7 @@ export async function rechargeFights(
   const agent = player ? await getAgentWithDimensions(agentId) : null;
   if (!player || !agent || agent.playerId !== player.id) return fail(403, "not_owner");
 
-  if (!(await deps.verify({ signature, payer: walletAddress, minSol: RECHARGE_COST_SOL }))) return fail(402, "payment_invalid");
+  if (!(await deps.verify({ signature, payer: walletAddress, minSol: RECHARGE_COST_SOL, memo: rechargeMemo(agentId) }))) return fail(402, "payment_invalid");
 
   const createdAt = await recordRecharge({ agentId, playerId: player.id, ref: signature });
   if (!createdAt) return fail(409, "signature_used");

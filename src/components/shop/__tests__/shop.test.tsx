@@ -69,7 +69,7 @@ describe("GemPacks", () => {
     render(<GemPacks walletAddress="w1" pay={pay} onBalance={onBalance} retryDelayMs={0} />);
     fireEvent.click(screen.getByRole("button", { name: /Standard/ }));
     await waitFor(() => expect(onBalance).toHaveBeenCalledWith(110));
-    expect(pay).toHaveBeenCalledWith(0.1);
+    expect(pay).toHaveBeenCalledWith(0.1, "levelup:gems:standard");
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ walletAddress: "w1", packId: "standard", signature: "sig-1" });
   });
 

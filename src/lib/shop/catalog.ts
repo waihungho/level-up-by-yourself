@@ -16,6 +16,8 @@ export const GEM_PACKS: Record<PackId, { sol: number; gems: number; label: strin
   whale: { sol: 0.5, gems: 650, label: "Whale" },
 };
 
+export { gemPackMemo } from "@/lib/payment-memos";
+
 export function isPackId(id: string): id is PackId {
   return Object.hasOwn(GEM_PACKS, id);
 }

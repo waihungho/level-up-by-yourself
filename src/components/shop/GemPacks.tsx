@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
 import { GEM_PACKS, type PackId } from "@/lib/shop/catalog";
+import { gemPackMemo } from "@/lib/payment-memos";
 
 interface GemPacksProps {
   walletAddress: string;
-  /** Sends `sol` to the treasury and resolves to the confirmed transaction signature. */
-  pay: (sol: number) => Promise<string>;
+  /** Sends `sol` to the treasury with the purpose memo and resolves to the confirmed signature. */
+  pay: (sol: number, memo: string) => Promise<string>;
   onBalance: (balance: number) => void;
   retryDelayMs?: number;
 }
@@ -21,7 +22,7 @@ export function GemPacks({ walletAddress, pay, onBalance, retryDelayMs = 3000 }:
     setMessage(null);
     let signature: string;
     try {
-      signature = await pay(GEM_PACKS[packId].sol);
+      signature = await pay(GEM_PACKS[packId].sol, gemPackMemo(packId));
     } catch {
       setMessage({ ok: false, text: "Payment cancelled or failed." });
       setBuying(null);

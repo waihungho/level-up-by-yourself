@@ -6,6 +6,7 @@ import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { PixelSprite } from "@/components/PixelSprite";
 import { TacticalBattle } from "@/components/TacticalBattle";
 import { GENERIC_START_ERROR, NETWORK_ERROR, postStart } from "@/lib/battle-client";
+import { rechargeMemo } from "@/lib/payment-memos";
 import { SquadArena } from "@/components/SquadArena";
 import { GemChip } from "@/components/GemChip";
 import {
@@ -210,7 +211,7 @@ export default function BattlePage() {
     if (!publicKey || !connected || !player || recharging) return;
     setRecharging(agentId);
     try {
-      const tx = await createPaymentTransaction(connection, publicKey, RECHARGE_COST_SOL);
+      const tx = await createPaymentTransaction(connection, publicKey, RECHARGE_COST_SOL, rechargeMemo(agentId));
       const signature = await sendTransaction(tx, connection);
       const confirmed = await confirmTransaction(connection, signature);
       if (!confirmed) {

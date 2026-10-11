@@ -39,7 +39,7 @@ describe("buyGemPack", () => {
   it("asks the verifier for the pack's SOL price from the buyer's wallet", async () => {
     const calls: unknown[] = [];
     await buyGemPack({ walletAddress: wallet, packId: "whale", signature: "s" }, { verify: async (x) => (calls.push(x), true) });
-    expect(calls).toEqual([{ signature: "s", payer: wallet, minSol: 0.5 }]);
+    expect(calls).toEqual([{ signature: "s", payer: wallet, minSol: 0.5, memo: "levelup:gems:whale" }]);
   });
 
   it("rejects unverified payments, unknown packs, unknown wallets and missing fields", async () => {

@@ -22,9 +22,9 @@ export default function ShopPage() {
   }, [loading, player, router]);
 
   const pay = useCallback(
-    async (sol: number) => {
+    async (sol: number, memo: string) => {
       if (!publicKey || !connected) throw new Error("wallet not connected");
-      const tx = await createPaymentTransaction(connection, publicKey, sol);
+      const tx = await createPaymentTransaction(connection, publicKey, sol, memo);
       const signature = await sendTransaction(tx, connection);
       if (!(await confirmTransaction(connection, signature))) throw new Error("not confirmed");
       return signature;

@@ -3,13 +3,13 @@ import { getWriteClient } from "@/lib/supabase-admin";
 import { fail, type ServiceResult } from "@/lib/tactical/service-common";
 import { recordRecharge } from "@/lib/tactical/recharge-service";
 import type { Player } from "@/lib/types";
-import { elixirGrowth, GEM_PACKS, getItem, isPackId, SHOP_ITEMS, type ShopItem } from "./catalog";
+import { elixirGrowth, gemPackMemo, GEM_PACKS, getItem, isPackId, SHOP_ITEMS, type ShopItem } from "./catalog";
 import { applyGems, getGemBalance, InsufficientGemsError } from "./gems";
 import { addAttemptBonus, AlreadyOwnedError, applyGrowthAtomic, extendGrowthBuff, getTitles, grantTitle, setCosmetic } from "./shop-db";
 import { shopMem } from "./shop-memory";
 
 export interface PaymentVerifier {
-  verify: (input: { signature: string; payer: string; minSol: number }) => Promise<boolean>;
+  verify: (input: { signature: string; payer: string; minSol: number; memo?: string }) => Promise<boolean>;
 }
 
 const SCROLL_DAYS = 7;
@@ -40,7 +40,7 @@ export async function buyGemPack(
   if (!player) return fail(403, "not_owner");
 
   const pack = GEM_PACKS[packId];
-  if (!(await deps.verify({ signature, payer: walletAddress, minSol: pack.sol }))) return fail(402, "payment_invalid");
+  if (!(await deps.verify({ signature, payer: walletAddress, minSol: pack.sol, memo: gemPackMemo(packId) }))) return fail(402, "payment_invalid");
 
   // The ledger ref makes the credit idempotent; the purchase row is the payment record.
   const { balance, applied } = await applyGems({ playerId: player.id, delta: pack.gems, reason: `pack:${packId}`, ref: `pack:${signature}` });
