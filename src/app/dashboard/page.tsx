@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RaidBanner } from "@/components/RaidBanner";
+import { WhatsNewBanner } from "@/components/WhatsNewBanner";
 
 export default function Dashboard() {
   const { player, agents, loading } = useGame();
@@ -69,6 +70,7 @@ export default function Dashboard() {
         </Link>
       </div>
 
+      <WhatsNewBanner />
       <RaidBanner />
 
       {/* My Agents */}
