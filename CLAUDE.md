@@ -65,3 +65,11 @@ pnpm daily-growth
 - Growth amount scales with the player's `ability_score` via `GROWTH_TIERS` multiplier
 - Idempotent — safe to re-run, agents already grown today are skipped
 - Script: `scripts/daily-growth.ts` | Growth logic: `scripts/daily-growth.ts:calculateGrowth`
+
+## Tactical Battles / Squads / Raids
+
+- Battles are server-authoritative sessions (`levelup_battle_sessions`). Engine: `src/lib/tactical/engine.ts` (pure, RNG-injected); service: `src/lib/tactical/battle-service.ts`; routes: `/api/battle/{start,turn,session/[id]}`.
+- Apply SQL migrations in order in the Supabase SQL editor **before** deploying: `003_tactical_battles.sql` → `004_squads.sql` → `005_raids.sql`.
+- Set `SUPABASE_SERVICE_ROLE_KEY` in Vercel (production + preview, sensitive). Without it, routes throw when Supabase is configured.
+- Balance constants live in `src/lib/tactical/constants.ts`; `src/lib/tactical/__tests__/balance.test.ts` enforces the targets. Re-run it after any tuning.
+- Demo mode (no Supabase) cannot run full battles in the browser: demo data lives client-side while routes run server-side.
