@@ -37,8 +37,8 @@ describe("integration: full game flow", () => {
 
     // 4. Verify agent shows in player's agents
     const agents = await getPlayerAgents(player.id);
-    expect(agents).toHaveLength(1);
-    expect(agents[0].name).toBe("TestWarrior");
+    expect(agents).toHaveLength(11); // 10 seeded demo agents + the summoned one
+    expect(agents.find((a) => a.id === agent.id)?.name).toBe("TestWarrior");
 
     // 5. Complete a daily task
     await completeTask(player.id, "Daily Login");
