@@ -49,7 +49,7 @@ export function SquadBattle({ sessionId, initialState, attackers, defenders, wal
   const [swapOpen, setSwapOpen] = useState(false);
   const onFinishedRef = useRef(onFinished);
   const idForRound = useCallback((r: TacticalRound) => attackers[r.actorSlot ?? 0]?.id ?? "", [attackers]);
-  const { hit, display, playing, play, skip } = useRoundPlayback(idForRound);
+  const { hit, display, current, playing, play, skip } = useRoundPlayback(idForRound);
 
   useEffect(() => {
     onFinishedRef.current = onFinished;
@@ -77,9 +77,12 @@ export function SquadBattle({ sessionId, initialState, attackers, defenders, wal
 
   const A = state.teams.attacker;
   const D = state.teams.defender;
+  // During playback show the member who acted in the round on screen, not the post-response active member.
+  const shownSlot = current?.actorSlot ?? A.active;
   const me = A.members[A.active];
+  const shown = A.members[shownSlot] ?? me;
   const foe = D.members[D.active];
-  const meAgent = attackers[A.active];
+  const meAgent = attackers[shownSlot];
   const foeAgent = defenders[D.active];
   const bench = A.members.map((m, i) => ({ m, i })).filter(({ m, i }) => i !== A.active && m.hp > 0);
   const canSwap = bench.length > 0 && !me.stunned;
@@ -119,7 +122,7 @@ export function SquadBattle({ sessionId, initialState, attackers, defenders, wal
           <div className={`flex justify-center ${hit && hit.attackerDamage > 0 ? "animate-shakeHit" : ""}`}>
             {meAgent && <PixelSprite spriteSeed={meAgent.spriteSeed as Record<string, number>} role={meAgent.role} size={64} />}
           </div>
-          <HpBar name={meAgent?.name ?? ""} hp={display?.attacker ?? me.hp} maxHp={me.maxHp} floater={hit?.attackerDamage || null} />
+          <HpBar name={meAgent?.name ?? ""} hp={display?.attacker ?? shown.hp} maxHp={shown.maxHp} floater={hit?.attackerDamage || null} />
           <FocusPips focus={A.focus} />
           {A.members.length > 1 && <p className="font-mono text-[10px] text-emerald-300">{synergyLabel(A.synergy)}</p>}
         </div>

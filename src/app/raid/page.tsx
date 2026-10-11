@@ -95,7 +95,15 @@ export default function RaidPage() {
     }
   }
 
-  if (loading || !player || !wallet) return null;
+  if (loading || !player) return null;
+  if (!wallet) {
+    return (
+      <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto text-center">
+        <p className="font-mono text-4xl mt-12">🐉</p>
+        <p className="font-mono text-sm text-gray-300 mt-3">Connect your wallet to join the raid.</p>
+      </main>
+    );
+  }
 
   if (attempt) {
     const damage = (result?.damage as number | undefined) ?? 0;

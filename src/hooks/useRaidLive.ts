@@ -7,6 +7,8 @@ import type { RaidPhase } from "@/lib/raid/raid-engine";
 import type { Category } from "@/lib/tactical/types";
 
 export const RAID_POLL_MS = 15_000;
+/** Safety net while Realtime looks healthy (e.g. tables missing from the publication send no events). */
+export const RAID_SAFETY_POLL_MS = 60_000;
 const MIN_REFETCH_GAP_MS = 2_000;
 
 export interface RaidView {
@@ -73,10 +75,12 @@ export function useRaidLive(walletAddress: string | null) {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") startPolling();
       });
     if (!channel) startPolling();
+    const safety = channel ? setInterval(refresh, RAID_SAFETY_POLL_MS) : null;
 
     return () => {
       disposed = true;
       if (poll) clearInterval(poll);
+      if (safety) clearInterval(safety);
       if (pendingRefetch.current) clearTimeout(pendingRefetch.current);
       pendingRefetch.current = null;
       if (sb && channel) sb.removeChannel(channel);

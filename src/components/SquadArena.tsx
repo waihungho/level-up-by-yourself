@@ -45,7 +45,8 @@ export function SquadArena({ walletAddress, onAgentsChanged }: { walletAddress: 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/squad?wallet=${encodeURIComponent(walletAddress)}`);
-      if (res.ok) setView(await res.json());
+      if (!res.ok) throw new Error(String(res.status));
+      setView(await res.json());
     } catch {
       setError("Couldn't load your squad.");
     }

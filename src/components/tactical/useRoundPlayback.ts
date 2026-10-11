@@ -28,6 +28,8 @@ export function damageTo(r: TacticalRound, attackerAgentId: string): Hit {
 export function useRoundPlayback(attackerIdForRound: (r: TacticalRound) => string) {
   const [hit, setHit] = useState<Hit | null>(null);
   const [display, setDisplay] = useState<{ attacker: number; defender: number } | null>(null);
+  /** The round currently being shown (lets squads show which member acted). */
+  const [current, setCurrent] = useState<TacticalRound | null>(null);
   const [playing, setPlaying] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const done = useRef<(() => void) | null>(null);
@@ -53,6 +55,7 @@ export function useRoundPlayback(attackerIdForRound: (r: TacticalRound) => strin
     setPlaying(false);
     setHit(null);
     setDisplay(null);
+    setCurrent(null);
     const cb = done.current;
     done.current = null;
     cb?.();
@@ -68,6 +71,7 @@ export function useRoundPlayback(attackerIdForRound: (r: TacticalRound) => strin
         timers.current.push(
           setTimeout(() => {
             setHit(damageTo(r, idFor.current(r)));
+            setCurrent(r);
             setDisplay({ attacker: r.attackerHpAfter, defender: r.defenderHpAfter });
           }, i * step)
         );
@@ -77,5 +81,5 @@ export function useRoundPlayback(attackerIdForRound: (r: TacticalRound) => strin
     [finish]
   );
 
-  return { hit, display, playing, play, skip: finish };
+  return { hit, display, current, playing, play, skip: finish };
 }
