@@ -1,0 +1,28 @@
+-- Tactical battles: server-authoritative multi-turn sessions.
+-- Apply in the Supabase SQL editor before deploying the tactical battle code.
+
+CREATE TABLE IF NOT EXISTS levelup_battle_sessions (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  mode          text NOT NULL CHECK (mode IN ('training', 'pvp', 'squad_pvp', 'raid')),
+  player_id     uuid NOT NULL REFERENCES levelup_players(id) ON DELETE CASCADE,
+  attacker_id   uuid REFERENCES levelup_agents(id) ON DELETE CASCADE,
+  defender_id   uuid REFERENCES levelup_agents(id) ON DELETE CASCADE,
+  state         jsonb NOT NULL,
+  status        text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'finished')),
+  battle_log_id uuid,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS levelup_idx_sessions_attacker_active ON levelup_battle_sessions(attacker_id) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS levelup_idx_sessions_defender_active ON levelup_battle_sessions(defender_id) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS levelup_idx_sessions_player_active ON levelup_battle_sessions(player_id, mode) WHERE status = 'active';
+
+-- No policies: only the service role (server routes) can read or write sessions.
+ALTER TABLE levelup_battle_sessions ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE levelup_battle_logs ADD COLUMN IF NOT EXISTS tactical boolean NOT NULL DEFAULT false;
+ALTER TABLE levelup_battle_logs ADD COLUMN IF NOT EXISTS manual_actions int NOT NULL DEFAULT 0;
+
+-- Ordering battle logs by date currently hits the statement timeout without this.
+CREATE INDEX IF NOT EXISTS levelup_idx_battle_logs_created ON levelup_battle_logs(created_at DESC);
