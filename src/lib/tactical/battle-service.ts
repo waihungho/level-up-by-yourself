@@ -8,36 +8,82 @@ import {
   savePvpBattleLog,
   updatePvpStats,
 } from "@/lib/db";
-import type { AgentWithDimensions, BattleLog, Player } from "@/lib/types";
-import { CYCLE } from "./constants";
+import type { AgentWithDimensions, Player } from "@/lib/types";
+import { parseAction } from "./battle-service-actions";
 import { createBattle, resolveRound, runAuto, toBattleLog } from "./engine";
-import type { Rng } from "./rng";
-import type { BattleSession, SessionStore } from "./session-store";
-import { InvalidActionError, type Action, type BattleMode, type Category, type TacticalState } from "./types";
+import { fail, type BattleStateBase, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
+import type { BattleSession, SessionMode, SessionStore } from "./session-store";
+import { squadHandler, startSquadBattle } from "./squad-service";
+import { InvalidActionError, type BattleMode, type PlayerAction, type TacticalState } from "./types";
 
-export type ServiceResult = { status: number; body: Record<string, unknown> };
-export interface ServiceDeps {
-  store: SessionStore;
-  rng: Rng;
-}
+export { parseAction } from "./battle-service-actions";
+export type { ServiceDeps, ServiceResult } from "./service-common";
 
 export const MAX_TRAINING_FIGHTS = 3;
 export const MAX_PVP_FIGHTS = 3;
 
 const TACTICAL_MODES: BattleMode[] = ["training", "pvp"];
 
-function fail(status: number, error: string): ServiceResult {
-  return { status, body: { error } };
+const tacticalHandler: ModeHandler<TacticalState> = {
+  parseAction: (raw) => parseAction(raw) as ReturnType<ModeHandler<TacticalState>["parseAction"]>,
+  resolve: (state, action, rng) => resolveRound(state, action as unknown as PlayerAction, rng, { manual: true }),
+  auto: (state, rng) => runAuto(state, rng),
+  invalidCode: () => "invalid_action",
+  async finalize(_session, state) {
+    const log = toBattleLog(state);
+    if (state.mode === "pvp") {
+      await savePvpBattleLog(log);
+      const loserId = log.winnerId === log.attackerId ? log.defenderId : log.attackerId;
+      await updatePvpStats(log.winnerId, loserId);
+    } else {
+      await saveBattleLog(log);
+    }
+    return { battleLog: log };
+  },
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const handlers: Partial<Record<SessionMode, ModeHandler<any>>> = {
+  training: tacticalHandler,
+  pvp: tacticalHandler,
+  squad_pvp: squadHandler,
+};
+
+/** Lets later modes (raids) plug in without this module importing them. */
+export function registerModeHandler<S extends BattleStateBase>(mode: SessionMode, handler: ModeHandler<S>): void {
+  handlers[mode] = handler;
 }
 
-export function parseAction(raw: unknown): Action | null {
-  if (!raw || typeof raw !== "object") return null;
-  const a = raw as { type?: unknown; category?: unknown };
-  if (a.type === "guard" || a.type === "special" || a.type === "auto") return { type: a.type };
-  if (a.type === "strike" && CYCLE.includes(a.category as Category)) {
-    return { type: "strike", category: a.category as Category };
+function handlerFor(mode: SessionMode): ModeHandler<BattleStateBase> {
+  const h = handlers[mode];
+  if (!h) throw new Error(`no handler for mode ${mode}`);
+  return h;
+}
+
+/**
+ * Completes an unfinished state with Auto, persists results, and closes the session.
+ * Returns the extra response fields, or null if another request is already finishing it.
+ */
+export async function finalizeSession(session: BattleSession<BattleStateBase>, deps: ServiceDeps): Promise<Record<string, unknown> | null> {
+  const handler = handlerFor(session.mode);
+  let state = session.state;
+  if (!state.finished) {
+    const done = handler.auto(state, deps.rng);
+    if (!(await deps.store.updateState(session.id, state.round, done))) return null;
+    state = done;
   }
-  return null;
+  const extra = await handler.finalize(session, state, deps);
+  const log = extra.battleLog as { id?: string } | undefined;
+  await deps.store.markFinished(session.id, log?.id ?? null);
+  return extra;
+}
+
+/** Auto-resolves the caller's own open sessions matching the filter. */
+export async function resolveStaleSessions(filter: { playerId: string; agentId?: string; modes: SessionMode[] }, deps: ServiceDeps): Promise<void> {
+  const open = await deps.store.findActive<BattleStateBase>({ playerId: filter.playerId, agentId: filter.agentId });
+  for (const session of open) {
+    if (filter.modes.includes(session.mode)) await finalizeSession(session, deps);
+  }
 }
 
 async function ownedAgent(player: Player, agentId: string): Promise<AgentWithDimensions | null> {
@@ -50,60 +96,27 @@ async function fightsUsed(agentId: string, mode: BattleMode, store: SessionStore
   return logged + (await store.countActiveToday({ agentId, mode }));
 }
 
-/** Persists the battle log (and PvP stats), then closes the session. Completes an unfinished state with Auto first. */
-export async function finalizeSession(session: BattleSession<TacticalState>, deps: ServiceDeps): Promise<BattleLog | null> {
-  let state = session.state;
-  if (!state.finished) {
-    const done = runAuto(state, deps.rng);
-    if (!(await deps.store.updateState(session.id, state.round, done))) return null; // someone else is finishing it
-    state = done;
-  }
-  const log = toBattleLog(state);
-  if (state.mode === "pvp") {
-    await savePvpBattleLog(log);
-    const loserId = log.winnerId === log.attackerId ? log.defenderId : log.attackerId;
-    await updatePvpStats(log.winnerId, loserId);
-  } else {
-    await saveBattleLog(log);
-  }
-  await deps.store.markFinished(session.id, log.id);
-  return log;
-}
-
-/** Auto-resolves the caller's own open tactical sessions that involve this agent. */
-export async function resolveStaleSessions(playerId: string, agentId: string, deps: ServiceDeps): Promise<void> {
-  const open = await deps.store.findActive<TacticalState>({ agentId, playerId });
-  for (const session of open) {
-    if (TACTICAL_MODES.includes(session.mode as BattleMode)) await finalizeSession(session, deps);
-  }
-}
-
-export async function startBattle(
-  input: { mode?: string; agentId?: string; walletAddress?: string; opponentAgentId?: string },
+async function startTacticalBattle(
+  player: Player,
+  battleMode: BattleMode,
+  agentId: string | undefined,
+  opponentAgentId: string | undefined,
   deps: ServiceDeps
 ): Promise<ServiceResult> {
-  const { mode, agentId, walletAddress, opponentAgentId } = input;
-  if (!mode || !agentId || !walletAddress) return fail(400, "missing_fields");
-  if (!TACTICAL_MODES.includes(mode as BattleMode)) return fail(400, "invalid_mode");
-  const battleMode = mode as BattleMode;
-
-  const player = await getPlayerByWallet(walletAddress);
-  if (!player) return fail(403, "not_owner");
+  if (!agentId) return fail(400, "missing_fields");
   const attacker = await ownedAgent(player, agentId);
   if (!attacker) return fail(403, "not_owner");
 
-  let defender: AgentWithDimensions | null;
+  let defender: AgentWithDimensions | null = null;
   if (battleMode === "training") {
     if (!opponentAgentId) return fail(400, "missing_fields");
     if (opponentAgentId === agentId) return fail(400, "invalid_opponent");
     defender = await ownedAgent(player, opponentAgentId);
     if (!defender) return fail(403, "not_owner");
-  } else {
-    defender = null;
   }
 
   const ownAgents = defender ? [attacker.id, defender.id] : [attacker.id];
-  for (const id of ownAgents) await resolveStaleSessions(player.id, id, deps);
+  for (const id of ownAgents) await resolveStaleSessions({ playerId: player.id, agentId: id, modes: TACTICAL_MODES }, deps);
 
   const limit = battleMode === "pvp" ? MAX_PVP_FIGHTS : MAX_TRAINING_FIGHTS;
   for (const id of ownAgents) {
@@ -129,12 +142,41 @@ export async function startBattle(
   return { status: 200, body: { sessionId: session.id, state, attacker, defender } };
 }
 
+type ExtraStarter = (player: Player, deps: ServiceDeps) => Promise<ServiceResult>;
+const extraStarters: Partial<Record<SessionMode, ExtraStarter>> = {
+  squad_pvp: startSquadBattle,
+};
+
+/** Lets later modes (raids) add a start flow. Player-level modes resolve stale sessions of the same mode first. */
+export function registerModeStarter(mode: SessionMode, starter: ExtraStarter): void {
+  extraStarters[mode] = starter;
+}
+
+export async function startBattle(
+  input: { mode?: string; agentId?: string; walletAddress?: string; opponentAgentId?: string },
+  deps: ServiceDeps
+): Promise<ServiceResult> {
+  const { mode, agentId, walletAddress, opponentAgentId } = input;
+  if (!mode || !walletAddress) return fail(400, "missing_fields");
+  const isTactical = TACTICAL_MODES.includes(mode as BattleMode);
+  const starter = extraStarters[mode as SessionMode];
+  if (!isTactical && !starter) return fail(400, "invalid_mode");
+  if (isTactical && !agentId) return fail(400, "missing_fields");
+
+  const player = await getPlayerByWallet(walletAddress);
+  if (!player) return fail(403, "not_owner");
+
+  if (isTactical) return startTacticalBattle(player, mode as BattleMode, agentId, opponentAgentId, deps);
+  await resolveStaleSessions({ playerId: player.id, modes: [mode as SessionMode] }, deps);
+  return starter!(player, deps);
+}
+
 async function loadOwnedSession(
   sessionId: string,
   walletAddress: string,
   deps: ServiceDeps
-): Promise<{ session: BattleSession<TacticalState> } | ServiceResult> {
-  const session = await deps.store.get<TacticalState>(sessionId);
+): Promise<{ session: BattleSession<BattleStateBase> } | ServiceResult> {
+  const session = await deps.store.get<BattleStateBase>(sessionId);
   if (!session) return fail(404, "no_session");
   const player = await getPlayerByWallet(walletAddress);
   if (!player || player.id !== session.playerId) return fail(403, "not_owner");
@@ -147,27 +189,30 @@ export async function takeTurn(
 ): Promise<ServiceResult> {
   const { sessionId, walletAddress, round } = input;
   if (!sessionId || !walletAddress || typeof round !== "number") return fail(400, "missing_fields");
-  const action = parseAction(input.action);
-  if (!action) return fail(400, "invalid_action");
 
   const loaded = await loadOwnedSession(sessionId, walletAddress, deps);
   if ("status" in loaded) return loaded;
   const { session } = loaded;
+  const handler = handlerFor(session.mode);
+
+  const action = handler.parseAction(input.action);
+  if (!action) return fail(400, "invalid_action");
   if (session.status === "finished") return fail(410, "session_finished");
   if (session.state.round !== round) return fail(409, "stale_round");
 
-  let next: TacticalState;
+  let next: BattleStateBase;
   try {
-    next = action.type === "auto" ? runAuto(session.state, deps.rng) : resolveRound(session.state, action, deps.rng, { manual: true });
+    next = action.type === "auto" ? handler.auto(session.state, deps.rng) : handler.resolve(session.state, action, deps.rng);
   } catch (e) {
-    if (e instanceof InvalidActionError) return fail(400, "invalid_action");
+    if (e instanceof InvalidActionError) return fail(400, handler.invalidCode(action));
     throw e;
   }
 
   if (!(await deps.store.updateState(session.id, round, next))) return fail(409, "stale_round");
 
-  const body: Record<string, unknown> = { rounds: next.rounds.slice(round), state: next, finished: next.finished };
-  if (next.finished) body.battleLog = await finalizeSession({ ...session, state: next }, deps);
+  const rounds = (next as unknown as { rounds: unknown[] }).rounds.slice(round);
+  let body: Record<string, unknown> = { rounds, state: next, finished: next.finished };
+  if (next.finished) body = { ...body, ...((await finalizeSession({ ...session, state: next }, deps)) ?? {}) };
   return { status: 200, body };
 }
 
