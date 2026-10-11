@@ -8,10 +8,11 @@ import { HpBar } from "@/components/tactical/HpBar";
 import { IntentBanner } from "@/components/tactical/IntentBanner";
 import { RoundLog } from "@/components/tactical/RoundLog";
 import { readTutorialSeen, writeTutorialSeen } from "@/components/tactical/categoryStyle";
-import { useBattleTurns, type TurnResponse } from "@/components/tactical/useBattleTurns";
+import { useBattleTurns } from "@/components/tactical/useBattleTurns";
+import { useRoundPlayback } from "@/components/tactical/useRoundPlayback";
 import { SPECIALS } from "@/lib/tactical/constants";
 import { counterFor } from "@/lib/tactical/engine";
-import type { TacticalRound, TacticalState } from "@/lib/tactical/types";
+import type { TacticalState } from "@/lib/tactical/types";
 import type { AgentWithDimensions, BattleLog } from "@/lib/types";
 
 export interface TacticalBattleProps {
@@ -23,24 +24,6 @@ export interface TacticalBattleProps {
   onFinished: (log: BattleLog) => void;
 }
 
-const HIT_MS = 700;
-const AUTO_STEP_MS = 300;
-
-interface Hit {
-  attackerDamage: number;
-  defenderDamage: number;
-  countered: boolean;
-}
-
-function damageTo(r: TacticalRound, attackerId: string): Hit {
-  const attackerFirst = r.firstAttacker === attackerId;
-  return {
-    attackerDamage: attackerFirst ? r.secondDamage : r.firstDamage,
-    defenderDamage: attackerFirst ? r.firstDamage : r.secondDamage,
-    countered: r.countered,
-  };
-}
-
 const TUTORIAL = [
   { title: "Read the intent", body: "Each round your opponent telegraphs what it will strike with. Watch the banner above the buttons." },
   { title: "Counter it", body: "Every category beats the next one around the wheel. Strike with the category that beats theirs for bonus damage and +1 Focus — but guess wrong and you get countered." },
@@ -50,12 +33,10 @@ const TUTORIAL = [
 export function TacticalBattle({ sessionId, initialState, attacker, defender, walletAddress, onFinished }: TacticalBattleProps) {
   const [tutorialStep, setTutorialStep] = useState<number | null>(null);
   const [hintsOn, setHintsOn] = useState(false);
-  const [hit, setHit] = useState<Hit | null>(null);
-  const [display, setDisplay] = useState<{ attacker: number; defender: number } | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const pending = useRef<{ res: TurnResponse<TacticalState> } | null>(null);
   const onFinishedRef = useRef(onFinished);
+  const attackerId = attacker.id;
+  const idForRound = useCallback(() => attackerId, [attackerId]);
+  const { hit, display, playing, play, skip } = useRoundPlayback(idForRound);
 
   useEffect(() => {
     onFinishedRef.current = onFinished;
@@ -66,49 +47,19 @@ export function TacticalBattle({ sessionId, initialState, attacker, defender, wa
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount
     setHintsOn(seen);
     if (!seen) setTutorialStep(0);
-    const pendingTimers = timers.current;
-    return () => pendingTimers.forEach(clearTimeout);
   }, []);
-
-  const applyFinalRef = useRef<() => void>(() => {});
 
   const { state, setState, busy, error, send } = useBattleTurns<TacticalState>({
     sessionId,
     walletAddress,
     initialState,
     onResponse: (res) => {
-      const rounds = res.rounds ?? [];
-      pending.current = { res };
-      const finish = () => applyFinalRef.current();
-      if (rounds.length === 0) return finish();
-      setPlaying(true);
-      const step = rounds.length > 1 ? AUTO_STEP_MS : HIT_MS;
-      rounds.forEach((r, i) => {
-        timers.current.push(
-          setTimeout(() => {
-            setHit(damageTo(r, attacker.id));
-            setDisplay({ attacker: r.attackerHpAfter, defender: r.defenderHpAfter });
-          }, i * step)
-        );
+      play(res.rounds ?? [], () => {
+        setState(res.state);
+        if (res.finished && res.battleLog) onFinishedRef.current(res.battleLog as BattleLog);
       });
-      timers.current.push(setTimeout(finish, rounds.length * step));
     },
   });
-
-  useEffect(() => {
-    applyFinalRef.current = () => {
-      const p = pending.current;
-      if (!p) return;
-      pending.current = null;
-      timers.current.forEach(clearTimeout);
-      timers.current = [];
-      setPlaying(false);
-      setHit(null);
-      setDisplay(null);
-      setState(p.res.state);
-      if (p.res.finished && p.res.battleLog) onFinishedRef.current(p.res.battleLog as BattleLog);
-    };
-  }, [setState]);
 
   const closeTutorial = useCallback(() => {
     writeTutorialSeen();
@@ -152,7 +103,7 @@ export function TacticalBattle({ sessionId, initialState, attacker, defender, wa
       {!state.finished && <IntentBanner name={defender.name} intent={state.intent} showHint={hintsOn} />}
 
       {playing && (
-        <button type="button" onClick={() => applyFinalRef.current()} className="w-full font-mono text-xs text-gray-400 underline">
+        <button type="button" onClick={skip} className="w-full font-mono text-xs text-gray-400 underline">
           Skip ▶
         </button>
       )}
