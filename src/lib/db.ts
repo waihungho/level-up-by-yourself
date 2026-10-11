@@ -452,6 +452,30 @@ export async function getGrowthLogs(
 }
 
 // ---------------------------------------------------------------------------
+// applyAgentGrowth — add dimension deltas to one agent
+// ---------------------------------------------------------------------------
+export async function applyAgentGrowth(agentId: string, growth: Record<number, number>): Promise<void> {
+  const sb = getSupabase();
+
+  if (sb) {
+    for (const [dimIdStr, delta] of Object.entries(growth)) {
+      const { error } = await sb.rpc("levelup_increment_dimension", {
+        p_agent_id: agentId,
+        p_dimension_id: Number(dimIdStr),
+        p_delta: delta,
+      });
+      if (error) throw error;
+    }
+    return;
+  }
+
+  for (const [dimIdStr, delta] of Object.entries(growth)) {
+    const dim = localDimensions.find((d) => d.agentId === agentId && d.dimensionId === Number(dimIdStr));
+    if (dim) dim.value += delta;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // saveBattleLog
 // ---------------------------------------------------------------------------
 export async function saveBattleLog(log: BattleLog): Promise<void> {
