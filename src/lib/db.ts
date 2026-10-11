@@ -1,4 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from "./supabase";
+import { selectAllPages } from "./supabase-pages";
 import type {
   Agent,
   AgentDimension,
@@ -103,12 +104,10 @@ export async function getRandomOpponentAgentId(
   let ids: string[];
 
   if (sb) {
-    const { data, error } = await sb
-      .from("levelup_agents")
-      .select("id")
-      .neq("player_id", excludePlayerId);
-    if (error) throw error;
-    ids = (data ?? []).map((r: { id: string }) => r.id);
+    const rows = await selectAllPages<{ id: string }>((from, to) =>
+      sb.from("levelup_agents").select("id").neq("player_id", excludePlayerId).order("id").range(from, to)
+    );
+    ids = rows.map((r) => r.id);
   } else {
     ids = localAgents.filter((a) => a.playerId !== excludePlayerId).map((a) => a.id);
   }
@@ -637,13 +636,19 @@ export async function getAllAgentsWithDimensions(): Promise<AgentWithDimensions[
   const sb = getSupabase();
 
   if (sb) {
-    const [{ data: agentRows, error: agentError }, { data: allDimRows }] =
-      await Promise.all([
-        sb.from("levelup_agents").select("*"),
-        sb.from("levelup_agent_dimensions").select("*"),
+    // Paged: 55k+ dimension rows would otherwise be truncated to 1000 by PostgREST.
+    let agentRows: any[];
+    let allDimRows: any[];
+    try {
+      [agentRows, allDimRows] = await Promise.all([
+        selectAllPages<any>((from, to) => sb.from("levelup_agents").select("*").order("id").range(from, to)),
+        selectAllPages<any>((from, to) =>
+          sb.from("levelup_agent_dimensions").select("*").order("agent_id").order("dimension_id").range(from, to)
+        ),
       ]);
-
-    if (agentError || !agentRows) return [];
+    } catch {
+      return [];
+    }
 
     const dimsByAgent = new Map<string, typeof allDimRows>();
     for (const row of allDimRows ?? []) {

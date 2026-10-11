@@ -1,20 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { missingFields, readJson, respond, serviceDeps } from "@/lib/api-route";
 import { takeTurn } from "@/lib/tactical/battle-service";
-import { getSessionStore } from "@/lib/tactical/session-store";
-import { defaultRng } from "@/lib/tactical/rng";
+
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "missing_fields" }, { status: 400 });
-  }
-  try {
-    const result = await takeTurn((body ?? {}) as Parameters<typeof takeTurn>[0], { store: getSessionStore(), rng: defaultRng });
-    return NextResponse.json(result.body, { status: result.status });
-  } catch (e) {
-    console.error("[battle/turn]", e);
-    return NextResponse.json({ error: "internal" }, { status: 500 });
-  }
+  const body = await readJson<Parameters<typeof takeTurn>[0]>(req);
+  if (!body) return missingFields();
+  return respond("battle/turn", () => takeTurn(body, serviceDeps()));
 }

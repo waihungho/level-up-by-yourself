@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAgentWithDimensions, getAllAgentsWithDimensions, getPlayerAgents } from "./db";
 import { getSupabase, isSupabaseConfigured } from "./supabase";
+import { selectAllPages } from "./supabase-pages";
 import { getAdminSupabase } from "./supabase-admin";
 import { SQUAD_SIZE } from "./tactical/constants";
 import type { Rng } from "./tactical/rng";
@@ -193,14 +194,12 @@ async function opponentPool(excludePlayerId: string): Promise<string[]> {
   const counts = new Map<string, number>();
   let saved: string[];
   if (sb) {
-    const [{ data: agents, error: e1 }, { data: squads, error: e2 }] = await Promise.all([
-      sb.from("levelup_agents").select("player_id"),
-      sb.from("levelup_squads").select("player_id"),
+    const [agents, squads] = await Promise.all([
+      selectAllPages<{ player_id: string }>((from, to) => sb.from("levelup_agents").select("player_id").order("id").range(from, to)),
+      selectAllPages<{ player_id: string }>((from, to) => sb.from("levelup_squads").select("player_id").order("player_id").range(from, to)),
     ]);
-    if (e1) throw e1;
-    if (e2) throw e2;
-    for (const a of agents ?? []) counts.set(a.player_id, (counts.get(a.player_id) ?? 0) + 1);
-    saved = (squads ?? []).map((s) => s.player_id);
+    for (const a of agents) counts.set(a.player_id, (counts.get(a.player_id) ?? 0) + 1);
+    saved = squads.map((s) => s.player_id);
   } else {
     for (const a of await getAllAgentsWithDimensions()) counts.set(a.playerId, (counts.get(a.playerId) ?? 0) + 1);
     saved = [...localSquads.keys()];

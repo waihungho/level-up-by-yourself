@@ -1,28 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { missingFields, readJson, respond } from "@/lib/api-route";
 import { getSquadView, putSquad } from "@/lib/tactical/squad-service";
 
 export async function GET(req: NextRequest) {
-  try {
-    const result = await getSquadView({ walletAddress: req.nextUrl.searchParams.get("wallet") ?? undefined });
-    return NextResponse.json(result.body, { status: result.status });
-  } catch (e) {
-    console.error("[squad GET]", e);
-    return NextResponse.json({ error: "internal" }, { status: 500 });
-  }
+  return respond("squad GET", () => getSquadView({ walletAddress: req.nextUrl.searchParams.get("wallet") ?? undefined }));
 }
 
 export async function PUT(req: NextRequest) {
-  let body: { walletAddress?: string; agentIds?: unknown };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "missing_fields" }, { status: 400 });
-  }
-  try {
-    const result = await putSquad(body ?? {});
-    return NextResponse.json(result.body, { status: result.status });
-  } catch (e) {
-    console.error("[squad PUT]", e);
-    return NextResponse.json({ error: "internal" }, { status: 500 });
-  }
+  const body = await readJson<{ walletAddress?: string; agentIds?: unknown }>(req);
+  if (!body) return missingFields();
+  return respond("squad PUT", () => putSquad(body));
 }
