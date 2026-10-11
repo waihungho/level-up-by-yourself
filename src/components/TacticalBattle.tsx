@@ -122,10 +122,10 @@ export function TacticalBattle({ sessionId, initialState, attacker, defender, wa
       </div>
 
       {tutorialStep !== null && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="tactical-tutorial-title">
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 max-w-sm w-full space-y-3">
             <p className="font-mono text-[10px] text-gray-500">How tactical battles work · {tutorialStep + 1}/{TUTORIAL.length}</p>
-            <h3 className="font-mono font-bold text-white">{TUTORIAL[tutorialStep].title}</h3>
+            <h3 id="tactical-tutorial-title" className="font-mono font-bold text-white">{TUTORIAL[tutorialStep].title}</h3>
             {tutorialStep === 1 && (
               <div className="flex justify-center">
                 <CounterWheel highlight={state.intent.kind === "strike" ? counterFor(state.intent.category) : null} />
@@ -138,6 +138,7 @@ export function TacticalBattle({ sessionId, initialState, attacker, defender, wa
               </button>
               <button
                 type="button"
+                autoFocus
                 onClick={() => (tutorialStep + 1 < TUTORIAL.length ? setTutorialStep(tutorialStep + 1) : closeTutorial())}
                 className="px-4 py-2 rounded bg-purple-600 text-white font-mono text-xs font-bold min-h-[44px]"
               >

@@ -1,9 +1,11 @@
+import { useId } from "react";
 import { CYCLE } from "@/lib/tactical/constants";
 import type { Category } from "@/lib/tactical/types";
 import { CATEGORY_STYLE } from "./tactical/categoryStyle";
 
 /** Pentagon of the category cycle; each arrow points at the category it beats. */
 export function CounterWheel({ highlight = null, size = 160 }: { highlight?: Category | null; size?: number }) {
+  const markerId = `cw-arrow-${useId().replace(/:/g, "")}`;
   const c = size / 2;
   const r = size * 0.36;
   const pts = CYCLE.map((_, i) => {
@@ -13,7 +15,7 @@ export function CounterWheel({ highlight = null, size = 160 }: { highlight?: Cat
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Counter wheel: each category beats the next one clockwise">
       <defs>
-        <marker id="cw-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <marker id={markerId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="#6b7280" />
         </marker>
       </defs>
@@ -29,7 +31,7 @@ export function CounterWheel({ highlight = null, size = 160 }: { highlight?: Cat
             y2={q.y - (q.y - p.y) * k}
             stroke={highlight === CYCLE[i] ? "#facc15" : "#4b5563"}
             strokeWidth={highlight === CYCLE[i] ? 2.5 : 1.5}
-            markerEnd="url(#cw-arrow)"
+            markerEnd={`url(#${markerId})`}
           />
         );
       })}

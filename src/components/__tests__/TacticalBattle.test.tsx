@@ -115,4 +115,14 @@ describe("TacticalBattle", () => {
     fireEvent.click(screen.getByRole("button", { name: /Guard/ }));
     await waitFor(() => expect(onFinished).toHaveBeenCalledWith(log), { timeout: 3000 });
   });
+
+  it("sends only one turn when an action is double-tapped in the same tick", async () => {
+    const fetchMock = mockFetch({ rounds: [], state: { ...initial(), round: 1 }, finished: false });
+    renderBattle();
+    const btn = screen.getByRole("button", { name: /Guard/ });
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
