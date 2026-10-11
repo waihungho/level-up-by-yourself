@@ -14,6 +14,7 @@ import {
   GUARD_REDUCTION,
   HP_K,
   INSIGHT_BONUS,
+  INTENT_WEIGHT_EXP,
   INSIGHT_ROUNDS,
   MASTERY_MAX,
   MASTERY_PER_COUNTER,
@@ -92,17 +93,22 @@ export function toSide(agent: AgentWithDimensions, hpFactor = 1): SideState {
   };
 }
 
-export function chooseIntent(side: SideState, rng: Rng): Intent {
-  if (side.stunned) return { kind: "stunned" };
-  if (side.focus >= SPECIAL_COST && rng() < AI_SPECIAL_CHANCE) return { kind: "special" };
-  const weights = CYCLE.map((c) => side.catAvg[c] ** 2);
+/** Samples a strike category weighted by catAvg^INTENT_WEIGHT_EXP (agents favour their strengths). */
+export function weightedCategory(side: SideState, rng: Rng): Category {
+  const weights = CYCLE.map((c) => side.catAvg[c] ** INTENT_WEIGHT_EXP);
   const total = weights.reduce((a, b) => a + b, 0);
   let roll = rng() * total;
   for (let i = 0; i < CYCLE.length; i++) {
     roll -= weights[i];
-    if (roll < 0) return { kind: "strike", category: CYCLE[i] };
+    if (roll < 0) return CYCLE[i];
   }
-  return { kind: "strike", category: CYCLE[CYCLE.length - 1] };
+  return CYCLE[CYCLE.length - 1];
+}
+
+export function chooseIntent(side: SideState, rng: Rng): Intent {
+  if (side.stunned) return { kind: "stunned" };
+  if (side.focus >= SPECIAL_COST && rng() < AI_SPECIAL_CHANCE) return { kind: "special" };
+  return { kind: "strike", category: weightedCategory(side, rng) };
 }
 
 export function createBattle(
@@ -405,13 +411,17 @@ export function resolveRound(
   };
 }
 
-/** Auto policy: does not read intents (manual play is how you counter). */
-export function aiAction(state: TacticalState): PlayerAction {
+/**
+ * Auto policy: does not read intents (manual play is how you counter). It samples
+ * strike categories from the same strength-weighted distribution opponents use,
+ * so Auto vs AI is symmetric.
+ */
+export function aiAction(state: TacticalState, rng: Rng): PlayerAction {
   const me = state.sides.attacker;
   if (state.intent.kind === "ultimate") return { type: "guard" };
   if (state.intent.kind === "special" && me.hp < me.maxHp * 0.5) return { type: "guard" };
   if (me.focus >= SPECIAL_COST) return { type: "special" };
-  return { type: "strike", category: strongestCategory(me) };
+  return { type: "strike", category: weightedCategory(me, rng) };
 }
 
 /** Intent-reading policy (the spec's counter policy); used by balance sims. */
@@ -426,7 +436,7 @@ export function skilledAction(state: TacticalState): PlayerAction {
 
 export function runAuto(state: TacticalState, rng: Rng): TacticalState {
   let s = state;
-  while (!s.finished) s = resolveRound(s, aiAction(s), rng, { manual: false });
+  while (!s.finished) s = resolveRound(s, aiAction(s, rng), rng, { manual: false });
   return s;
 }
 

@@ -26,6 +26,7 @@ import {
   strongestCategory,
   toRoundRecord,
   toSide,
+  weightedCategory,
   type ExchangeMods,
 } from "./engine";
 import type { Rng } from "./rng";
@@ -237,7 +238,7 @@ function lastOpponentCategory(state: SquadState): Category | null {
 }
 
 /** Auto policy for the attacker's squad (no intent reading, like tactical Auto). */
-export function squadAiAction(state: SquadState): SquadAction {
+export function squadAiAction(state: SquadState, rng: Rng): SquadAction {
   const team = state.teams.attacker;
   const me = activeSide(team);
   if (me.stunned) return { type: "guard" };
@@ -252,12 +253,12 @@ export function squadAiAction(state: SquadState): SquadAction {
   }
 
   if (me.focus >= SPECIAL_COST) return { type: "special" };
-  return { type: "strike", category: strongestCategory(me) };
+  return { type: "strike", category: weightedCategory(me, rng) };
 }
 
 export function runSquadAuto(state: SquadState, rng: Rng, opts: Omit<SquadRoundOpts, "manual"> = {}): SquadState {
   let s = state;
-  while (!s.finished) s = resolveSquadRound(s, squadAiAction(s), rng, { ...opts, manual: false });
+  while (!s.finished) s = resolveSquadRound(s, squadAiAction(s, rng), rng, { ...opts, manual: false });
   return s;
 }
 

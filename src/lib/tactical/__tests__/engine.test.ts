@@ -220,25 +220,32 @@ describe("aiAction", () => {
   it("guards a telegraphed special when below half HP", () => {
     const s = battle("medieval", "medieval", { kind: "special" });
     s.sides.attacker.hp = s.sides.attacker.maxHp * 0.4;
-    expect(aiAction(s)).toEqual({ type: "guard" });
+    expect(aiAction(s, half)).toEqual({ type: "guard" });
   });
 
   it("uses a special when it has 3 focus", () => {
     const s = battle();
     s.sides.attacker.focus = 3;
-    expect(aiAction(s)).toEqual({ type: "special" });
+    expect(aiAction(s, half)).toEqual({ type: "special" });
   });
 
-  it("Auto does not read intents: it strikes with its strongest category", () => {
+  it("Auto does not read intents: it samples strike categories weighted toward its strengths", () => {
     const strongMental = makeAgent("a", "modern", 150, { Mental: 300 });
     const s = { ...createBattle(strongMental, makeAgent("d", "medieval"), "training", half), intent: { kind: "strike", category: "Spiritual" } as Intent };
-    expect(aiAction(s)).toEqual({ type: "strike", category: "Mental" });
+    const rng = mulberry32(11);
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < 1000; i++) {
+      const a = aiAction(s, rng);
+      if (a.type === "strike") counts[a.category] = (counts[a.category] ?? 0) + 1;
+    }
+    expect(counts.Mental).toBeGreaterThan(400);
+    expect(Object.keys(counts).length).toBe(5);
   });
 
   it("always guards a telegraphed ULTIMATE", () => {
     const s = battle("medieval", "medieval", { kind: "ultimate", category: "Physical" });
     s.sides.attacker.focus = 3;
-    expect(aiAction(s)).toEqual({ type: "guard" });
+    expect(aiAction(s, half)).toEqual({ type: "guard" });
   });
 });
 

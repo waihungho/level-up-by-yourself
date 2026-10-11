@@ -133,7 +133,7 @@ describe("resolveSquadRound", () => {
 
 describe("squadAiAction", () => {
   it("guards an ULTIMATE", () => {
-    expect(squadAiAction(battle({ kind: "ultimate", category: "Physical" }))).toEqual({ type: "guard" });
+    expect(squadAiAction(battle({ kind: "ultimate", category: "Physical" }), half)).toEqual({ type: "guard" });
   });
   it("swaps a low-HP active agent out to an ally that counters the opponent's last category", () => {
     const s = battle();
@@ -141,7 +141,7 @@ describe("squadAiAction", () => {
     s.teams.attacker.members[0].hp = s.teams.attacker.members[0].maxHp * 0.1;
     s.teams.attacker.members[1] = { ...s.teams.attacker.members[1], catAvg: { ...s.teams.attacker.members[1].catAvg, Physical: 400 } };
     s.rounds = [{ opponentAction: "Technical" } as SquadState["rounds"][number]];
-    expect(squadAiAction(s)).toEqual({ type: "swap", slot: 1 });
+    expect(squadAiAction(s, half)).toEqual({ type: "swap", slot: 1 });
   });
 });
 

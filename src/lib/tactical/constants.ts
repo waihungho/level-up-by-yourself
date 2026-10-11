@@ -7,7 +7,7 @@ export const CYCLE: Category[] = ["Physical", "Technical", "Mental", "Spiritual"
 export const MAX_ROUNDS = 12;
 export const MAX_FOCUS = 5;
 export const SPECIAL_COST = 3;
-export const COUNTER_MULT = 1.3;
+export const COUNTER_MULT = 1.2;
 export const COUNTER_INTERRUPT = 1.0;
 export const GUARD_REDUCTION = 0.6;
 export const DMG_K = 8;
@@ -21,6 +21,8 @@ export const FEINT_MIN = 0.05;
 export const FEINT_MAX = 0.35;
 export const FEINT_SOCIAL_K = 120;
 export const AI_SPECIAL_CHANCE = 0.8;
+/** Intent weights are catAvg^k: higher k = opponents favour their strongest category more. */
+export const INTENT_WEIGHT_EXP = 2;
 export const MASTERY_PER_COUNTER = 0.1;
 export const MASTERY_MAX = 1.5;
 
@@ -31,14 +33,14 @@ export const ROLE_CATEGORY: Record<RoleCategory, Category> = {
 };
 
 export const SPECIALS: Record<RoleCategory, { name: string; category: Category; mult: number }> = {
-  medieval: { name: "Shield Bash", category: "Physical", mult: 2.0 },
+  medieval: { name: "Shield Bash", category: "Physical", mult: 1.0 },
   future: { name: "Overclock", category: "Technical", mult: 1.8 },
-  modern: { name: "Insight", category: "Mental", mult: 1.3 },
+  modern: { name: "Insight", category: "Mental", mult: 1.7 },
 };
 
 // --- Squads (3v3) ---
 export const SQUAD_SIZE = 3;
-export const SQUAD_HP_FACTOR = 0.45;
+export const SQUAD_HP_FACTOR = 0.675;
 export const SQUAD_MAX_ROUNDS = 24;
 export const SQUAD_GROWTH_FACTOR = 0.6;
 export const SWAP_INCOMING_MULT = 0.5;
@@ -46,5 +48,5 @@ export const AI_SWAP_HP = 0.25;
 export const AI_SWAP_COOLDOWN = 3;
 export const SYNERGY_TRINITY = 1.1;
 export const SYNERGY_PAIR = 1.15;
-export const SYNERGY_LEGION = 1.25;
-export const SYNERGY_LEGION_OFF = 0.9;
+export const SYNERGY_LEGION = 1.3;
+export const SYNERGY_LEGION_OFF = 0.88;
