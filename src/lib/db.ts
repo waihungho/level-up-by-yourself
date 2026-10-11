@@ -105,6 +105,9 @@ export async function getRandomOpponentAgentId(
   let ids: string[];
 
   if (sb) {
+    const { data, error } = await sb.rpc("levelup_random_opponent_agent", { p_exclude_player: excludePlayerId });
+    if (!error) return (data as string | null) ?? null;
+    // Fallback until migration 006 is applied.
     const rows = await selectAllPages<{ id: string }>((from, to) =>
       sb.from("levelup_agents").select("id").neq("player_id", excludePlayerId).order("id").range(from, to)
     );
@@ -162,6 +165,24 @@ export async function getOrCreatePlayer(walletAddress: string): Promise<Player> 
   seedDemoAgents(player.id);
 
   return player;
+}
+
+// ---------------------------------------------------------------------------
+// bootstrapPlayer — player (created if new) and their agents in one round trip
+// ---------------------------------------------------------------------------
+export async function bootstrapPlayer(walletAddress: string): Promise<{ player: Player; agents: Agent[] }> {
+  const sb = getSupabase();
+
+  if (sb) {
+    const { data, error } = await sb.rpc("levelup_bootstrap", { p_wallet: walletAddress });
+    if (!error && data?.player) {
+      return { player: mapPlayerRow(data.player), agents: (data.agents ?? []).map(mapAgentRow) };
+    }
+    // Fallback until migration 006 is applied.
+  }
+
+  const player = await getOrCreatePlayer(walletAddress);
+  return { player, agents: await getPlayerAgents(player.id) };
 }
 
 // ---------------------------------------------------------------------------
@@ -241,18 +262,12 @@ export async function getAgentWithDimensions(
   const sb = getSupabase();
 
   if (sb) {
-    const { data: agentRow, error: agentError } = await sb
-      .from("levelup_agents")
-      .select("*")
-      .eq("id", agentId)
-      .single();
+    const [{ data: agentRow, error: agentError }, { data: dimRows }] = await Promise.all([
+      sb.from("levelup_agents").select("*").eq("id", agentId).single(),
+      sb.from("levelup_agent_dimensions").select("agent_id,dimension_id,value").eq("agent_id", agentId),
+    ]);
 
     if (agentError || !agentRow) return null;
-
-    const { data: dimRows } = await sb
-      .from("levelup_agent_dimensions")
-      .select("*")
-      .eq("agent_id", agentId);
 
     return {
       ...mapAgentRow(agentRow),
@@ -266,6 +281,49 @@ export async function getAgentWithDimensions(
 
   const dimensions = localDimensions.filter((d) => d.agentId === agentId);
   return { ...agent, dimensions };
+}
+
+// ---------------------------------------------------------------------------
+// getAgentsWithDimensions (batched: two queries for any number of agents)
+// ---------------------------------------------------------------------------
+export async function getAgentsWithDimensions(agentIds: string[]): Promise<AgentWithDimensions[]> {
+  if (!agentIds.length) return [];
+  const sb = getSupabase();
+
+  if (sb) {
+    type DimRow = { agent_id: string; dimension_id: number; value: number };
+    const [{ data: agentRows, error }, dimRows] = await Promise.all([
+      sb.from("levelup_agents").select("*").in("id", agentIds),
+      selectAllPages<DimRow>((from, to) =>
+        sb
+          .from("levelup_agent_dimensions")
+          .select("agent_id,dimension_id,value")
+          .in("agent_id", agentIds)
+          .order("agent_id")
+          .order("dimension_id")
+          .range(from, to)
+      ),
+    ]);
+    if (error) throw error;
+
+    const dimsByAgent = new Map<string, AgentDimension[]>();
+    for (const row of dimRows) {
+      const list = dimsByAgent.get(row.agent_id) ?? [];
+      list.push(mapAgentDimensionRow(row));
+      dimsByAgent.set(row.agent_id, list);
+    }
+    const byId = new Map((agentRows ?? []).map((row) => [row.id as string, row]));
+    return agentIds.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [{ ...mapAgentRow(row), dimensions: dimsByAgent.get(id) ?? [] }] : [];
+    });
+  }
+
+  // Demo mode
+  return agentIds.flatMap((id) => {
+    const a = localAgents.find((x) => x.id === id);
+    return a ? [{ ...a, dimensions: localDimensions.filter((d) => d.agentId === id) }] : [];
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -646,7 +704,12 @@ export async function getAllAgentsWithDimensions(): Promise<AgentWithDimensions[
       [agentRows, allDimRows] = await Promise.all([
         selectAllPages<AgentRow>((from, to) => sb.from("levelup_agents").select("*").order("id").range(from, to)),
         selectAllPages<DimRow>((from, to) =>
-          sb.from("levelup_agent_dimensions").select("*").order("agent_id").order("dimension_id").range(from, to)
+          sb
+            .from("levelup_agent_dimensions")
+            .select("agent_id,dimension_id,value")
+            .order("agent_id")
+            .order("dimension_id")
+            .range(from, to)
         ),
       ]);
     } catch {
@@ -690,6 +753,70 @@ export async function getAllPlayers(): Promise<Player[]> {
 
   // Demo mode
   return [...localPlayers];
+}
+
+// ---------------------------------------------------------------------------
+// getPlayersByIds / getAgentsByIds (small lookups for leaderboards)
+// ---------------------------------------------------------------------------
+export async function getPlayersByIds(ids: string[]): Promise<Player[]> {
+  if (!ids.length) return [];
+  const sb = getSupabase();
+
+  if (sb) {
+    const { data, error } = await sb.from("levelup_players").select("*").in("id", ids);
+    if (error) throw error;
+    return (data ?? []).map(mapPlayerRow);
+  }
+
+  return localPlayers.filter((p) => ids.includes(p.id));
+}
+
+export async function getAgentsByIds(ids: string[]): Promise<Agent[]> {
+  if (!ids.length) return [];
+  const sb = getSupabase();
+
+  if (sb) {
+    const { data, error } = await sb.from("levelup_agents").select("*").in("id", ids);
+    if (error) throw error;
+    return (data ?? []).map(mapAgentRow);
+  }
+
+  return localAgents.filter((a) => ids.includes(a.id));
+}
+
+// ---------------------------------------------------------------------------
+// getFightCountsToday — training and PvP counts for many agents at once
+// ---------------------------------------------------------------------------
+export async function getFightCountsToday(
+  agentIds: string[]
+): Promise<{ training: Record<string, number>; pvp: Record<string, number> }> {
+  const training: Record<string, number> = {};
+  const pvp: Record<string, number> = {};
+  if (!agentIds.length) return { training, pvp };
+
+  const sb = getSupabase();
+  if (sb) {
+    const { data, error } = await sb.rpc("levelup_fight_counts_today", { p_agent_ids: agentIds });
+    if (!error) {
+      for (const id of agentIds) training[id] = pvp[id] = 0;
+      for (const row of (data ?? []) as { agent_id: string; training: number; pvp: number }[]) {
+        training[row.agent_id] = row.training;
+        pvp[row.agent_id] = row.pvp;
+      }
+      return { training, pvp };
+    }
+    // Fallback until migration 006 is applied.
+  }
+
+  const [t, p] = await Promise.all([
+    Promise.all(agentIds.map(getAgentFightsToday)),
+    Promise.all(agentIds.map(getPvpFightsToday)),
+  ]);
+  agentIds.forEach((id, i) => {
+    training[id] = t[i];
+    pvp[id] = p[i];
+  });
+  return { training, pvp };
 }
 
 // ---------------------------------------------------------------------------

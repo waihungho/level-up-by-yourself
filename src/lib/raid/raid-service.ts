@@ -5,7 +5,7 @@ import { squadGrowth, type SquadAction } from "@/lib/tactical/squad";
 import { parseSquadAction, squadInvalidCode } from "@/lib/tactical/squad-service";
 import type { Player } from "@/lib/types";
 import { bossAgent, bossByKey } from "./bosses";
-import { applyRaidDamage, countRaidAttemptsToday, getActiveBoss, getContributions, getLatestBoss, getRecentHits, getUnpaidFinishedBoss, MAX_RAID_ATTEMPTS, payoutBoss } from "./raid-db";
+import { applyRaidDamage, countRaidAttemptsToday, getActiveBoss, getLatestBoss, getRaidStandings, getRecentHits, getUnpaidFinishedBoss, MAX_RAID_ATTEMPTS, payoutBoss } from "./raid-db";
 import { attemptDamage, createRaidAttempt, currentWeakness, phaseFor, resolveRaidRound, runRaidAuto, type RaidState } from "./raid-engine";
 
 /** Raid session state also remembers which boss it is fighting and the feed label. */
@@ -78,18 +78,22 @@ export async function retryPendingPayout(deps: Pick<ServiceDeps, "defer"> = {}):
 }
 
 export async function getRaidView(input: { walletAddress?: string }, deps: Pick<ServiceDeps, "defer"> = {}): Promise<ServiceResult> {
-  await retryPendingPayout(deps);
-  const boss = (await getActiveBoss()) ?? (await getLatestBoss());
+  // The payout check doesn't affect this response; with `defer` it runs after the response is sent.
+  if (deps.defer) deps.defer(() => retryPendingPayout().catch((e) => console.error("[raid payout retry]", e)));
+  else await retryPendingPayout(deps);
+  const [active, player] = await Promise.all([
+    getActiveBoss(),
+    input.walletAddress ? getPlayerByWallet(input.walletAddress) : Promise.resolve(null),
+  ]);
+  const boss = active ?? (await getLatestBoss());
   if (!boss) return { status: 200, body: { boss: null } };
   const def = bossByKey(boss.bossKey);
-  const player = input.walletAddress ? await getPlayerByWallet(input.walletAddress) : null;
-  const [contributions, recentHits, attemptsUsed] = await Promise.all([
-    getContributions(boss.id),
+  const [standings, recentHits, attemptsUsed] = await Promise.all([
+    getRaidStandings(boss.id, player?.id ?? null, 20),
     getRecentHits(boss.id, 15),
     player ? countRaidAttemptsToday(player.id) : Promise.resolve(0),
   ]);
   const phase = phaseFor(boss.hpRemaining, boss.maxHp);
-  const myIndex = player ? contributions.findIndex((c) => c.playerId === player.id) : -1;
   return {
     status: 200,
     body: {
@@ -97,10 +101,10 @@ export async function getRaidView(input: { walletAddress?: string }, deps: Pick<
       def: def ?? null,
       phase,
       weakness: def ? currentWeakness(def, phase) : null,
-      contributions: contributions.slice(0, 20).map((c, i) => ({ ...c, rank: i + 1, isMe: c.playerId === player?.id })),
-      participants: contributions.length,
-      myRank: myIndex >= 0 ? myIndex + 1 : null,
-      myDamage: myIndex >= 0 ? contributions[myIndex].damage : 0,
+      contributions: standings.top.map((c, i) => ({ ...c, rank: i + 1, isMe: c.playerId === player?.id })),
+      participants: standings.participants,
+      myRank: standings.me?.rank ?? null,
+      myDamage: standings.me?.damage ?? 0,
       attemptsLeft: player ? Math.max(0, MAX_RAID_ATTEMPTS - attemptsUsed) : null,
       maxAttempts: MAX_RAID_ATTEMPTS,
       recentHits,

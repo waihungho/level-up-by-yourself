@@ -8,9 +8,9 @@ import { TacticalBattle } from "@/components/TacticalBattle";
 import { GENERIC_START_ERROR, NETWORK_ERROR, postStart } from "@/lib/battle-client";
 import { SquadArena } from "@/components/SquadArena";
 import {
-  getAgentWithDimensions,
+  getAgentsWithDimensions,
   getAgentFightsToday,
-  getPvpFightsToday,
+  getFightCountsToday,
   getPvpStatsForAgents,
 } from "@/lib/db";
 import { createPaymentTransaction, confirmTransaction } from "@/lib/sol-payment";
@@ -107,21 +107,11 @@ export default function BattlePage() {
   // Load all agents with dimensions + fight counts
   useEffect(() => {
     async function loadAll() {
-      const fulls: AgentWithDimensions[] = [];
-      const counts: Record<string, number> = {};
-      for (const agent of agents) {
-        const full = await getAgentWithDimensions(agent.id);
-        if (full) fulls.push(full);
-        counts[agent.id] = await getAgentFightsToday(agent.id);
-      }
+      const ids = agents.map((a) => a.id);
+      const [fulls, counts] = await Promise.all([getAgentsWithDimensions(ids), getFightCountsToday(ids)]);
       setAllAgentsFull(fulls);
-      setFightsToday(counts);
-
-      const pvpCounts: Record<string, number> = {};
-      for (const agent of agents) {
-        pvpCounts[agent.id] = await getPvpFightsToday(agent.id);
-      }
-      setPvpFightsToday(pvpCounts);
+      setFightsToday(counts.training);
+      setPvpFightsToday(counts.pvp);
     }
     if (agents.length > 0) loadAll();
   }, [agents]);
@@ -174,11 +164,8 @@ export default function BattlePage() {
     setBattleLog(null);
     // Reload fight counts
     (async () => {
-      const counts: Record<string, number> = {};
-      for (const agent of agents) {
-        counts[agent.id] = await getAgentFightsToday(agent.id);
-      }
-      setFightsToday(counts);
+      const counts = await getFightCountsToday(agents.map((a) => a.id));
+      setFightsToday(counts.training);
     })();
   }
 

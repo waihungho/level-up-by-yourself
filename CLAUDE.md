@@ -70,6 +70,8 @@ pnpm daily-growth
 
 - Battles are server-authoritative sessions (`levelup_battle_sessions`). Engine: `src/lib/tactical/engine.ts` (pure, RNG-injected); service: `src/lib/tactical/battle-service.ts`; routes: `/api/battle/{start,turn,session/[id]}`.
 - Apply SQL migrations in order in the Supabase SQL editor **before** deploying: `003_tactical_battles.sql` → `004_squads.sql` → `005_raids.sql`.
+- `006_perf_rpcs.sql` adds read RPCs (`levelup_bootstrap`, `levelup_fight_counts_today`, `levelup_random_opponent_agent`, `levelup_raid_standings`). The app falls back to the old multi-query paths when they are missing, so it can be applied before or after deploying.
+- Rankings are computed by `/api/rank` (`src/lib/rankings.ts`) and CDN-cached for 2 minutes; don't page all agent dimensions from the browser.
 - Set `SUPABASE_SERVICE_ROLE_KEY` in Vercel (production + preview, sensitive). Without it, routes throw when Supabase is configured.
 - Balance constants live in `src/lib/tactical/constants.ts`; `src/lib/tactical/__tests__/balance.test.ts` enforces the targets. Re-run it after any tuning.
 - Demo mode (no Supabase) cannot run full battles in the browser: demo data lives client-side while routes run server-side.

@@ -2,8 +2,8 @@
 import { useEffect, useState } from "react";
 import { useGame } from "@/components/GameProvider";
 import { AgentCard } from "@/components/AgentCard";
-import { getAgentWithDimensions } from "@/lib/db";
-import type { Agent, AgentDimension } from "@/lib/types";
+import { getAgentsWithDimensions } from "@/lib/db";
+import type { AgentDimension } from "@/lib/types";
 import { DIMENSIONS } from "@/lib/constants";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -27,13 +27,8 @@ export default function AgentsPage() {
 
   useEffect(() => {
     async function loadDimensions() {
-      const results = await Promise.all(agents.map((a) => getAgentWithDimensions(a.id)));
-      const dims: Record<string, AgentDimension[]> = {};
-      for (let i = 0; i < agents.length; i++) {
-        const full = results[i];
-        if (full) dims[agents[i].id] = full.dimensions;
-      }
-      setAgentDimensions(dims);
+      const fulls = await getAgentsWithDimensions(agents.map((a) => a.id));
+      setAgentDimensions(Object.fromEntries(fulls.map((a) => [a.id, a.dimensions])));
     }
     if (agents.length > 0) loadDimensions();
   }, [agents]);

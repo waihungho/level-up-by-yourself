@@ -37,13 +37,20 @@ function getCategoryAverage(
   return total / categoryDims.length;
 }
 
+/** Chart ceiling: 50 (the starting scale) or the next multiple of 25 above the largest value, so grown stats stay inside. */
+function chartMax(values: Iterable<number>): number {
+  let max = 0;
+  for (const v of values) if (v > max) max = v;
+  return Math.max(50, Math.ceil(max / 25) * 25);
+}
+
 export function MiniRadar({ dimMap, size = 120 }: { dimMap: Map<number, number>; size?: number }) {
   const cx = size / 2;
   const cy = size / 2;
-  const maxRadius = size * 0.33;
-  const maxValue = 50;
+  const maxRadius = size * 0.4;
 
   const averages = CATEGORIES.map((cat) => getCategoryAverage(cat, dimMap));
+  const maxValue = chartMax(averages);
   const totalScore = Math.round(averages.reduce((s, v) => s + v, 0));
 
   const getPoint = (index: number, radius: number) => {
@@ -66,7 +73,7 @@ export function MiniRadar({ dimMap, size = 120 }: { dimMap: Map<number, number>;
     .join(" ") + " Z";
 
   return (
-    <svg width={size} height={size} className="block shrink-0">
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block shrink-0" aria-hidden="true">
       <path d={polygonPath(maxRadius)} fill="none" stroke="#374151" strokeWidth={1} />
       <path d={polygonPath(maxRadius * 0.5)} fill="none" stroke="#374151" strokeWidth={0.5} />
       {CATEGORIES.map((_, i) => {
@@ -96,7 +103,7 @@ function OverallRadar({ dimMap }: { dimMap: Map<number, number> }) {
   const levels = 4;
 
   const averages = CATEGORIES.map((cat) => getCategoryAverage(cat, dimMap));
-  const maxValue = 50;
+  const maxValue = chartMax(averages);
   const totalScore = Math.round(averages.reduce((s, v) => s + v, 0));
 
   // Pentagon points for a given radius
@@ -124,7 +131,7 @@ function OverallRadar({ dimMap }: { dimMap: Map<number, number> }) {
 
   return (
     <div className="flex flex-col items-center mb-6">
-      <svg width={size} height={size} className="block">
+      <svg viewBox={`0 0 ${size} ${size}`} className="block w-full max-w-[400px] h-auto">
         {/* Grid levels */}
         {Array.from({ length: levels }, (_, i) => {
           const r = (maxRadius * (i + 1)) / levels;
@@ -214,6 +221,7 @@ function OverallRadar({ dimMap }: { dimMap: Map<number, number> }) {
 
 export function DimensionChart({ dimensions }: { dimensions: AgentDimension[] }) {
   const dimMap = new Map(dimensions.map((d) => [d.dimensionId, d.value]));
+  const barMax = chartMax(dimMap.values());
 
   return (
     <div className="space-y-6">
@@ -237,10 +245,10 @@ export function DimensionChart({ dimensions }: { dimensions: AgentDimension[] })
                     <div className="flex-1 bg-gray-800 rounded-full h-2">
                       <div
                         className={`${CATEGORY_COLORS[category]} rounded-full h-2 transition-all`}
-                        style={{ width: `${Math.min((value / 50) * 100, 100)}%` }}
+                        style={{ width: `${Math.min((value / barMax) * 100, 100)}%` }}
                       />
                     </div>
-                    <span className="text-gray-400 w-10 text-right">{value % 1 === 0 ? value : value.toFixed(1)}</span>
+                    <span className="text-gray-400 w-12 text-right tabular-nums">{value % 1 === 0 ? value : value.toFixed(1)}</span>
                   </div>
                 );
               })}

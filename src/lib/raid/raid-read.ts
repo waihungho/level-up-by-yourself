@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase";
+import { selectAllPages } from "@/lib/supabase-pages";
 import { utcDayStartISO } from "@/lib/time";
 import type { BossStats } from "./bosses";
 
@@ -135,14 +136,79 @@ export async function getPastBosses(limit = 10): Promise<RaidBoss[]> {
   return mem.bosses.filter((b) => b.status !== "active").sort((a, b) => b.weekStart.localeCompare(a.weekStart)).slice(0, limit);
 }
 
+type ContributionRow = { boss_id: string; player_id: string; damage: number | string; attempts: number; best_hit: number; label: string | null };
+
+function mapContribution(r: ContributionRow): RaidContribution {
+  return { bossId: r.boss_id, playerId: r.player_id, damage: Number(r.damage), attempts: r.attempts, bestHit: r.best_hit, label: r.label ?? "" };
+}
+
+/** Every contributor, highest damage first (paged: payouts must not stop at PostgREST's 1000-row cap). */
 export async function getContributions(bossId: string): Promise<RaidContribution[]> {
   const sb = reader();
   if (sb) {
-    const { data, error } = await sb.from("levelup_raid_contributions").select("*").eq("boss_id", bossId).order("damage", { ascending: false });
-    if (error) throw error;
-    return (data ?? []).map((r) => ({ bossId: r.boss_id, playerId: r.player_id, damage: Number(r.damage), attempts: r.attempts, bestHit: r.best_hit, label: r.label ?? "" }));
+    const rows = await selectAllPages<ContributionRow>((from, to) =>
+      sb
+        .from("levelup_raid_contributions")
+        .select("*")
+        .eq("boss_id", bossId)
+        .order("damage", { ascending: false })
+        .order("player_id")
+        .range(from, to)
+    );
+    return rows.map(mapContribution);
   }
   return mem.contribs.filter((c) => c.bossId === bossId).sort((a, b) => b.damage - a.damage).map((c) => ({ ...c }));
+}
+
+export interface RaidStandings {
+  top: RaidContribution[];
+  participants: number;
+  me: { rank: number; damage: number } | null;
+}
+
+/** Leaderboard slice for the raid view: top `limit`, participant count and the player's own rank. */
+export async function getRaidStandings(bossId: string, playerId: string | null, limit: number): Promise<RaidStandings> {
+  const sb = reader();
+  if (sb) {
+    const { data, error } = await sb.rpc("levelup_raid_standings", { p_boss_id: bossId, p_player_id: playerId, p_limit: limit });
+    if (!error && data) {
+      const me = data.me as (ContributionRow & { rank: number }) | null;
+      return {
+        top: ((data.top ?? []) as ContributionRow[]).map(mapContribution),
+        participants: Number(data.participants ?? 0),
+        me: me ? { rank: Number(me.rank), damage: Number(me.damage) } : null,
+      };
+    }
+    // Fallback until migration 006 is applied.
+  }
+  const all = await getContributions(bossId);
+  const myIndex = playerId ? all.findIndex((c) => c.playerId === playerId) : -1;
+  return {
+    top: all.slice(0, limit),
+    participants: all.length,
+    me: myIndex >= 0 ? { rank: myIndex + 1, damage: all[myIndex].damage } : null,
+  };
+}
+
+/** Labels of the top contributor and of one specific player (Hall of Fame), without reading every row. */
+export async function getChampionAndPlayerLabel(
+  bossId: string,
+  playerId: string | null
+): Promise<{ champion: string | null; player: string | null }> {
+  const sb = reader();
+  if (sb) {
+    const [top, one] = await Promise.all([
+      sb.from("levelup_raid_contributions").select("label").eq("boss_id", bossId).order("damage", { ascending: false }).limit(1).maybeSingle(),
+      playerId
+        ? sb.from("levelup_raid_contributions").select("label").eq("boss_id", bossId).eq("player_id", playerId).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+    if (top.error) throw top.error;
+    if (one.error) throw one.error;
+    return { champion: top.data?.label || null, player: one.data?.label || null };
+  }
+  const all = await getContributions(bossId);
+  return { champion: all[0]?.label || null, player: all.find((c) => c.playerId === playerId)?.label || null };
 }
 
 export async function getTotalDamage(bossId: string): Promise<number> {

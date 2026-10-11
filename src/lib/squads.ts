@@ -1,4 +1,4 @@
-import { getAgentWithDimensions, getAllAgentsWithDimensions, getPlayerAgents } from "./db";
+import { getAgentsWithDimensions, getAllAgentsWithDimensions, getPlayerAgents } from "./db";
 import { getSupabase } from "./supabase";
 import { selectAllPages } from "./supabase-pages";
 import { getWriteClient } from "./supabase-admin";
@@ -24,9 +24,7 @@ export function totalStats(a: AgentWithDimensions): number {
 /** All of a player's agents with dimensions loaded (agents without dimensions are dropped). */
 export async function loadFullAgents(playerId: string): Promise<AgentWithDimensions[]> {
   const agents = await getPlayerAgents(playerId);
-  return (await Promise.all(agents.map((a) => getAgentWithDimensions(a.id)))).filter(
-    (a): a is AgentWithDimensions => !!a && a.dimensions.length > 0
-  );
+  return (await getAgentsWithDimensions(agents.map((a) => a.id))).filter((a) => a.dimensions.length > 0);
 }
 
 /** The player's single strongest agent (solo raids, rewards for players without a squad). */

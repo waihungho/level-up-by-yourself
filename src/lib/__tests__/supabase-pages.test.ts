@@ -9,8 +9,16 @@ describe("selectAllPages", () => {
       ranges.push([from, to]);
       return { data: table.slice(from, to + 1), error: null };
     });
-    expect(rows).toHaveLength(2500);
-    expect(ranges).toEqual([[0, 999], [1000, 1999], [2000, 2999]]);
+    expect(rows).toEqual(table);
+    // One concurrent round of 8 pages; rows past the short page are ignored.
+    expect(ranges.slice(0, 3)).toEqual([[0, 999], [1000, 1999], [2000, 2999]]);
+    expect(ranges).toHaveLength(8);
+  });
+
+  it("starts another round when a full round comes back", async () => {
+    const table = Array.from({ length: 8500 }, (_, i) => i);
+    const rows = await selectAllPages(async (from, to) => ({ data: table.slice(from, to + 1), error: null }));
+    expect(rows).toEqual(table);
   });
 
   it("throws the query error", async () => {

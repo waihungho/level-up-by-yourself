@@ -63,7 +63,18 @@ export async function getSquadLeaderboard(limit = 20): Promise<(SquadStats & { a
   } else {
     rows = [...squadMem.stats.values()].sort((a, b) => b.rating - a.rating).slice(0, limit);
   }
-  return Promise.all(rows.map(async (r) => ({ ...r, agentIds: (await savedSquadIds(r.playerId)) ?? [] })));
+  const squads = new Map<string, string[]>();
+  if (sb && rows.length) {
+    const { data, error } = await sb
+      .from("levelup_squads")
+      .select("player_id,agent_ids")
+      .in("player_id", rows.map((r) => r.playerId));
+    if (error) throw error;
+    for (const s of data ?? []) squads.set(s.player_id, s.agent_ids);
+  } else if (!sb) {
+    for (const r of rows) squads.set(r.playerId, squadMem.squads.get(r.playerId) ?? []);
+  }
+  return rows.map((r) => ({ ...r, agentIds: squads.get(r.playerId) ?? [] }));
 }
 
 export async function getRecentSquadOpponents(playerId: string, n: number): Promise<string[]> {

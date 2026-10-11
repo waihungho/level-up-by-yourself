@@ -1,8 +1,7 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
-import { getOrCreatePlayer, getPlayerAgents } from "@/lib/db";
-import { setSupabaseWallet } from "@/lib/supabase";
+import { bootstrapPlayer, getOrCreatePlayer, getPlayerAgents } from "@/lib/db";
 import type { Player, Agent } from "@/lib/types";
 
 interface GameState {
@@ -34,47 +33,54 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Base58 string, so a new PublicKey object for the same wallet doesn't reload everything.
+  const wallet = connected && publicKey ? publicKey.toBase58() : null;
+  const playerId = player?.id ?? null;
+
   const refreshPlayer = useCallback(async () => {
-    if (!publicKey) return;
+    if (!wallet) return;
     try {
-      const p = await getOrCreatePlayer(publicKey.toBase58());
-      setPlayer(p);
+      setPlayer(await getOrCreatePlayer(wallet));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load player");
     }
-  }, [publicKey]);
+  }, [wallet]);
 
   const refreshAgents = useCallback(async () => {
-    if (!player) return;
+    if (!playerId) return;
     try {
-      const a = await getPlayerAgents(player.id);
-      setAgents(a);
+      setAgents(await getPlayerAgents(playerId));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load agents");
     }
-  }, [player]);
+  }, [playerId]);
 
-  // Load player when wallet connects
+  // Load player and agents together when the wallet connects
   useEffect(() => {
-    if (connected && publicKey) {
-      setLoading(true);
-      const walletAddress = publicKey.toBase58();
-      setSupabaseWallet(walletAddress)
-        .then(() => refreshPlayer())
-        .finally(() => setLoading(false));
-    } else {
+    if (!wallet) {
       setPlayer(null);
       setAgents([]);
       setError(null);
+      return;
     }
-  }, [connected, publicKey, refreshPlayer]);
-
-  // Load agents when player loads
-  useEffect(() => {
-    if (player) {
-      refreshAgents();
-    }
-  }, [player, refreshAgents]);
+    let cancelled = false;
+    setLoading(true);
+    bootstrapPlayer(wallet)
+      .then((data) => {
+        if (cancelled) return;
+        setPlayer(data.player);
+        setAgents(data.agents);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load player");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet]);
 
   return (
     <GameContext.Provider value={{ player, agents, loading, error, refreshPlayer, refreshAgents }}>

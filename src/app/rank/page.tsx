@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
 import { PixelSprite } from "@/components/PixelSprite";
-import { getAllAgentsWithDimensions, getAllPlayers, getPvpStatsForAgents } from "@/lib/db";
+import { getAgentsByIds, getPlayersByIds } from "@/lib/db";
+import { buildRankings, type Rankings } from "@/lib/rankings";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { getSquadLeaderboard, type SquadStats } from "@/lib/squads-read";
-import { getAllTrophies, getContributions, getPastBosses, type RaidBoss, type TrophyTier } from "@/lib/raid/raid-read";
+import { getAllTrophies, getChampionAndPlayerLabel, getPastBosses, type RaidBoss, type TrophyTier } from "@/lib/raid/raid-read";
 import { bossByKey } from "@/lib/raid/bosses";
 import { TrophyBadges } from "@/components/TrophyBadges";
 
@@ -19,15 +21,13 @@ async function loadHallOfFame(): Promise<{ hall: HallEntry[]; trophies: { player
   const [past, trophies] = await Promise.all([getPastBosses(10), getAllTrophies()]);
   const hall = await Promise.all(
     past.map(async (boss) => {
-      const contributions = await getContributions(boss.id);
-      const label = (playerId: string | null) => contributions.find((c) => c.playerId === playerId)?.label || null;
-      return { boss, champion: contributions[0]?.label || null, slayer: label(boss.lastHitPlayerId) };
+      const labels = await getChampionAndPlayerLabel(boss.id, boss.lastHitPlayerId);
+      return { boss, champion: labels.champion, slayer: labels.player };
     })
   );
   return { hall, trophies };
 }
-import { DIMENSIONS } from "@/lib/constants";
-import type { AgentWithDimensions, Player, PvpStats } from "@/lib/types";
+import type { Agent } from "@/lib/types";
 import Link from "next/link";
 
 const ROLE_BADGE: Record<string, string> = {
@@ -36,29 +36,13 @@ const ROLE_BADGE: Record<string, string> = {
   medieval: "bg-amber-700 text-amber-200",
 };
 
-function getTotalAbility(agent: AgentWithDimensions): number {
-  return DIMENSIONS.reduce((sum, dim) => {
-    const ad = agent.dimensions.find((d) => d.dimensionId === dim.id);
-    return sum + (ad ? ad.value : 10);
-  }, 0);
+/** Rankings are computed server-side and CDN-cached; demo mode keeps data in the browser, so compute it here. */
+async function loadRankings(): Promise<Rankings> {
+  if (!isSupabaseConfigured) return buildRankings();
+  const res = await fetch("/api/rank");
+  if (!res.ok) throw new Error(`rank ${res.status}`);
+  return res.json();
 }
-
-function getCategoryAvg(
-  agent: AgentWithDimensions,
-  category: string
-): number {
-  const dimIds = DIMENSIONS.filter((d) => d.category === category).map(
-    (d) => d.id
-  );
-  if (dimIds.length === 0) return 0;
-  const total = dimIds.reduce((sum, id) => {
-    const ad = agent.dimensions.find((d) => d.dimensionId === id);
-    return sum + (ad ? ad.value : 10);
-  }, 0);
-  return total / dimIds.length;
-}
-
-const CATEGORIES = ["Physical", "Mental", "Social", "Spiritual", "Technical"];
 
 const CATEGORY_COLORS: Record<string, string> = {
   Physical: "text-red-400",
@@ -72,25 +56,38 @@ export default function RankPage() {
   const { player, loading } = useGame();
   const router = useRouter();
 
-  const [agents, setAgents] = useState<AgentWithDimensions[]>([]);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [pvpStats, setPvpStats] = useState<Record<string, PvpStats>>({});
-  const [loadingData, setLoadingData] = useState(true);
+  const [rankings, setRankings] = useState<Rankings | null>(null);
+  const [rankError, setRankError] = useState(false);
   const [tab, setTab] = useState<"agents" | "squads" | "raid">("agents");
   const [raidData, setRaidData] = useState<Awaited<ReturnType<typeof loadHallOfFame>> | null>(null);
+  const [squadBoard, setSquadBoard] = useState<(SquadStats & { agentIds: string[] })[] | null>(null);
+  const [squadAgents, setSquadAgents] = useState<Map<string, Agent>>(new Map());
+  const [wallets, setWallets] = useState<Map<string, string>>(new Map());
+
+  const addWallets = (playerIds: string[]) =>
+    getPlayersByIds(playerIds)
+      .then((ps) => setWallets((prev) => new Map([...prev, ...ps.map((p) => [p.id, p.walletAddress] as const)])))
+      .catch(() => {});
 
   useEffect(() => {
     if (tab !== "raid" || raidData) return;
     loadHallOfFame()
-      .then(setRaidData)
+      .then((data) => {
+        setRaidData(data);
+        addWallets([...new Set(data.trophies.map((t) => t.playerId))]);
+      })
       .catch(() => setRaidData({ hall: [], trophies: [] }));
   }, [tab, raidData]);
-  const [squadBoard, setSquadBoard] = useState<(SquadStats & { agentIds: string[] })[] | null>(null);
 
   useEffect(() => {
     if (tab !== "squads" || squadBoard) return;
     getSquadLeaderboard(50)
-      .then(setSquadBoard)
+      .then(async (board) => {
+        setSquadBoard(board);
+        addWallets(board.map((r) => r.playerId));
+        const agents = await getAgentsByIds(board.flatMap((r) => r.agentIds));
+        setSquadAgents(new Map(agents.map((a) => [a.id, a])));
+      })
       .catch(() => setSquadBoard([]));
   }, [tab, squadBoard]);
 
@@ -99,31 +96,20 @@ export default function RankPage() {
   }, [loading, player, router]);
 
   useEffect(() => {
-    async function load() {
-      setLoadingData(true);
-      const [allAgents, allPlayers] = await Promise.all([
-        getAllAgentsWithDimensions(),
-        getAllPlayers(),
-      ]);
-      // Sort by total ability descending
-      allAgents.sort((a, b) => getTotalAbility(b) - getTotalAbility(a));
-      setAgents(allAgents);
-      setPlayers(allPlayers);
-      // Load PvP stats for top 100 agents (or all if fewer)
-      const top100Ids = allAgents.slice(0, 100).map((a) => a.id);
-      const stats = await getPvpStatsForAgents(top100Ids);
-      setPvpStats(stats);
-      setLoadingData(false);
-    }
-    if (player) load();
-  }, [player]);
+    if (!player || rankings || rankError) return;
+    loadRankings()
+      .then((r) => {
+        setRankings(r);
+        setWallets((prev) => new Map([...prev, ...r.top.flatMap((a) => (a.wallet ? [[a.playerId, a.wallet] as const] : []))]));
+      })
+      .catch(() => setRankError(true));
+  }, [player, rankings, rankError]);
 
   if (loading || !player) return null;
 
-  const playerMap = new Map(players.map((p) => [p.id, p]));
-  const agentMap = new Map(agents.map((a) => [a.id, a]));
+  const loadingData = !rankings && !rankError;
   const shortWallet = (playerId: string) => {
-    const w = playerMap.get(playerId)?.walletAddress;
+    const w = wallets.get(playerId);
     return w ? `${w.slice(0, 4)}...${w.slice(-4)}` : "Unknown";
   };
 
@@ -137,11 +123,11 @@ export default function RankPage() {
       ) : (
         <div className="flex justify-center gap-6 mb-6">
           <div className="text-center">
-            <div className="font-mono font-bold text-lg text-white">{players.length}</div>
+            <div className="font-mono font-bold text-lg text-white">{rankings?.totalPlayers ?? 0}</div>
             <div className="font-mono text-[10px] text-gray-500">Total Players</div>
           </div>
           <div className="text-center">
-            <div className="font-mono font-bold text-lg text-white">{agents.length}</div>
+            <div className="font-mono font-bold text-lg text-white">{rankings?.totalAgents ?? 0}</div>
             <div className="font-mono text-[10px] text-gray-500">Total Agents</div>
           </div>
         </div>
@@ -232,7 +218,7 @@ export default function RankPage() {
                 <span className="w-8 text-center font-mono text-sm text-gray-400 font-bold">#{i + 1}</span>
                 <div className="flex -space-x-2">
                   {row.agentIds.map((id) => {
-                    const a = agentMap.get(id);
+                    const a = squadAgents.get(id);
                     return a ? <PixelSprite key={id} spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={36} /> : null;
                   })}
                 </div>
@@ -253,18 +239,24 @@ export default function RankPage() {
         <div className="text-center py-12">
           <span className="font-mono text-gray-400">Loading rankings...</span>
         </div>
+      ) : !rankings ? (
+        <div className="text-center py-12">
+          <span className="font-mono text-gray-400">Could not load rankings.</span>
+          <button
+            type="button"
+            onClick={() => setRankError(false)}
+            className="block mx-auto mt-3 px-4 py-2 min-h-[40px] border border-gray-700 rounded font-mono text-xs text-gray-300"
+          >
+            Retry
+          </button>
+        </div>
       ) : (
         <div className="space-y-2">
-          <p className="font-mono text-xs text-gray-600 mb-2">Top {Math.min(100, agents.length)} Agents by Ability</p>
-          {agents.slice(0, 100).map((agent, index) => {
+          <p className="font-mono text-xs text-gray-600 mb-2">Top {rankings.top.length} Agents by Ability</p>
+          {rankings.top.map((agent, index) => {
             const rank = index + 1;
-            const totalAbility = getTotalAbility(agent);
-            const ownerPlayer = playerMap.get(agent.playerId);
             const isOwn = agent.playerId === player.id;
-            const topCategory = CATEGORIES.reduce((best, cat) => {
-              const avg = getCategoryAvg(agent, cat);
-              return avg > getCategoryAvg(agent, best) ? cat : best;
-            }, CATEGORIES[0]);
+            const topCategory = agent.topCategory;
 
             return (
               <Link
@@ -301,7 +293,7 @@ export default function RankPage() {
                   {/* Sprite */}
                   <div className="shrink-0">
                     <PixelSprite
-                      spriteSeed={agent.spriteSeed as Record<string, number>}
+                      spriteSeed={agent.spriteSeed}
                       role={agent.role}
                       size={48}
                     />
@@ -326,9 +318,7 @@ export default function RankPage() {
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="font-mono text-[10px] text-gray-500">
-                        {ownerPlayer
-                          ? `${ownerPlayer.walletAddress.slice(0, 4)}...${ownerPlayer.walletAddress.slice(-4)}`
-                          : "Unknown"}
+                        {shortWallet(agent.playerId)}
                       </span>
                       <span className="text-gray-700">·</span>
                       <span
@@ -342,7 +332,7 @@ export default function RankPage() {
                   {/* Ability Score */}
                   <div className="shrink-0 text-right">
                     <div className="font-mono font-bold text-white text-sm">
-                      {Math.round(totalAbility)}
+                      {Math.round(agent.totalAbility)}
                     </div>
                     <div className="font-mono text-[10px] text-gray-500">
                       AP
@@ -351,7 +341,7 @@ export default function RankPage() {
 
                   {/* PvP Record */}
                   {(() => {
-                    const stat = pvpStats[agent.id];
+                    const stat = agent.pvp;
                     if (!stat || (stat.wins === 0 && stat.losses === 0)) return (
                       <div className="shrink-0 text-right ml-2">
                         <div className="font-mono text-[10px] text-gray-600">—</div>
