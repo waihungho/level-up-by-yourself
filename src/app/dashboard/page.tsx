@@ -13,6 +13,8 @@ import { useEffect, useState } from "react";
 import { RaidBanner } from "@/components/RaidBanner";
 import { WhatsNewBanner } from "@/components/WhatsNewBanner";
 
+const DONATION_SOL = 0.05;
+
 export default function Dashboard() {
   const { player, agents, loading } = useGame();
   const { publicKey, connected, sendTransaction, connection } = useUnifiedWallet();
@@ -25,7 +27,7 @@ export default function Dashboard() {
     setDonating(true);
     setDonateStatus("idle");
     try {
-      const tx = await createPaymentTransaction(connection, publicKey, 0.5);
+      const tx = await createPaymentTransaction(connection, publicKey, DONATION_SOL);
       const signature = await sendTransaction(tx, connection);
       const confirmed = await confirmTransaction(connection, signature);
       setDonateStatus(confirmed ? "success" : "error");
@@ -136,7 +138,7 @@ export default function Dashboard() {
             disabled={donating}
             className="px-6 py-2.5 bg-gradient-to-r from-yellow-600 to-amber-500 hover:from-yellow-500 hover:to-amber-400 text-white font-mono font-bold text-sm rounded-lg transition-all disabled:opacity-50"
           >
-            {donating ? "Processing..." : "Donate 0.5 SOL"}
+            {donating ? "Processing..." : `Donate ${DONATION_SOL} SOL`}
           </button>
           {donateStatus === "success" && (
             <p className="mt-2 font-mono text-xs text-green-400">Thank you for your support!</p>
