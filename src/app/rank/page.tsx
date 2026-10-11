@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
 import { PixelSprite } from "@/components/PixelSprite";
 import { getAllAgentsWithDimensions, getAllPlayers, getPvpStatsForAgents } from "@/lib/db";
+import { getSquadLeaderboard, type SquadStats } from "@/lib/squads";
 import { DIMENSIONS } from "@/lib/constants";
 import type { AgentWithDimensions, Player, PvpStats } from "@/lib/types";
 import Link from "next/link";
@@ -54,6 +55,15 @@ export default function RankPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [pvpStats, setPvpStats] = useState<Record<string, PvpStats>>({});
   const [loadingData, setLoadingData] = useState(true);
+  const [tab, setTab] = useState<"agents" | "squads">("agents");
+  const [squadBoard, setSquadBoard] = useState<(SquadStats & { agentIds: string[] })[] | null>(null);
+
+  useEffect(() => {
+    if (tab !== "squads" || squadBoard) return;
+    getSquadLeaderboard(50)
+      .then(setSquadBoard)
+      .catch(() => setSquadBoard([]));
+  }, [tab, squadBoard]);
 
   useEffect(() => {
     if (!loading && !player) router.push("/");
@@ -82,6 +92,11 @@ export default function RankPage() {
   if (loading || !player) return null;
 
   const playerMap = new Map(players.map((p) => [p.id, p]));
+  const agentMap = new Map(agents.map((a) => [a.id, a]));
+  const shortWallet = (playerId: string) => {
+    const w = playerMap.get(playerId)?.walletAddress;
+    return w ? `${w.slice(0, 4)}...${w.slice(-4)}` : "Unknown";
+  };
 
   return (
     <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto">
@@ -103,7 +118,58 @@ export default function RankPage() {
         </div>
       )}
 
-      {loadingData ? (
+      <div className="flex justify-center gap-2 mb-4" role="tablist">
+        {(["agents", "squads"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-1.5 min-h-[40px] rounded font-mono text-xs font-bold border ${
+              tab === t ? "border-purple-500 bg-purple-900/30 text-white" : "border-gray-700 text-gray-400"
+            }`}
+          >
+            {t === "agents" ? "Agents" : "Squads"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "squads" ? (
+        !squadBoard ? (
+          <p className="text-center font-mono text-sm text-gray-500 py-12">Loading squads...</p>
+        ) : squadBoard.length === 0 ? (
+          <p className="text-center font-mono text-sm text-gray-500 py-12">No squad battles yet. Be the first!</p>
+        ) : (
+          <div className="space-y-2">
+            {squadBoard.map((row, i) => (
+              <div
+                key={row.playerId}
+                className={`border rounded-lg p-3 flex items-center gap-3 ${
+                  row.playerId === player.id ? "border-purple-700/50 bg-purple-900/10" : "border-gray-800 bg-gray-900"
+                }`}
+              >
+                <span className="w-8 text-center font-mono text-sm text-gray-400 font-bold">#{i + 1}</span>
+                <div className="flex -space-x-2">
+                  {row.agentIds.map((id) => {
+                    const a = agentMap.get(id);
+                    return a ? <PixelSprite key={id} spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={36} /> : null;
+                  })}
+                </div>
+                <span className="flex-1 font-mono text-[11px] text-gray-400 truncate">{shortWallet(row.playerId)}</span>
+                <div className="text-right">
+                  <div className="font-mono text-sm font-bold text-emerald-300">{row.rating}</div>
+                  <div className="font-mono text-[10px]">
+                    <span className="text-green-400">{row.wins}W</span>
+                    <span className="text-gray-600"> - </span>
+                    <span className="text-red-400">{row.losses}L</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : loadingData ? (
         <div className="text-center py-12">
           <span className="font-mono text-gray-400">Loading rankings...</span>
         </div>

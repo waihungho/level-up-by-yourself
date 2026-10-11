@@ -5,6 +5,7 @@ import { useGame } from "@/components/GameProvider";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { PixelSprite } from "@/components/PixelSprite";
 import { TacticalBattle } from "@/components/TacticalBattle";
+import { SquadArena } from "@/components/SquadArena";
 import {
   getAgentWithDimensions,
   getAgentFightsToday,
@@ -77,6 +78,7 @@ export default function BattlePage() {
   const router = useRouter();
 
   const [phase, setPhase] = useState<Phase>("select");
+  const [arena, setArena] = useState<"duel" | "squad">("duel");
   const [recharging, setRecharging] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [allAgentsFull, setAllAgentsFull] = useState<AgentWithDimensions[]>([]);
@@ -376,6 +378,27 @@ export default function BattlePage() {
           Battle Arena
         </h1>
 
+        <div className="flex justify-center gap-2 mb-6" role="tablist">
+          {(["duel", "squad"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              role="tab"
+              aria-selected={arena === tab}
+              onClick={() => setArena(tab)}
+              className={`px-5 py-2 min-h-[44px] rounded-lg font-mono text-sm font-bold border ${
+                arena === tab ? "border-purple-500 bg-purple-900/30 text-white" : "border-gray-700 text-gray-400"
+              }`}
+            >
+              {tab === "duel" ? "⚔ Duel" : "⛨ Squad 3v3"}
+            </button>
+          ))}
+        </div>
+
+        {arena === "squad" && publicKey ? (
+          <SquadArena walletAddress={publicKey.toBase58()} onAgentsChanged={refreshAgents} />
+        ) : (
+        <>
         {/* PvP Section */}
         <div className="mb-8 bg-gray-900 border border-gray-800 rounded-lg p-6">
           <div className="flex items-center justify-center gap-3 mb-4">
@@ -568,6 +591,8 @@ export default function BattlePage() {
           </>
         )}
         </div>
+        </>
+        )}
       </main>
     );
   }
