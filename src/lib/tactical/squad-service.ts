@@ -93,13 +93,13 @@ export async function getSquadView(input: { walletAddress?: string }): Promise<S
   if (!input.walletAddress) return fail(400, "missing_fields");
   const player = await getPlayerByWallet(input.walletAddress);
   if (!player) return fail(403, "not_owner");
-  const [saved, squad, stats, battlesToday] = await Promise.all([
+  const [saved, squad, stats, battlesToday, maxBattles] = await Promise.all([
     getSquad(player.id),
     getOrBuildSquad(player.id),
     getSquadStats([player.id]),
     countSquadBattlesToday(player.id),
+    squadLimitToday(player.id),
   ]);
-  const maxBattles = await squadLimitToday(player.id);
   return {
     status: 200,
     body: {

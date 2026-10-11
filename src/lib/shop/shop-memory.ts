@@ -1,13 +1,18 @@
+import type { AttemptMode, Gear } from "./catalog";
+import type { Cosmetics } from "./shop-read";
+
 /** Demo-mode (no Supabase) stores for the shop; tests reset them with resetShopMemory(). */
 export const shopMem = {
   balances: new Map<string, number>(),
   refs: new Set<string>(),
   purchases: new Set<string>(),
-  buffs: new Map<string, string>(), // agentId -> growth buff expires_at ISO
-  bonuses: [] as { playerId: string; agentId: string | null; mode: string; extra: number; day: string }[],
-  cosmetics: new Map<string, Record<string, string>>(), // agentId -> { aura, namecolor }
-  titles: new Map<string, string>(), // playerId -> title id
-  gear: new Map<string, Record<string, number>>(), // agentId -> { weapon, armor, relic }
+  /** agentId → growth buff expiry (ISO) */
+  buffs: new Map<string, string>(),
+  bonuses: [] as { playerId: string; agentId: string | null; mode: AttemptMode; extra: number; day: string }[],
+  cosmetics: new Map<string, Cosmetics>(),
+  /** playerId → title id */
+  titles: new Map<string, string>(),
+  gear: new Map<string, Gear>(),
 };
 
 export function resetShopMemory(): void {

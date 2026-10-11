@@ -1,10 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PixelSprite } from "@/components/PixelSprite";
 import type { ItemKind, ShopItem } from "@/lib/shop/catalog";
 import { newPurchaseId, postJson, SHOP_ERRORS } from "@/lib/shop-client";
 import type { Agent } from "@/lib/types";
-import { AURA_SWATCH } from "./cosmeticStyle";
+import { AURA_COLORS } from "./cosmeticStyle";
 
 const GROUPS: { title: string; kinds: ItemKind[] }[] = [
   { title: "🧪 Elixirs — permanent stats", kinds: ["elixir"] },
@@ -26,6 +26,13 @@ export function ShopItems({ items, balance, agents, walletAddress, onBalance, re
   const [picking, setPicking] = useState<ShopItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!picking) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setPicking(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [picking]);
 
   async function buy(item: ShopItem, agentId?: string) {
     setPicking(null);
@@ -64,7 +71,7 @@ export function ShopItems({ items, balance, agents, walletAddress, onBalance, re
               .map((item) => (
                 <div key={item.id} className="border border-gray-800 bg-gray-900 rounded-lg p-3 flex flex-col">
                   <div className="flex items-center gap-1.5">
-                    {item.kind === "aura" && <span className="w-3 h-3 rounded-full" style={{ background: AURA_SWATCH[item.value!] }} aria-hidden="true" />}
+                    {item.kind === "aura" && <span className="w-3 h-3 rounded-full" style={{ background: AURA_COLORS[item.value!] }} aria-hidden="true" />}
                     <span className="font-mono text-xs font-bold text-white">{item.name}</span>
                   </div>
                   <p className="font-mono text-[10px] text-gray-400 mt-1 flex-1">{item.description}</p>
@@ -84,7 +91,13 @@ export function ShopItems({ items, balance, agents, walletAddress, onBalance, re
       ))}
 
       {picking && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={`Choose an agent for ${picking.name}`}>
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-end sm:items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Choose an agent for ${picking.name}`}
+          onClick={(e) => e.target === e.currentTarget && setPicking(null)}
+        >
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-4 w-full max-w-sm max-h-[80vh] overflow-y-auto">
             <h3 className="font-mono font-bold text-white text-sm mb-1">{picking.name}</h3>
             <p className="font-mono text-[11px] text-gray-400 mb-3">

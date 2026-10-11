@@ -1,4 +1,4 @@
-const AURA_COLORS: Record<string, string> = {
+export const AURA_COLORS: Record<string, string> = {
   ember: "rgba(249,115,22,0.9)",
   frost: "rgba(56,189,248,0.9)",
   venom: "rgba(74,222,128,0.9)",
@@ -7,7 +7,7 @@ const AURA_COLORS: Record<string, string> = {
   void: "rgba(168,85,247,0.95)",
 };
 
-const NAME_COLORS: Record<string, string> = {
+const NAME_COLOR_CLASSES: Record<string, string> = {
   gold: "text-yellow-300",
   crimson: "text-red-400",
   azure: "text-sky-300",
@@ -24,7 +24,6 @@ export function auraStyle(aura: string | undefined): string | undefined {
 
 /** Tailwind classes for a bought name colour ("" when none). */
 export function nameColorClass(color: string | undefined): string {
-  return (color && NAME_COLORS[color]) || "";
+  return (color && NAME_COLOR_CLASSES[color]) || "";
 }
 
-export const AURA_SWATCH = AURA_COLORS;

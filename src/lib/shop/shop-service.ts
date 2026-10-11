@@ -3,7 +3,7 @@ import { getWriteClient } from "@/lib/supabase-admin";
 import { fail, type ServiceResult } from "@/lib/tactical/service-common";
 import { recordRecharge } from "@/lib/tactical/recharge-service";
 import type { Player } from "@/lib/types";
-import { elixirGrowth, gemPackMemo, GEM_PACKS, getItem, isPackId, SHOP_ITEMS, type ShopItem } from "./catalog";
+import { elixirGrowth, gemPackMemo, GEM_PACKS, getItem, isPackId, isValidPurchaseId, SHOP_ITEMS, type ShopItem } from "./catalog";
 import { applyGems, getGemBalance, InsufficientGemsError } from "./gems";
 import { addAttemptBonus, AlreadyOwnedError, applyGrowthAtomic, getAgentBonusesToday, extendGrowthBuff, getTitles, grantTitle, setCosmetic } from "./shop-db";
 import { shopMem } from "./shop-memory";
@@ -13,8 +13,6 @@ export interface PaymentVerifier {
 }
 
 const SCROLL_DAYS = 7;
-const PURCHASE_ID = /^[A-Za-z0-9_-]{8,64}$/;
-
 async function recordPackPurchase(input: { signature: string; playerId: string; packId: string; sol: number; gems: number }): Promise<void> {
   const sb = getWriteClient();
   if (sb) {
@@ -42,9 +40,9 @@ export async function buyGemPack(
   const pack = GEM_PACKS[packId];
   if (!(await deps.verify({ signature, payer: walletAddress, minSol: pack.sol, memo: gemPackMemo(packId) }))) return fail(402, "payment_invalid");
 
-  // The ledger ref makes the credit idempotent; the purchase row is the payment record.
-  const { balance, applied } = await applyGems({ playerId: player.id, delta: pack.gems, reason: `pack:${packId}`, ref: `pack:${signature}` });
+  // Payment record first (idempotent), then the credit (idempotent by ledger ref): a retry after any failure completes both.
   await recordPackPurchase({ signature, playerId: player.id, packId, sol: pack.sol, gems: pack.gems });
+  const { balance, applied } = await applyGems({ playerId: player.id, delta: pack.gems, reason: `pack:${packId}`, ref: `pack:${signature}` });
   if (!applied) return { status: 409, body: { error: "signature_used", balance } };
   return { status: 200, body: { balance, gems: pack.gems } };
 }
@@ -85,7 +83,7 @@ async function applyEffect(item: ShopItem, player: Player, agentId: string | nul
  */
 export async function buyItem(input: { walletAddress?: string; itemId?: string; agentId?: string; purchaseId?: string }): Promise<ServiceResult> {
   const { walletAddress, itemId, purchaseId } = input;
-  if (!walletAddress || !itemId || !purchaseId || !PURCHASE_ID.test(purchaseId)) return fail(400, "missing_fields");
+  if (!walletAddress || !itemId || !isValidPurchaseId(purchaseId)) return fail(400, "missing_fields");
   const item = getItem(itemId);
   if (!item) return fail(400, "invalid_item");
   const player = await getPlayerByWallet(walletAddress);
@@ -114,9 +112,19 @@ export async function buyItem(input: { walletAddress?: string; itemId?: string; 
     const effect = await applyEffect(item, player, agentId, purchaseId);
     return { status: 200, body: { balance: charged.balance, itemId: item.id, agentId, effect } };
   } catch (e) {
-    const refund = await applyGems({ playerId: player.id, delta: item.price, reason: `refund:${item.id}`, ref: `refund:${purchaseId}` });
-    if (e instanceof AlreadyOwnedError) return { status: 409, body: { error: "already_owned", balance: refund.balance } };
+    const refund = await refundGems(player.id, item.price, `refund:${item.id}`, purchaseId);
+    if (e instanceof AlreadyOwnedError) return { status: 409, body: { error: "already_owned", balance: refund } };
     throw e;
+  }
+}
+
+/** Returns gems for a purchase whose effect failed; a failed refund is logged with everything needed to fix it by hand. */
+export async function refundGems(playerId: string, amount: number, reason: string, purchaseId: string): Promise<number | null> {
+  try {
+    return (await applyGems({ playerId, delta: amount, reason, ref: `refund:${purchaseId}` })).balance;
+  } catch (e) {
+    console.error("[shop] REFUND FAILED — credit manually", { playerId, amount, reason, purchaseId }, e);
+    return null;
   }
 }
 

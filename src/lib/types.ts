@@ -1,3 +1,5 @@
+import type { Gear } from "@/lib/shop/catalog";
+
 export type RoleCategory = "future" | "modern" | "medieval";
 
 export type DimensionCategory = "Physical" | "Mental" | "Social" | "Spiritual" | "Technical";
@@ -38,7 +40,7 @@ export interface AgentDimension {
 export interface AgentWithDimensions extends Agent {
   dimensions: AgentDimension[];
   /** Equipment levels (battle-time bonuses); attached by withGear() when building fighters. */
-  gear?: Partial<Record<"weapon" | "armor" | "relic", number>>;
+  gear?: Gear;
   /** Bought aura style, shown around the sprite in battle. */
   aura?: string;
 }

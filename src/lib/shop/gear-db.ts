@@ -5,7 +5,16 @@ import { getGearForAgents } from "./gear-read";
 import { getCosmetics } from "./shop-read";
 import { shopMem } from "./shop-memory";
 
-export { getGearForAgents } from "./gear-read";
+/** One slot's level, read with the service role; throws on error (never guesses 0 when pricing an upgrade). */
+export async function readGearLevel(agentId: string, slot: GearSlot): Promise<number> {
+  const sb = getWriteClient();
+  if (sb) {
+    const { data, error } = await sb.from("levelup_agent_gear").select("level").eq("agent_id", agentId).eq("slot", slot).maybeSingle();
+    if (error) throw error;
+    return data?.level ?? 0;
+  }
+  return shopMem.gear.get(agentId)?.[slot] ?? 0;
+}
 
 /** Raises a slot from `expectedLevel` to expectedLevel + 1; false if the level changed meanwhile. */
 export async function upgradeGearLevel(agentId: string, slot: GearSlot, expectedLevel: number): Promise<boolean> {

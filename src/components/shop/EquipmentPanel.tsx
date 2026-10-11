@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { GEAR_SLOTS, gearTier, gearUpgradeCost, type Gear, type GearSlot } from "@/lib/shop/catalog";
+import { GEAR_PER_LEVEL, GEAR_SLOTS, gearTier, gearUpgradeCost, type Gear, type GearSlot } from "@/lib/shop/catalog";
 import { ROLE_CATEGORY } from "@/lib/tactical/constants";
 import { newPurchaseId, postJson, SHOP_ERRORS } from "@/lib/shop-client";
 import type { RoleCategory } from "@/lib/types";
@@ -13,9 +13,10 @@ const SLOT_INFO: Record<GearSlot, { name: string; icon: string }> = {
 };
 
 function bonusText(slot: GearSlot, level: number, role: RoleCategory): string {
-  if (slot === "weapon") return `+${3 * level} ${ROLE_CATEGORY[role]}`;
-  if (slot === "armor") return `+${level} all categories`;
-  return `+${2 * level} Speed, +${level} Social`;
+  const k = GEAR_PER_LEVEL;
+  if (slot === "weapon") return `+${k.weaponRoleCategory * level} ${ROLE_CATEGORY[role]}`;
+  if (slot === "armor") return `+${k.armorAllCategories * level} all categories`;
+  return `+${k.relicSpeed * level} Speed, +${k.relicSocial * level} Social`;
 }
 
 interface EquipmentPanelProps {
@@ -59,6 +60,7 @@ export function EquipmentPanel({ agentId, role, gear, walletAddress, onUpgraded,
           const level = gear[slot] ?? 0;
           const tier = gearTier(level);
           const info = SLOT_INFO[slot];
+          const nextCost = gearUpgradeCost(level + 1);
           return (
             <div key={slot} role="group" aria-label={info.name} className="border border-gray-700 rounded-lg p-3">
               <div className="flex items-center justify-between font-mono">
@@ -75,12 +77,12 @@ export function EquipmentPanel({ agentId, role, gear, walletAddress, onUpgraded,
               {walletAddress && (
                 <button
                   type="button"
-                  aria-label={`Upgrade ${info.name} for ${gearUpgradeCost(level + 1)} gems`}
+                  aria-label={`Upgrade ${info.name} for ${nextCost} gems`}
                   disabled={busy !== null}
                   onClick={() => upgrade(slot)}
                   className="mt-2 w-full min-h-[40px] rounded bg-purple-700 hover:bg-purple-600 disabled:opacity-40 font-mono text-xs font-bold text-white"
                 >
-                  {busy === slot ? "Upgrading…" : `${level ? "Upgrade" : "Craft"} → Lv ${level + 1} · 💎 ${gearUpgradeCost(level + 1)}`}
+                  {busy === slot ? "Upgrading…" : `${level ? "Upgrade" : "Craft"} → Lv ${level + 1} · 💎 ${nextCost}`}
                 </button>
               )}
             </div>

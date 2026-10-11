@@ -1,6 +1,6 @@
 import { applyAgentGrowth } from "@/lib/db";
 import { getWriteClient } from "@/lib/supabase-admin";
-import { utcDayStartISO } from "@/lib/time";
+import { utcToday } from "@/lib/time";
 import type { AttemptMode } from "./catalog";
 import { shopMem } from "./shop-memory";
 import type { CosmeticKind } from "./shop-read";
@@ -9,7 +9,7 @@ import { getTitles } from "./shop-read";
 export * from "./shop-read";
 
 const DAY_MS = 86_400_000;
-const todayDate = () => utcDayStartISO().slice(0, 10);
+const todayDate = utcToday;
 
 export class AlreadyOwnedError extends Error {
   constructor() {

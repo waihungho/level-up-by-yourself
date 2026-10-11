@@ -18,6 +18,13 @@ export const GEM_PACKS: Record<PackId, { sol: number; gems: number; label: strin
 
 export { gemPackMemo } from "@/lib/payment-memos";
 
+const PURCHASE_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+/** Client-generated idempotency key for a gem spend. */
+export function isValidPurchaseId(id: string | undefined): id is string {
+  return !!id && PURCHASE_ID.test(id);
+}
+
 export function isPackId(id: string): id is PackId {
   return Object.hasOwn(GEM_PACKS, id);
 }
@@ -86,7 +93,7 @@ export const SHOP_ITEMS: ShopItem[] = [
     target: "player",
     price: 150,
     value: id,
-    description: "Shown next to your wallet on rankings and raid boards.",
+    description: "Shown next to your wallet on rankings and raid boards. Replaces your current title.",
   })),
 ];
 
@@ -111,6 +118,9 @@ export type GearSlot = (typeof GEAR_SLOTS)[number];
 /** Level per slot; a missing slot means no gear. */
 export type Gear = Partial<Record<GearSlot, number>>;
 export type GearTier = "bronze" | "silver" | "gold" | "mythic";
+
+/** Per-level gear bonuses (battle time only). */
+export const GEAR_PER_LEVEL = { weaponRoleCategory: 3, armorAllCategories: 1, relicSpeed: 2, relicSocial: 1 } as const;
 
 /** Gems to reach `nextLevel` (no level cap). */
 export function gearUpgradeCost(nextLevel: number): number {
@@ -137,8 +147,9 @@ export function gearBonus(role: RoleCategory, gear: Gear): { catAvg: Record<Cate
   const weapon = gear.weapon ?? 0;
   const armor = gear.armor ?? 0;
   const relic = gear.relic ?? 0;
-  const catAvg = Object.fromEntries(CYCLE.map((c) => [c, armor])) as Record<Category, number>;
-  catAvg[ROLE_CATEGORY[role]] += 3 * weapon;
-  catAvg.Social += relic;
-  return { catAvg, speed: 2 * relic };
+  const k = GEAR_PER_LEVEL;
+  const catAvg = Object.fromEntries(CYCLE.map((c) => [c, k.armorAllCategories * armor])) as Record<Category, number>;
+  catAvg[ROLE_CATEGORY[role]] += k.weaponRoleCategory * weapon;
+  catAvg.Social += k.relicSocial * relic;
+  return { catAvg, speed: k.relicSpeed * relic };
 }

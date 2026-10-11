@@ -139,13 +139,12 @@ async function startTacticalBattle(
   for (const id of ownAgents) await resolveStaleSessions({ playerId: player.id, agentId: id, modes: TACTICAL_MODES }, deps);
 
   // PvP refills add bought fights per agent; training refills reset via the recharge table instead.
+  const baseLimit = battleMode === "pvp" ? MAX_PVP_FIGHTS : MAX_TRAINING_FIGHTS;
   const limits = new Map<string, number>();
   for (const id of ownAgents) {
-    const bonus = battleMode === "pvp" ? await getAttemptBonusToday({ agentId: id, mode: "pvp" }) : 0;
-    limits.set(id, (battleMode === "pvp" ? MAX_PVP_FIGHTS : MAX_TRAINING_FIGHTS) + bonus);
-  }
-  for (const id of ownAgents) {
-    if ((await fightsUsed(id, battleMode, deps.store)) >= limits.get(id)!) return fail(429, "fight_limit_reached");
+    const limit = baseLimit + (battleMode === "pvp" ? await getAttemptBonusToday({ agentId: id, mode: "pvp" }) : 0);
+    if ((await fightsUsed(id, battleMode, deps.store)) >= limit) return fail(429, "fight_limit_reached");
+    limits.set(id, limit);
   }
 
   if (battleMode === "pvp") {

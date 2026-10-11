@@ -15,41 +15,42 @@ const VERIFY_ATTEMPTS = 4;
 
 export function GemPacks({ walletAddress, pay, onBalance, retryDelayMs = 3000 }: GemPacksProps) {
   const [buying, setBuying] = useState<PackId | null>(null);
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string; signature?: string } | null>(null);
 
   async function buy(packId: PackId) {
     setBuying(packId);
     setMessage(null);
-    let signature: string;
     try {
-      signature = await pay(GEM_PACKS[packId].sol, gemPackMemo(packId));
-    } catch {
-      setMessage({ ok: false, text: "Payment cancelled or failed." });
-      setBuying(null);
-      return;
-    }
-    // The server verifies the payment on-chain; retry while the RPC indexes the new transaction.
-    for (let attempt = 0; attempt < VERIFY_ATTEMPTS; attempt++) {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, retryDelayMs));
+      let signature: string;
       try {
-        const res = await fetch("/api/shop/gems", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ walletAddress, packId, signature }),
-        });
-        const data = await res.json();
-        if (res.ok || res.status === 409) {
-          if (typeof data.balance === "number") onBalance(data.balance);
-          setMessage({ ok: true, text: `+${GEM_PACKS[packId].gems} gems added!` });
-          setBuying(null);
-          return;
-        }
+        signature = await pay(GEM_PACKS[packId].sol, gemPackMemo(packId));
       } catch {
-        // network blip: retry
+        setMessage({ ok: false, text: "Payment cancelled or not confirmed yet. If SOL left your wallet, contact support with the transaction." });
+        return;
       }
+      // The server verifies the payment on-chain; retry while the RPC indexes the new transaction.
+      for (let attempt = 0; attempt < VERIFY_ATTEMPTS; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, retryDelayMs));
+        try {
+          const res = await fetch("/api/shop/gems", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ walletAddress, packId, signature }),
+          });
+          const data = await res.json();
+          if (res.ok || res.status === 409) {
+            if (typeof data.balance === "number") onBalance(data.balance);
+            setMessage({ ok: true, text: `+${GEM_PACKS[packId].gems} gems added!` });
+            return;
+          }
+        } catch {
+          // network blip: retry
+        }
+      }
+      setMessage({ ok: false, text: "Payment sent but not verified yet. Keep this transaction signature for support:", signature });
+    } finally {
+      setBuying(null);
     }
-    setMessage({ ok: false, text: `Payment sent but not verified yet. Keep this signature for support: ${signature.slice(0, 16)}…` });
-    setBuying(null);
   }
 
   return (
@@ -71,9 +72,10 @@ export function GemPacks({ walletAddress, pay, onBalance, retryDelayMs = 3000 }:
         ))}
       </div>
       {message && (
-        <p role="status" className={`mt-2 font-mono text-xs ${message.ok ? "text-emerald-300" : "text-red-300"}`}>
+        <div role="status" className={`mt-2 font-mono text-xs ${message.ok ? "text-emerald-300" : "text-red-300"}`}>
           {message.text}
-        </p>
+          {message.signature && <code className="block mt-1 break-all select-all text-[10px] text-gray-300">{message.signature}</code>}
+        </div>
       )}
     </section>
   );

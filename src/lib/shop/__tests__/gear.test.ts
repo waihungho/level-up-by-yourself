@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { getOrCreatePlayer, getPlayerAgents } from "@/lib/db";
 import { resetShopMemory } from "../shop-memory";
-import { getGearForAgents, upgradeGearLevel, withGear } from "../gear-db";
+import { upgradeGearLevel, withGear } from "../gear-db";
+import { getGearForAgents } from "../gear-read";
 import { upgradeGear } from "../gear-service";
 import { applyGems, getGemBalance } from "../gems";
 import { makeAgent } from "@/lib/tactical/__tests__/fixtures";
