@@ -13,6 +13,7 @@ import {
 } from "../engine";
 import { InvalidActionError, type TacticalState, type Intent } from "../types";
 import { mulberry32 } from "../rng";
+import { COUNTER_INTERRUPT, COUNTER_MULT, FEINT_MAX } from "../constants";
 import { makeAgent, half } from "./fixtures";
 
 function battle(
@@ -58,7 +59,7 @@ describe("createBattle", () => {
 });
 
 describe("resolveRound", () => {
-  it("a counter adds +1 focus and halves the opponent's strike", () => {
+  it("a counter adds +1 focus and interrupts the opponent's strike", () => {
     const s = battle("modern", "modern");
     const countered = resolveRound(s, { type: "strike", category: "Physical" }, half, { manual: true });
     const plain = resolveRound(s, { type: "strike", category: "Spiritual" }, half, { manual: true });
@@ -66,7 +67,7 @@ describe("resolveRound", () => {
     expect(plain.rounds[0].countered).toBe(false);
     expect(countered.sides.attacker.focus).toBe(2);
     expect(plain.sides.attacker.focus).toBe(1);
-    expect(hpLoss(s, countered, "attacker")).toBe(Math.round(hpLoss(s, plain, "attacker") * 0.5));
+    expect(hpLoss(s, countered, "attacker")).toBe(Math.round(hpLoss(s, plain, "attacker") * COUNTER_INTERRUPT));
     expect(countered.counters).toBe(1);
   });
 
@@ -76,11 +77,11 @@ describe("resolveRound", () => {
     const bad = resolveRound(s, { type: "strike", category: "Technical" }, half, { manual: true });
     const neutral = resolveRound(s, { type: "strike", category: "Spiritual" }, half, { manual: true });
     expect(bad.rounds[0].counteredBy).toBe(true);
-    expect(hpLoss(s, bad, "attacker")).toBe(Math.round(hpLoss(s, neutral, "attacker") * 1.5));
-    expect(hpLoss(s, bad, "defender")).toBe(Math.round(hpLoss(s, neutral, "defender") * 0.5));
+    expect(hpLoss(s, bad, "attacker")).toBe(Math.round(hpLoss(s, neutral, "attacker") * COUNTER_MULT));
+    expect(hpLoss(s, bad, "defender")).toBe(Math.round(hpLoss(s, neutral, "defender") * COUNTER_INTERRUPT));
   });
 
-  it("a counter deals 1.5x damage compared with the same strike uncountered", () => {
+  it("a counter multiplies damage by COUNTER_MULT compared with the same strike uncountered", () => {
     const s = battle("modern", "modern");
     const countered = resolveRound(s, { type: "strike", category: "Physical" }, half, { manual: true });
     const plain = resolveRound(
@@ -89,7 +90,7 @@ describe("resolveRound", () => {
       half,
       { manual: true }
     );
-    expect(hpLoss(s, countered, "defender")).toBe(Math.round(hpLoss(s, plain, "defender") * 1.5));
+    expect(hpLoss(s, countered, "defender")).toBe(Math.round(hpLoss(s, plain, "defender") * COUNTER_MULT));
   });
 
   it("guard reduces incoming damage by 60% and adds +1 focus", () => {
@@ -165,8 +166,8 @@ describe("resolveRound", () => {
       b.intent = { kind: "strike", category: "Physical" };
       if (resolveRound(b, { type: "guard" }, rng, { manual: true }).rounds[0].feint) feints++;
     }
-    expect(feints).toBeGreaterThan(50);
-    expect(feints).toBeLessThan(150);
+    expect(feints).toBeGreaterThan(400 * FEINT_MAX * 0.7);
+    expect(feints).toBeLessThan(400 * FEINT_MAX * 1.3);
   });
 
   it("an unguarded ULTIMATE hits 3x a regular strike; guarding cuts it below a regular strike", () => {
@@ -207,11 +208,11 @@ describe("resolveRound", () => {
 });
 
 describe("feintChance", () => {
-  it("clamps between 5% and 25%", () => {
+  it("clamps between FEINT_MIN and FEINT_MAX", () => {
     const low = createBattle(makeAgent("a", "modern"), makeAgent("d", "modern", 150, { Social: 0 }), "training", half);
     const high = createBattle(makeAgent("a", "modern"), makeAgent("d", "modern", 150, { Social: 1e6 }), "training", half);
     expect(feintChance(low.sides.defender)).toBe(0.05);
-    expect(feintChance(high.sides.defender)).toBe(0.25);
+    expect(feintChance(high.sides.defender)).toBe(FEINT_MAX);
   });
 });
 
