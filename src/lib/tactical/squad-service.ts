@@ -13,9 +13,15 @@ import type { Player } from "@/lib/types";
 import { parseAction } from "./battle-service-actions";
 import { createSquadBattle, resolveSquadRound, runSquadAuto, squadGrowth, synergyFor, type SquadAction, type SquadState } from "./squad";
 import type { BattleSession } from "./session-store";
+import { getAttemptBonusToday } from "@/lib/shop/shop-db";
 import { fail, usedToday, withinLimitAfterCreate, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
 
 const OPPONENT_ATTEMPTS = 5;
+
+/** Base daily squad battles plus any Squad Tickets bought today. */
+async function squadLimitToday(playerId: string): Promise<number> {
+  return MAX_SQUAD_BATTLES + (await getAttemptBonusToday({ playerId, mode: "squad_pvp" }));
+}
 
 export function parseSquadAction(raw: unknown): SquadAction | { type: "auto" } | null {
   if (raw && typeof raw === "object" && (raw as { type?: unknown }).type === "swap") {
@@ -59,7 +65,8 @@ export async function startSquadBattle(player: Player, deps: ServiceDeps): Promi
   if (!attackers) return fail(409, "no_squad");
 
   const used = () => usedToday(countSquadBattlesToday(player.id), deps.store, { playerId: player.id, mode: "squad_pvp" });
-  if ((await used()) >= MAX_SQUAD_BATTLES) return fail(429, "squad_limit_reached");
+  const limit = await squadLimitToday(player.id);
+  if ((await used()) >= limit) return fail(429, "squad_limit_reached");
 
   const rating = (await getSquadStats([player.id]))[player.id].rating;
   // A candidate may no longer field 3 agents; try a few others before giving up.
@@ -76,7 +83,7 @@ export async function startSquadBattle(player: Player, deps: ServiceDeps): Promi
 
   const state = createSquadBattle({ playerId: player.id, agents: attackers }, { playerId: opponentId, agents: defenders }, deps.rng);
   const session = await deps.store.create({ mode: "squad_pvp", playerId: player.id, attackerId: null, defenderId: null, state });
-  if (!(await withinLimitAfterCreate(session, used, MAX_SQUAD_BATTLES, deps))) return fail(429, "squad_limit_reached");
+  if (!(await withinLimitAfterCreate(session, used, limit, deps))) return fail(429, "squad_limit_reached");
   return { status: 200, body: { sessionId: session.id, state, attackers, defenders } };
 }
 
@@ -90,6 +97,7 @@ export async function getSquadView(input: { walletAddress?: string }): Promise<S
     getSquadStats([player.id]),
     countSquadBattlesToday(player.id),
   ]);
+  const maxBattles = await squadLimitToday(player.id);
   return {
     status: 200,
     body: {
@@ -98,7 +106,7 @@ export async function getSquadView(input: { walletAddress?: string }): Promise<S
       synergy: squad ? synergyFor(squad.map((a) => a.role)) : null,
       stats: stats[player.id],
       battlesToday,
-      maxBattles: MAX_SQUAD_BATTLES,
+      maxBattles,
     },
   };
 }

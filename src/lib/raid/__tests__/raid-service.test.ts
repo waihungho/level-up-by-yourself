@@ -7,6 +7,7 @@ import { createBoss, getActiveBoss, getTrophies, resetRaidMemory, getBossById, a
 import { BOSSES, computeBossStats } from "../bosses";
 import { getRaidView } from "../raid-service";
 import type { RaidState } from "../raid-engine";
+import { addAttemptBonus } from "@/lib/shop/shop-db";
 
 const soloPlayers = new Set<string>();
 vi.mock("@/lib/squads", async (importOriginal) => {
@@ -136,5 +137,19 @@ describe("getRaidView", () => {
     const view = await getRaidView({});
     expect(view.status).toBe(200);
     expect(view.body.boss).toBeNull();
+  });
+});
+
+describe("raid tickets", () => {
+  it("a raid ticket allows one more attempt today", async () => {
+    await spawn();
+    for (let i = 0; i < 3; i++) {
+      const r = await start();
+      await auto(r.body.sessionId as string);
+    }
+    expect((await start()).status).toBe(429);
+    await addAttemptBonus({ playerId, agentId: null, mode: "raid", extra: 1 });
+    expect((await getRaidView({ walletAddress: wallet })).body.attemptsLeft).toBe(1);
+    expect((await start()).status).toBe(200);
   });
 });

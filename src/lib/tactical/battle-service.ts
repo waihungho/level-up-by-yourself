@@ -10,6 +10,7 @@ import {
 } from "@/lib/db";
 import type { AgentWithDimensions, Player } from "@/lib/types";
 import { parseAction } from "./battle-service-actions";
+import { getAttemptBonusToday } from "@/lib/shop/shop-db";
 import { createBattle, resolveRound, runAuto, toBattleLog } from "./engine";
 import { fail, usedToday, withinLimitAfterCreate, type BattleStateBase, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
 import type { BattleSession, SessionMode, SessionStore } from "./session-store";
@@ -136,9 +137,14 @@ async function startTacticalBattle(
   const ownAgents = defender ? [attacker.id, defender.id] : [attacker.id];
   for (const id of ownAgents) await resolveStaleSessions({ playerId: player.id, agentId: id, modes: TACTICAL_MODES }, deps);
 
-  const limit = battleMode === "pvp" ? MAX_PVP_FIGHTS : MAX_TRAINING_FIGHTS;
+  // PvP refills add bought fights per agent; training refills reset via the recharge table instead.
+  const limits = new Map<string, number>();
   for (const id of ownAgents) {
-    if ((await fightsUsed(id, battleMode, deps.store)) >= limit) return fail(429, "fight_limit_reached");
+    const bonus = battleMode === "pvp" ? await getAttemptBonusToday({ agentId: id, mode: "pvp" }) : 0;
+    limits.set(id, (battleMode === "pvp" ? MAX_PVP_FIGHTS : MAX_TRAINING_FIGHTS) + bonus);
+  }
+  for (const id of ownAgents) {
+    if ((await fightsUsed(id, battleMode, deps.store)) >= limits.get(id)!) return fail(429, "fight_limit_reached");
   }
 
   if (battleMode === "pvp") {
@@ -158,7 +164,7 @@ async function startTacticalBattle(
     state,
   });
   for (const id of ownAgents) {
-    if (!(await withinLimitAfterCreate(session, () => fightsUsed(id, battleMode, deps.store), limit, deps))) return fail(429, "fight_limit_reached");
+    if (!(await withinLimitAfterCreate(session, () => fightsUsed(id, battleMode, deps.store), limits.get(id)!, deps))) return fail(429, "fight_limit_reached");
   }
   return { status: 200, body: { sessionId: session.id, state, attacker, defender } };
 }

@@ -6,6 +6,7 @@ import { getSquadView, putSquad } from "../squad-service";
 import { MemorySessionStore } from "../session-store";
 import { mulberry32 } from "../rng";
 import type { SquadState } from "../squad";
+import { addAttemptBonus } from "@/lib/shop/shop-db";
 
 const noSquadPlayers = new Set<string>();
 vi.mock("@/lib/squads", async (importOriginal) => {
@@ -118,5 +119,18 @@ describe("squad API", () => {
 
   it("rejects unknown wallets", async () => {
     expect((await getSquadView({ walletAddress: "nobody" })).status).toBe(403);
+  });
+});
+
+describe("squad tickets", () => {
+  it("a squad ticket allows one more squad battle today and shows in the view", async () => {
+    for (let i = 0; i < 2; i++) {
+      const r = await start();
+      await takeTurn({ sessionId: r.body.sessionId as string, walletAddress: wallet, round: 0, action: { type: "auto" } }, deps);
+    }
+    expect((await start()).status).toBe(429);
+    await addAttemptBonus({ playerId, agentId: null, mode: "squad_pvp", extra: 1 });
+    expect((await getSquadView({ walletAddress: wallet })).body.maxBattles).toBe(3);
+    expect((await start()).status).toBe(200);
   });
 });

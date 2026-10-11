@@ -4,6 +4,7 @@ import { startBattle, takeTurn, getSessionView, finalizeSession, sweepStaleSessi
 import { MemorySessionStore } from "../session-store";
 import { mulberry32 } from "../rng";
 import { runAuto } from "../engine";
+import { addAttemptBonus } from "@/lib/shop/shop-db";
 import type { TacticalState } from "../types";
 
 let deps: ServiceDeps;
@@ -211,5 +212,20 @@ describe("finalisation robustness", () => {
     expect(swept).toBe(1);
     expect((await deps.store.get(s.body.sessionId as string))?.status).toBe("finished");
     expect((await getBattleLogs(agentIds[0], 50)).length).toBe(before + 1);
+  });
+});
+
+describe("bought attempts", () => {
+  it("a PvP refill lets an agent fight past the daily PvP limit", async () => {
+    const id = agentIds[6];
+    for (let i = 0; i < 3; i++) {
+      const r = await startBattle({ mode: "pvp", agentId: id, walletAddress: wallet }, deps);
+      expect(r.status).toBe(200);
+      await finish(r.body.sessionId as string, 0);
+    }
+    expect((await startBattle({ mode: "pvp", agentId: id, walletAddress: wallet }, deps)).status).toBe(429);
+    const playerId = (await getOrCreatePlayer(wallet)).id;
+    await addAttemptBonus({ playerId, agentId: id, mode: "pvp", extra: 3 });
+    expect((await startBattle({ mode: "pvp", agentId: id, walletAddress: wallet }, deps)).status).toBe(200);
   });
 });

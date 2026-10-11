@@ -12,6 +12,11 @@ export function getGrowthMultiplier(abilityScore: number): number {
   return 1.0;
 }
 
+/** Training Scroll doubles the usual ability-score growth multiplier. */
+export function effectiveMultiplier(abilityScore: number, scrollActive: boolean): number {
+  return getGrowthMultiplier(abilityScore) * (scrollActive ? 2 : 1);
+}
+
 export function calculateGrowth(
   role: RoleCategory,
   multiplier: number
@@ -67,6 +72,13 @@ export async function runDailyGrowth() {
     .eq("date", today);
   const alreadyGrown = new Set((existingLogs ?? []).map((r: any) => r.agent_id));
 
+  // Agents with an active Training Scroll grow twice as fast (needs the service-role key; skipped if missing).
+  const { getAllActiveGrowthBuffs } = await import("@/lib/shop/shop-db");
+  const scrolled = await getAllActiveGrowthBuffs().catch((e) => {
+    console.error("Could not load Training Scroll buffs:", e);
+    return new Set<string>();
+  });
+
   console.log(`Processing ${agents.length} agents (${alreadyGrown.size} already done today)...`);
 
   let grown = 0;
@@ -78,7 +90,7 @@ export async function runDailyGrowth() {
       continue;
     }
 
-    const multiplier = getGrowthMultiplier(agent.levelup_players.ability_score);
+    const multiplier = effectiveMultiplier(agent.levelup_players.ability_score, scrolled.has(agent.id));
     const changes = calculateGrowth(agent.role, multiplier);
 
     if (Object.keys(changes).length === 0) {
