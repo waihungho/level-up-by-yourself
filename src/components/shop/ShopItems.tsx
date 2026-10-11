@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { PixelSprite } from "@/components/PixelSprite";
 import type { ItemKind, ShopItem } from "@/lib/shop/catalog";
-import { newPurchaseId, SHOP_ERRORS } from "@/lib/shop-client";
+import { newPurchaseId, postJson, SHOP_ERRORS } from "@/lib/shop-client";
 import type { Agent } from "@/lib/types";
 import { AURA_SWATCH } from "./cosmeticStyle";
 
@@ -19,9 +19,10 @@ interface ShopItemsProps {
   agents: Agent[];
   walletAddress: string;
   onBalance: (balance: number) => void;
+  retryDelayMs?: number;
 }
 
-export function ShopItems({ items, balance, agents, walletAddress, onBalance }: ShopItemsProps) {
+export function ShopItems({ items, balance, agents, walletAddress, onBalance, retryDelayMs }: ShopItemsProps) {
   const [picking, setPicking] = useState<ShopItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
@@ -31,15 +32,11 @@ export function ShopItems({ items, balance, agents, walletAddress, onBalance }: 
     setBusy(true);
     setToast(null);
     try {
-      const res = await fetch("/api/shop/buy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress, itemId: item.id, agentId, purchaseId: newPurchaseId() }),
-      });
-      const data = await res.json();
+      const res = await postJson("/api/shop/buy", { walletAddress, itemId: item.id, agentId, purchaseId: newPurchaseId() }, retryDelayMs);
+      const data = res.data;
       if (typeof data.balance === "number") onBalance(data.balance);
       if (!res.ok) {
-        setToast({ ok: false, text: SHOP_ERRORS[data.error] ?? "Purchase failed. Please try again." });
+        setToast({ ok: false, text: SHOP_ERRORS[data.error as string] ?? "Purchase failed. Please try again." });
         return;
       }
       const agentName = agents.find((a) => a.id === agentId)?.name;

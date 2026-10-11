@@ -45,6 +45,20 @@ describe("ShopItems", () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).agentId).toBeUndefined();
   });
 
+  it("retries a lost request with the same purchase id, so it can never charge twice", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("Network request failed"))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ balance: 50, effect: "+1 raid attempt today" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ShopItems items={SHOP_ITEMS} balance={100} agents={agents} walletAddress="w1" onBalance={vi.fn()} retryDelayMs={0} />);
+    fireEvent.click(screen.getByRole("button", { name: /Buy Raid Ticket/ }));
+    expect(await screen.findByRole("status")).toHaveTextContent("+1 raid attempt today");
+    const ids = fetchMock.mock.calls.map((c) => JSON.parse(c[1].body).purchaseId);
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toBe(ids[1]);
+  });
+
   it("disables items the player cannot afford", () => {
     render(<ShopItems items={SHOP_ITEMS} balance={40} agents={agents} walletAddress="w1" onBalance={vi.fn()} />);
     expect(screen.getByRole("button", { name: /Buy Grand Elixir/ })).toBeDisabled();

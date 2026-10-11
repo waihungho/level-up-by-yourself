@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { GEAR_SLOTS, gearTier, gearUpgradeCost, type Gear, type GearSlot } from "@/lib/shop/catalog";
 import { ROLE_CATEGORY } from "@/lib/tactical/constants";
-import { newPurchaseId, SHOP_ERRORS } from "@/lib/shop-client";
+import { newPurchaseId, postJson, SHOP_ERRORS } from "@/lib/shop-client";
 import type { RoleCategory } from "@/lib/types";
 import { TIER_COLOR } from "./gearStyle";
 
@@ -25,9 +25,10 @@ interface EquipmentPanelProps {
   /** Owner's wallet; null shows gear read-only. */
   walletAddress: string | null;
   onUpgraded: (gear: Gear, balance: number) => void;
+  retryDelayMs?: number;
 }
 
-export function EquipmentPanel({ agentId, role, gear, walletAddress, onUpgraded }: EquipmentPanelProps) {
+export function EquipmentPanel({ agentId, role, gear, walletAddress, onUpgraded, retryDelayMs }: EquipmentPanelProps) {
   const [busy, setBusy] = useState<GearSlot | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,17 +37,13 @@ export function EquipmentPanel({ agentId, role, gear, walletAddress, onUpgraded 
     setBusy(slot);
     setError(null);
     try {
-      const res = await fetch("/api/shop/gear", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress, agentId, slot, purchaseId: newPurchaseId() }),
-      });
-      const data = await res.json();
+      const res = await postJson("/api/shop/gear", { walletAddress, agentId, slot, purchaseId: newPurchaseId() }, retryDelayMs);
+      const data = res.data;
       if (!res.ok) {
-        setError(data.error === "upgrade_conflict" ? "Someone upgraded this slot at the same time; you were refunded." : SHOP_ERRORS[data.error] ?? "Upgrade failed.");
+        setError(data.error === "upgrade_conflict" ? "Someone upgraded this slot at the same time; you were refunded." : SHOP_ERRORS[data.error as string] ?? "Upgrade failed.");
         return;
       }
-      onUpgraded({ ...gear, [slot]: data.level }, data.balance);
+      onUpgraded({ ...gear, [slot]: data.level as number }, data.balance as number);
     } catch {
       setError(SHOP_ERRORS.network);
     } finally {

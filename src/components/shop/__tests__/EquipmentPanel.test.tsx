@@ -34,4 +34,19 @@ describe("EquipmentPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /Upgrade Relic/ }));
     expect(await screen.findByText(/Not enough gems/)).toBeInTheDocument();
   });
+
+  it("retries a lost upgrade request with the same purchase id", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("Network request failed"))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ level: 1, balance: 70 }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const onUpgraded = vi.fn();
+    render(<EquipmentPanel agentId="a1" role="modern" gear={{}} walletAddress="w1" onUpgraded={onUpgraded} retryDelayMs={0} />);
+    fireEvent.click(screen.getByRole("button", { name: /Upgrade Weapon/ }));
+    await waitFor(() => expect(onUpgraded).toHaveBeenCalledWith({ weapon: 1 }, 70));
+    const ids = fetchMock.mock.calls.map((c) => JSON.parse(c[1].body).purchaseId);
+    expect(ids[0]).toBe(ids[1]);
+  });
 });
+
