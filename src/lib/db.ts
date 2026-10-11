@@ -1,5 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from "./supabase";
 import { selectAllPages } from "./supabase-pages";
+import { getLatestRechargeToday } from "./recharges";
 import type {
   Agent,
   AgentDimension,
@@ -696,20 +697,22 @@ export async function getAgentFightsToday(
   agentId: string
 ): Promise<number> {
   const sb = getSupabase();
-  // Count fights since the last recharge (or since midnight if no recharge)
-  const sinceISO = getRechargeTimestamp(agentId) ?? (() => {
+  // Count fights since the last paid recharge today (server-verified, strictly after it), or since UTC midnight.
+  const rechargedAt = await getLatestRechargeToday(agentId);
+  const sinceISO = rechargedAt ?? (() => {
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
     return todayStart.toISOString();
   })();
 
   if (sb) {
-    const { count, error } = await sb
+    let query = sb
       .from("levelup_battle_logs")
       .select("*", { count: "exact", head: true })
       .or(`attacker_id.eq.${agentId},defender_id.eq.${agentId}`)
-      .eq("pvp", false)           // exclude PvP battles from training count
-      .gte("created_at", sinceISO);
+      .eq("pvp", false);          // exclude PvP battles from training count
+    query = rechargedAt ? query.gt("created_at", sinceISO) : query.gte("created_at", sinceISO);
+    const { count, error } = await query;
     if (error) return 0;
     return count ?? 0;
   }
@@ -719,23 +722,8 @@ export async function getAgentFightsToday(
     (l) =>
       !l.pvp &&                                          // exclude PvP battles
       (l.attackerId === agentId || l.defenderId === agentId) &&
-      l.createdAt >= sinceISO
+      (rechargedAt ? l.createdAt > sinceISO : l.createdAt >= sinceISO)
   ).length;
-}
-
-// ---------------------------------------------------------------------------
-// rechargeAgentFights — store timestamp so we only count fights after recharge
-// ---------------------------------------------------------------------------
-const rechargeTimestamps = new Map<string, string>();
-
-export async function rechargeAgentFights(agentId: string): Promise<void> {
-  const todayKey = `${agentId}_${new Date().toISOString().slice(0, 10)}`;
-  rechargeTimestamps.set(todayKey, new Date().toISOString());
-}
-
-function getRechargeTimestamp(agentId: string): string | undefined {
-  const todayKey = `${agentId}_${new Date().toISOString().slice(0, 10)}`;
-  return rechargeTimestamps.get(todayKey);
 }
 
 // ---------------------------------------------------------------------------

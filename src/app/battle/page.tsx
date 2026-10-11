@@ -9,12 +9,11 @@ import { SquadArena } from "@/components/SquadArena";
 import {
   getAgentWithDimensions,
   getAgentFightsToday,
-  rechargeAgentFights,
   getPvpFightsToday,
   getPvpStatsForAgents,
 } from "@/lib/db";
 import { createPaymentTransaction, confirmTransaction } from "@/lib/sol-payment";
-import { DIMENSIONS } from "@/lib/constants";
+import { DIMENSIONS, RECHARGE_COST_SOL } from "@/lib/constants";
 import { MASTERY_MAX, MASTERY_PER_COUNTER } from "@/lib/tactical/constants";
 import type { TacticalState } from "@/lib/tactical/types";
 import type { AgentWithDimensions, BattleLog, PvpStats } from "@/lib/types";
@@ -22,7 +21,7 @@ import Link from "next/link";
 
 const MAX_FIGHTS_PER_DAY = 3;
 const MAX_PVP_FIGHTS = 3;
-const RECHARGE_COST_SOL = 0.05;
+const RECHARGE_VERIFY_ATTEMPTS = 4;
 
 function getTimeUntilMidnight(): string {
   const now = new Date();
@@ -247,8 +246,24 @@ export default function BattlePage() {
         setRecharging(null);
         return;
       }
-      await rechargeAgentFights(agentId);
-      setFightsToday((prev) => ({ ...prev, [agentId]: 0 }));
+      // The server verifies the payment on-chain; retry briefly while the RPC indexes the new transaction.
+      let ok = false;
+      for (let attempt = 0; attempt < RECHARGE_VERIFY_ATTEMPTS && !ok; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 3000));
+        const res = await fetch("/api/battle/recharge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ walletAddress: publicKey.toBase58(), agentId, signature }),
+        });
+        ok = res.ok || res.status === 409; // 409: this payment was already credited
+      }
+      if (ok) {
+        setTrainingError(null);
+        setFightsToday((prev) => ({ ...prev, [agentId]: 0 }));
+        getAgentFightsToday(agentId).then((n) => setFightsToday((prev) => ({ ...prev, [agentId]: n })));
+      } else {
+        setTrainingError(`Payment sent but not verified yet. Keep this signature for support: ${signature.slice(0, 16)}…`);
+      }
     } catch {
       // user cancelled or error
     }
