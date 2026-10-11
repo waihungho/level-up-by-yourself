@@ -23,6 +23,8 @@ export interface RaidView {
   attemptsLeft?: number | null;
   maxAttempts?: number;
   recentHits?: RaidHit[];
+  /** playerId → bought title id, for contributors on the board. */
+  titles?: Record<string, string>;
 }
 
 /**

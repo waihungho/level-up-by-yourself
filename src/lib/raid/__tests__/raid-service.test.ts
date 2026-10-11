@@ -153,3 +153,16 @@ describe("raid tickets", () => {
     expect((await start()).status).toBe(200);
   });
 });
+
+describe("raid board titles", () => {
+  it("includes contributors' titles in the raid view", async () => {
+    const { grantTitle } = await import("@/lib/shop/shop-db");
+    await spawn();
+    const r = await start();
+    await auto(r.body.sessionId as string);
+    await grantTitle(playerId, "dragon_slayer");
+    const view = await getRaidView({ walletAddress: wallet });
+    expect(view.body.titles).toEqual({ [playerId]: "dragon_slayer" });
+  });
+});
+

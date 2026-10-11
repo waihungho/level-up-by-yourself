@@ -64,6 +64,11 @@ export const TITLES = { patron: "Patron", dragon_slayer: "Dragon Slayer", whale:
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
+/** Display text for a title id (falls back to the id). */
+export function titleLabel(id: string): string {
+  return (TITLES as Record<string, string>)[id] ?? id;
+}
+
 export const SHOP_ITEMS: ShopItem[] = [
   ...CATEGORY_ELIXIRS,
   { id: "elixir_grand", name: "Grand Elixir", kind: "elixir", target: "agent", price: 80, perDim: 2, description: "+2 to all 50 stats, permanently." },

@@ -2,6 +2,7 @@ import { getWriteClient } from "@/lib/supabase-admin";
 import type { AgentWithDimensions } from "@/lib/types";
 import type { GearSlot } from "./catalog";
 import { getGearForAgents } from "./gear-read";
+import { getCosmetics } from "./shop-read";
 import { shopMem } from "./shop-memory";
 
 export { getGearForAgents } from "./gear-read";
@@ -20,8 +21,9 @@ export async function upgradeGearLevel(agentId: string, slot: GearSlot, expected
   return true;
 }
 
-/** Fighters with their gear attached (one batched read) so toSide can apply battle bonuses. */
+/** Fighters with their gear (battle bonuses) and aura (battle visuals) attached, in two batched reads. */
 export async function withGear<T extends AgentWithDimensions>(agents: T[]): Promise<T[]> {
-  const gear = await getGearForAgents(agents.map((a) => a.id));
-  return agents.map((a) => ({ ...a, gear: gear[a.id] ?? {} }));
+  const ids = agents.map((a) => a.id);
+  const [gear, cosmetics] = await Promise.all([getGearForAgents(ids), getCosmetics(ids)]);
+  return agents.map((a) => ({ ...a, gear: gear[a.id] ?? {}, ...(cosmetics[a.id]?.aura ? { aura: cosmetics[a.id].aura } : {}) }));
 }

@@ -1,5 +1,5 @@
 import { applyAgentGrowth, getPlayerByWallet } from "@/lib/db";
-import { getAttemptBonusToday } from "@/lib/shop/shop-db";
+import { getAttemptBonusToday, getTitles } from "@/lib/shop/shop-db";
 import { withGear } from "@/lib/shop/gear-db";
 import { getOrBuildSquad, strongestAgent } from "@/lib/squads";
 import { fail, runDeferred, usedToday, withinLimitAfterCreate, type ModeHandler, type ServiceDeps, type ServiceResult } from "@/lib/tactical/service-common";
@@ -104,6 +104,7 @@ export async function getRaidView(input: { walletAddress?: string }, deps: Pick<
     player ? raidLimitToday(player.id) : Promise.resolve(MAX_RAID_ATTEMPTS),
   ]);
   const phase = phaseFor(boss.hpRemaining, boss.maxHp);
+  const titles = await getTitles(standings.top.map((c) => c.playerId));
   return {
     status: 200,
     body: {
@@ -118,6 +119,7 @@ export async function getRaidView(input: { walletAddress?: string }, deps: Pick<
       attemptsLeft: player ? Math.max(0, maxAttempts - attemptsUsed) : null,
       maxAttempts,
       recentHits,
+      titles,
     },
   };
 }

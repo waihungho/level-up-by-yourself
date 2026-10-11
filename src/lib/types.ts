@@ -39,6 +39,8 @@ export interface AgentWithDimensions extends Agent {
   dimensions: AgentDimension[];
   /** Equipment levels (battle-time bonuses); attached by withGear() when building fighters. */
   gear?: Partial<Record<"weapon" | "armor" | "relic", number>>;
+  /** Bought aura style, shown around the sprite in battle. */
+  aura?: string;
 }
 
 export interface DailyTask {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getOrCreatePlayer, getPlayerAgents, getBattleLogs, getPvpStatsForAgents } from "@/lib/db";
+import { getOrCreatePlayer, getPlayerAgents, getBattleLogs, getPvpStatsForAgents, getAgentWithDimensions } from "@/lib/db";
 import { startBattle, takeTurn, getSessionView, finalizeSession, sweepStaleSessions, type ServiceDeps } from "../battle-service";
 import { MemorySessionStore } from "../session-store";
 import { mulberry32 } from "../rng";
@@ -233,13 +233,13 @@ describe("bought attempts", () => {
 describe("gear", () => {
   it("fighters start battles with their equipment bonuses", async () => {
     const { upgradeGearLevel } = await import("@/lib/shop/gear-db");
-    const before = await training(7, 8);
-    const plainSpeed = (before.body.state as TacticalState).sides.attacker.speed;
-    await finish(before.body.sessionId as string, 0);
     await upgradeGearLevel(agentIds[7], "relic", 0);
     await upgradeGearLevel(agentIds[7], "relic", 1);
-    const after = await training(7, 9);
-    expect((after.body.state as TacticalState).sides.attacker.speed - plainSpeed).toBeCloseTo(4);
+    // Compare with the agent's current Speed stat (dimension 8), not a previous fight (fights grow stats).
+    const speedStat = (await getAgentWithDimensions(agentIds[7]))!.dimensions.find((d) => d.dimensionId === 8)!.value;
+    const r = await training(7, 9);
+    expect((r.body.state as TacticalState).sides.attacker.speed).toBeCloseTo(speedStat + 4);
   });
+
 });
 

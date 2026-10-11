@@ -5,6 +5,7 @@ import { getGearForAgents, upgradeGearLevel, withGear } from "../gear-db";
 import { upgradeGear } from "../gear-service";
 import { applyGems, getGemBalance } from "../gems";
 import { makeAgent } from "@/lib/tactical/__tests__/fixtures";
+import { setCosmetic } from "../shop-db";
 
 beforeEach(() => resetShopMemory());
 
@@ -17,10 +18,13 @@ describe("gear storage", () => {
     expect(await getGearForAgents(["a1", "a2"])).toEqual({ a1: { weapon: 2 }, a2: {} });
   });
 
-  it("attaches gear to agents for battle", async () => {
+  it("attaches gear and the aura to agents for battle", async () => {
     await upgradeGearLevel("x1", "armor", 0);
-    const [agent] = await withGear([makeAgent("x1", "modern")]);
+    await setCosmetic("x1", "aura", "storm");
+    const [agent, plain] = await withGear([makeAgent("x1", "modern"), makeAgent("x2", "modern")]);
     expect(agent.gear).toEqual({ armor: 1 });
+    expect(agent.aura).toBe("storm");
+    expect(plain.aura).toBeUndefined();
   });
 });
 

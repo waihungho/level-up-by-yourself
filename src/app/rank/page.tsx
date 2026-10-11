@@ -10,7 +10,7 @@ import { getAllTrophies, getChampionAndPlayerLabel, getPastBosses, type RaidBoss
 import { bossByKey } from "@/lib/raid/bosses";
 import { TrophyBadges } from "@/components/TrophyBadges";
 import { getCosmetics, getTitles, type Cosmetics } from "@/lib/shop/shop-read";
-import { TITLES } from "@/lib/shop/catalog";
+import { titleLabel } from "@/lib/shop/catalog";
 import { auraStyle, nameColorClass } from "@/components/shop/cosmeticStyle";
 
 interface HallEntry {
@@ -321,7 +321,7 @@ export default function RankPage() {
                       </span>
                       {titles[agent.playerId] && (
                         <span className="font-mono text-[9px] px-1 rounded bg-yellow-900/40 text-yellow-300 border border-yellow-700/50">
-                          {TITLES[titles[agent.playerId] as keyof typeof TITLES] ?? titles[agent.playerId]}
+                          {titleLabel(titles[agent.playerId])}
                         </span>
                       )}
                       <span className="text-gray-700">·</span>
