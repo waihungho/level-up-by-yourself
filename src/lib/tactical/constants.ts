@@ -35,3 +35,16 @@ export const SPECIALS: Record<RoleCategory, { name: string; category: Category; 
   future: { name: "Overclock", category: "Technical", mult: 1.8 },
   modern: { name: "Insight", category: "Mental", mult: 1.3 },
 };
+
+// --- Squads (3v3) ---
+export const SQUAD_SIZE = 3;
+export const SQUAD_HP_FACTOR = 0.45;
+export const SQUAD_MAX_ROUNDS = 24;
+export const SQUAD_GROWTH_FACTOR = 0.6;
+export const SWAP_INCOMING_MULT = 0.5;
+export const AI_SWAP_HP = 0.25;
+export const AI_SWAP_COOLDOWN = 3;
+export const SYNERGY_TRINITY = 1.1;
+export const SYNERGY_PAIR = 1.15;
+export const SYNERGY_LEGION = 1.25;
+export const SYNERGY_LEGION_OFF = 0.9;

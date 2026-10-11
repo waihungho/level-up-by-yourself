@@ -42,6 +42,10 @@ export interface TacticalRound extends BattleRound {
   counteredBy?: boolean;
   feint: boolean;
   special?: string;
+  // Squad / raid fields
+  actorSlot?: number;
+  swap?: { side: SideKey; from: number; to: number; tag: boolean };
+  ko?: { side: SideKey; slot: number };
 }
 
 export interface TacticalState {
