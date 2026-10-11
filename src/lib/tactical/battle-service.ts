@@ -11,6 +11,7 @@ import {
 import type { AgentWithDimensions, Player } from "@/lib/types";
 import { parseAction } from "./battle-service-actions";
 import { getAttemptBonusToday } from "@/lib/shop/shop-db";
+import { withGear } from "@/lib/shop/gear-db";
 import { createBattle, resolveRound, runAuto, toBattleLog } from "./engine";
 import { fail, usedToday, withinLimitAfterCreate, type BattleStateBase, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
 import type { BattleSession, SessionMode, SessionStore } from "./session-store";
@@ -155,7 +156,8 @@ async function startTacticalBattle(
   }
   if (!defender || !attacker.dimensions.length || !defender.dimensions.length) return fail(500, "internal");
 
-  const state = createBattle(attacker, defender, battleMode, deps.rng);
+  const [gearedAttacker, gearedDefender] = await withGear([attacker, defender]);
+  const state = createBattle(gearedAttacker, gearedDefender, battleMode, deps.rng);
   const session = await deps.store.create({
     mode: battleMode,
     playerId: player.id,

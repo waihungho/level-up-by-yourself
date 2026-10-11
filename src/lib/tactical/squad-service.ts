@@ -14,6 +14,7 @@ import { parseAction } from "./battle-service-actions";
 import { createSquadBattle, resolveSquadRound, runSquadAuto, squadGrowth, synergyFor, type SquadAction, type SquadState } from "./squad";
 import type { BattleSession } from "./session-store";
 import { getAttemptBonusToday } from "@/lib/shop/shop-db";
+import { withGear } from "@/lib/shop/gear-db";
 import { fail, usedToday, withinLimitAfterCreate, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
 
 const OPPONENT_ATTEMPTS = 5;
@@ -81,7 +82,11 @@ export async function startSquadBattle(player: Player, deps: ServiceDeps): Promi
   }
   if (!opponentId || !defenders) return fail(409, "no_opponent");
 
-  const state = createSquadBattle({ playerId: player.id, agents: attackers }, { playerId: opponentId, agents: defenders }, deps.rng);
+  const state = createSquadBattle(
+    { playerId: player.id, agents: await withGear(attackers) },
+    { playerId: opponentId, agents: await withGear(defenders) },
+    deps.rng
+  );
   const session = await deps.store.create({ mode: "squad_pvp", playerId: player.id, attackerId: null, defenderId: null, state });
   if (!(await withinLimitAfterCreate(session, used, limit, deps))) return fail(429, "squad_limit_reached");
   return { status: 200, body: { sessionId: session.id, state, attackers, defenders } };

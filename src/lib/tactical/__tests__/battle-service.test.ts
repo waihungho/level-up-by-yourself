@@ -229,3 +229,17 @@ describe("bought attempts", () => {
     expect((await startBattle({ mode: "pvp", agentId: id, walletAddress: wallet }, deps)).status).toBe(200);
   });
 });
+
+describe("gear", () => {
+  it("fighters start battles with their equipment bonuses", async () => {
+    const { upgradeGearLevel } = await import("@/lib/shop/gear-db");
+    const before = await training(7, 8);
+    const plainSpeed = (before.body.state as TacticalState).sides.attacker.speed;
+    await finish(before.body.sessionId as string, 0);
+    await upgradeGearLevel(agentIds[7], "relic", 0);
+    await upgradeGearLevel(agentIds[7], "relic", 1);
+    const after = await training(7, 9);
+    expect((after.body.state as TacticalState).sides.attacker.speed - plainSpeed).toBe(4);
+  });
+});
+

@@ -1,5 +1,6 @@
 import { applyAgentGrowth, getPlayerByWallet } from "@/lib/db";
 import { getAttemptBonusToday } from "@/lib/shop/shop-db";
+import { withGear } from "@/lib/shop/gear-db";
 import { getOrBuildSquad, strongestAgent } from "@/lib/squads";
 import { fail, runDeferred, usedToday, withinLimitAfterCreate, type ModeHandler, type ServiceDeps, type ServiceResult } from "@/lib/tactical/service-common";
 import { squadGrowth, type SquadAction } from "@/lib/tactical/squad";
@@ -72,7 +73,8 @@ export async function startRaidAttempt(player: Player, deps: ServiceDeps): Promi
   }
 
   const ctx = { def, stats: boss.stats, maxHp: boss.maxHp, hpAtStart: boss.hpRemaining, solo };
-  const state: RaidSessionState = { ...createRaidAttempt({ playerId: player.id, agents: attackers }, ctx, deps.rng), bossId: boss.id, label: attackers[0].name };
+  const fighters = await withGear(attackers);
+  const state: RaidSessionState = { ...createRaidAttempt({ playerId: player.id, agents: fighters }, ctx, deps.rng), bossId: boss.id, label: attackers[0].name };
   const session = await deps.store.create({ mode: "raid", playerId: player.id, attackerId: null, defenderId: null, state });
   if (!(await withinLimitAfterCreate(session, used, limit, deps))) return fail(429, "raid_limit_reached");
   return { status: 200, body: { sessionId: session.id, state, attackers, defenders: [bossAgent(def)] } };
