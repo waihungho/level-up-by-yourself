@@ -65,3 +65,17 @@ pnpm daily-growth
 - Growth amount scales with the player's `ability_score` via `GROWTH_TIERS` multiplier
 - Idempotent — safe to re-run, agents already grown today are skipped
 - Script: `scripts/daily-growth.ts` | Growth logic: `scripts/daily-growth.ts:calculateGrowth`
+
+## Tactical Battles / Squads / Raids
+
+- Battles are server-authoritative sessions (`levelup_battle_sessions`). Engine: `src/lib/tactical/engine.ts` (pure, RNG-injected); service: `src/lib/tactical/battle-service.ts`; routes: `/api/battle/{start,turn,session/[id]}`.
+- Apply SQL migrations in order in the Supabase SQL editor **before** deploying: `003_tactical_battles.sql` → `004_squads.sql` → `005_raids.sql`.
+- Set `SUPABASE_SERVICE_ROLE_KEY` in Vercel (production + preview, sensitive). Without it, routes throw when Supabase is configured.
+- Balance constants live in `src/lib/tactical/constants.ts`; `src/lib/tactical/__tests__/balance.test.ts` enforces the targets. Re-run it after any tuning.
+- Demo mode (no Supabase) cannot run full battles in the browser: demo data lives client-side while routes run server-side.
+- Squads: `src/lib/squads.ts` (persistence, Elo, matchmaking), `src/lib/tactical/squad.ts` (engine), `/api/squad`, `/squad` builder page.
+- Raids: `src/lib/raid/*`. Weekly cron `/api/cron/raid-weekly` (Monday 00:00 UTC, `vercel.json`) expires/pays the old boss and spawns the next one; requires `CRON_SECRET`.
+- Enable Supabase Realtime for `levelup_raid_bosses` and `levelup_raid_hits` (migration 005 adds them to the `supabase_realtime` publication; check Database → Replication). Without it `/raid` falls back to polling every 15s.
+- Paid fight recharge: the client sends the payment signature to `/api/battle/recharge`, which verifies the transfer on-chain (`NEXT_PUBLIC_SOLANA_RPC_URL`, treasury, 0.05 SOL, < 15 min old) and records it in `levelup_fight_recharges`.
+- The daily-growth cron also sweeps battle sessions abandoned for 30+ minutes and retries unfinished raid payouts.
+- To spawn the first boss right after deploying, call the cron once: `curl -H "Authorization: Bearer $CRON_SECRET" https://<app>/api/cron/raid-weekly`.

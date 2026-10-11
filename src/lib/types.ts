@@ -67,6 +67,15 @@ export interface BattleRound {
   secondDamage: number;
   attackerHpAfter: number;
   defenderHpAfter: number;
+  // Tactical battle fields (absent on legacy logs)
+  playerAction?: string;
+  actionCategory?: string;
+  opponentIntent?: string;
+  opponentAction?: string;
+  countered?: boolean;
+  manual?: boolean;
+  feint?: boolean;
+  special?: string;
 }
 
 export interface BattleLog {
@@ -79,6 +88,8 @@ export interface BattleLog {
   defenderGrowth: Record<number, number>;
   createdAt: string;
   pvp?: boolean;
+  tactical?: boolean;
+  manualActions?: number;
 }
 
 export type CategoryWeight = "low" | "medium" | "high";

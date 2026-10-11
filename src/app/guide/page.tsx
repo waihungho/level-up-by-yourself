@@ -86,7 +86,7 @@ export default function GuidePage() {
             <li><span className="text-cyan-400 mr-2">Objective</span> - What the agent strives to achieve</li>
           </ul>
           <div className="bg-gray-900 border border-yellow-700/50 rounded p-3 mt-3">
-            <p className="text-yellow-400 text-xs">Once created, an agent's name, character, and objective cannot be changed. Choose wisely.</p>
+            <p className="text-yellow-400 text-xs">Once created, an agent&apos;s name, character, and objective cannot be changed. Choose wisely.</p>
           </div>
           <div className="bg-gray-900 border border-gray-800 rounded p-3">
             <p className="text-gray-400 text-xs">Summon cooldown: You can summon one new agent every 7 days.</p>
@@ -112,7 +112,7 @@ export default function GuidePage() {
       <Section title="4. The 50 Dimensions">
         <p className="text-sm text-gray-300 font-mono mb-4">
           Every agent has 50 ability dimensions spread across 5 categories (10 each).
-          Initial values are weighted by the agent's role category.
+          Initial values are weighted by the agent&apos;s role category.
         </p>
         <div className="space-y-2">
           {DIMENSION_CATEGORIES.map((cat) => (
@@ -156,7 +156,7 @@ export default function GuidePage() {
       {/* Daily Tasks */}
       <Section title="6. Daily Tasks">
         <div className="space-y-3 text-sm text-gray-300 font-mono">
-          <p>Complete daily tasks to earn Ability Points and boost your agents' growth rate.</p>
+          <p>Complete daily tasks to earn Ability Points and boost your agents&apos; growth rate.</p>
           <div className="bg-gray-900 border border-gray-800 rounded p-3">
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
@@ -180,14 +180,19 @@ export default function GuidePage() {
       {/* Battle System */}
       <Section title="7. Battle System">
         <div className="space-y-3 text-sm text-gray-300 font-mono">
-          <p>Challenge your own agents to friendly sparring matches in the Battle Arena and earn dimension growth as rewards.</p>
+          <p>Spar your own agents or fight other players in PvP. Every battle is tactical: you choose a move each round.</p>
 
           <div className="bg-gray-900 border border-gray-800 rounded p-4">
             <h3 className="text-cyan-400 font-bold mb-2">How It Works</h3>
             <ul className="list-none space-y-2 ml-4">
-              <li><span className="text-cyan-400 mr-2">Turn-based</span> - Combat plays out in turns with a random category each round</li>
-              <li><span className="text-cyan-400 mr-2">Speed</span> - Determines which agent attacks first each turn</li>
-              <li><span className="text-cyan-400 mr-2">HP</span> - Based on the agent's total dimension values across all 50 dimensions</li>
+              <li><span className="text-cyan-400 mr-2">Intent</span> - Each round the opponent shows which category it will strike with</li>
+              <li><span className="text-cyan-400 mr-2">Counter</span> - Physical beats Technical, Technical beats Mental, Mental beats Spiritual, Spiritual beats Social, Social beats Physical. Strike the category that beats theirs for bonus damage and +1 Focus; pick the one they beat and you get countered</li>
+              <li><span className="text-cyan-400 mr-2">Guard</span> - Blocks 60% of incoming damage and builds Focus. Always guard a telegraphed SPECIAL</li>
+              <li><span className="text-cyan-400 mr-2">Special</span> - Costs 3 Focus. Medieval: Shield Bash (stuns). Future: Overclock (ignores defense). Modern: Insight (reveals feints, +25% damage for 2 rounds)</li>
+              <li><span className="text-cyan-400 mr-2">Feints</span> - High-Social agents sometimes switch category at the last moment</li>
+              <li><span className="text-cyan-400 mr-2">Auto</span> - Finishes the fight for you. Playing manually earns +10% growth per counter (max +50%)</li>
+              <li><span className="text-cyan-400 mr-2">Speed</span> - Determines which agent hits first each round</li>
+              <li><span className="text-cyan-400 mr-2">HP</span> - Based on the agent&apos;s total dimension values across all 50 dimensions. Max 12 rounds, then higher HP% wins</li>
             </ul>
           </div>
 
@@ -231,8 +236,36 @@ export default function GuidePage() {
         </div>
       </Section>
 
+      <Section title="8. Squad Battles (3v3)">
+        <div className="space-y-3 text-sm text-gray-300 font-mono">
+          <p>Field 3 agents against a rival squad near your rating. One agent fights at a time; when it is knocked out, the next steps in.</p>
+          <div className="bg-gray-900 border border-gray-800 rounded p-4">
+            <ul className="list-none space-y-2 ml-4">
+              <li><span className="text-emerald-400 mr-2">Swap</span> - Uses your turn; the incoming agent takes half damage that round</li>
+              <li><span className="text-emerald-400 mr-2">Tag</span> - Swap with 3+ team Focus and the incoming agent fires its Special as it enters</li>
+              <li><span className="text-emerald-400 mr-2">Synergy</span> - 3 different roles: Trinity (+10% all). 2 of a role: Pair (+15% on that role&apos;s category). 3 of a role: Legion (+30% role category, −12% others)</li>
+              <li><span className="text-emerald-400 mr-2">Rating</span> - Elo rating, 2 squad battles per day. Build your squad in the Squad Builder</li>
+            </ul>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="9. World Boss Raids">
+        <div className="space-y-3 text-sm text-gray-300 font-mono">
+          <p>Every Monday a new world boss appears. Everyone attacks the same HP bar until it falls or the week ends.</p>
+          <div className="bg-gray-900 border border-gray-800 rounded p-4">
+            <ul className="list-none space-y-2 ml-4">
+              <li><span className="text-red-400 mr-2">Attempts</span> - 3 per day, up to 10 rounds each with your squad (solo players deal ×1.5)</li>
+              <li><span className="text-red-400 mr-2">Weakness</span> - Strike the weakness for ×1.5, the resistance only does ×0.5. The weakness changes at 66% HP</li>
+              <li><span className="text-red-400 mr-2">ULTIMATE</span> - Below 66% HP the boss telegraphs an ULTIMATE: guard it or take triple damage. Below 33% it enrages</li>
+              <li><span className="text-red-400 mr-2">Rewards</span> - Ranked by total damage: Champion, Elite (top 3), Vanguard (top 10), Participant. The killing blow earns the Slayer trophy</li>
+            </ul>
+          </div>
+        </div>
+      </Section>
+
       {/* Tips */}
-      <Section title="8. Tips">
+      <Section title="10. Tips">
         <div className="space-y-2 text-sm text-gray-300 font-mono">
           <div className="flex gap-2">
             <span className="text-yellow-400 shrink-0">*</span>
@@ -248,7 +281,7 @@ export default function GuidePage() {
           </div>
           <div className="flex gap-2">
             <span className="text-yellow-400 shrink-0">*</span>
-            <p>Check the radar chart to see your agent's overall dimension balance.</p>
+            <p>Check the radar chart to see your agent&apos;s overall dimension balance.</p>
           </div>
           <div className="flex gap-2">
             <span className="text-yellow-400 shrink-0">*</span>

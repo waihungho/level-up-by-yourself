@@ -77,6 +77,8 @@ export const GROWTH_TIERS: GrowthTier[] = [
 
 export const SUMMON_COOLDOWN_DAYS = 7;
 export const SUMMON_COST_SOL = 0.1;
+/** Price to reset an agent's 3 daily training fights (verified on-chain by /api/battle/recharge). */
+export const RECHARGE_COST_SOL = 0.05;
 
 export const TREASURY_WALLET = process.env.NEXT_PUBLIC_TREASURY_WALLET || "D9SuHgVnCDGcN15CfYN7ahVoByUNAiYDzLvvbteKUvvB";
 

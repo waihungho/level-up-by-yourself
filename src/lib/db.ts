@@ -1,4 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from "./supabase";
+import { selectAllPages } from "./supabase-pages";
+import { getLatestRechargeToday } from "./recharges";
 import type {
   Agent,
   AgentDimension,
@@ -65,6 +67,53 @@ function mapGrowthLogRow(row: any): GrowthLog {
     dimensionChanges: row.dimension_changes,
     narrative: row.narrative,
   };
+}
+
+/** Extra insert columns for tactical battle logs (only sent when set, so legacy writes are unchanged). */
+function tacticalColumns(log: BattleLog): Record<string, unknown> {
+  return log.tactical ? { tactical: true, manual_actions: log.manualActions ?? 0, created_at: log.createdAt } : {};
+}
+
+// ---------------------------------------------------------------------------
+// getPlayerByWallet (read-only: never creates)
+// ---------------------------------------------------------------------------
+export async function getPlayerByWallet(walletAddress: string): Promise<Player | null> {
+  const sb = getSupabase();
+
+  if (sb) {
+    const { data, error } = await sb
+      .from("levelup_players")
+      .select("*")
+      .eq("wallet_address", walletAddress)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? mapPlayerRow(data) : null;
+  }
+
+  const found = localPlayers.find((p) => p.walletAddress === walletAddress);
+  return found ? { ...found } : null;
+}
+
+// ---------------------------------------------------------------------------
+// getRandomOpponentAgentId — any agent owned by another player
+// ---------------------------------------------------------------------------
+export async function getRandomOpponentAgentId(
+  excludePlayerId: string,
+  rng: () => number = Math.random
+): Promise<string | null> {
+  const sb = getSupabase();
+  let ids: string[];
+
+  if (sb) {
+    const rows = await selectAllPages<{ id: string }>((from, to) =>
+      sb.from("levelup_agents").select("id").neq("player_id", excludePlayerId).order("id").range(from, to)
+    );
+    ids = rows.map((r) => r.id);
+  } else {
+    ids = localAgents.filter((a) => a.playerId !== excludePlayerId).map((a) => a.id);
+  }
+
+  return ids.length ? ids[Math.floor(rng() * ids.length)] : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -403,6 +452,47 @@ export async function getGrowthLogs(
 }
 
 // ---------------------------------------------------------------------------
+// addAbilityPoints
+// ---------------------------------------------------------------------------
+export async function addAbilityPoints(playerId: string, points: number): Promise<void> {
+  if (points <= 0) return;
+  const sb = getSupabase();
+
+  if (sb) {
+    const { error } = await sb.rpc("increment_ability_score", { p_player_id: playerId, p_points: points });
+    if (error) throw error;
+    return;
+  }
+
+  const player = localPlayers.find((p) => p.id === playerId);
+  if (player) player.abilityScore += points;
+}
+
+// ---------------------------------------------------------------------------
+// applyAgentGrowth — add dimension deltas to one agent
+// ---------------------------------------------------------------------------
+export async function applyAgentGrowth(agentId: string, growth: Record<number, number>): Promise<void> {
+  const sb = getSupabase();
+
+  if (sb) {
+    for (const [dimIdStr, delta] of Object.entries(growth)) {
+      const { error } = await sb.rpc("levelup_increment_dimension", {
+        p_agent_id: agentId,
+        p_dimension_id: Number(dimIdStr),
+        p_delta: delta,
+      });
+      if (error) throw error;
+    }
+    return;
+  }
+
+  for (const [dimIdStr, delta] of Object.entries(growth)) {
+    const dim = localDimensions.find((d) => d.agentId === agentId && d.dimensionId === Number(dimIdStr));
+    if (dim) dim.value += delta;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // saveBattleLog
 // ---------------------------------------------------------------------------
 export async function saveBattleLog(log: BattleLog): Promise<void> {
@@ -417,6 +507,7 @@ export async function saveBattleLog(log: BattleLog): Promise<void> {
       rounds: log.rounds,
       attacker_growth: log.attackerGrowth,
       defender_growth: log.defenderGrowth,
+      ...tacticalColumns(log),
     });
     if (error) throw error;
 
@@ -546,13 +637,21 @@ export async function getAllAgentsWithDimensions(): Promise<AgentWithDimensions[
   const sb = getSupabase();
 
   if (sb) {
-    const [{ data: agentRows, error: agentError }, { data: allDimRows }] =
-      await Promise.all([
-        sb.from("levelup_agents").select("*"),
-        sb.from("levelup_agent_dimensions").select("*"),
+    // Paged: 55k+ dimension rows would otherwise be truncated to 1000 by PostgREST.
+    type AgentRow = { id: string } & Record<string, unknown>;
+    type DimRow = { agent_id: string; dimension_id: number; value: number };
+    let agentRows: AgentRow[];
+    let allDimRows: DimRow[];
+    try {
+      [agentRows, allDimRows] = await Promise.all([
+        selectAllPages<AgentRow>((from, to) => sb.from("levelup_agents").select("*").order("id").range(from, to)),
+        selectAllPages<DimRow>((from, to) =>
+          sb.from("levelup_agent_dimensions").select("*").order("agent_id").order("dimension_id").range(from, to)
+        ),
       ]);
-
-    if (agentError || !agentRows) return [];
+    } catch {
+      return [];
+    }
 
     const dimsByAgent = new Map<string, typeof allDimRows>();
     for (const row of allDimRows ?? []) {
@@ -600,20 +699,22 @@ export async function getAgentFightsToday(
   agentId: string
 ): Promise<number> {
   const sb = getSupabase();
-  // Count fights since the last recharge (or since midnight if no recharge)
-  const sinceISO = getRechargeTimestamp(agentId) ?? (() => {
+  // Count fights since the last paid recharge today (server-verified, strictly after it), or since UTC midnight.
+  const rechargedAt = await getLatestRechargeToday(agentId);
+  const sinceISO = rechargedAt ?? (() => {
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
     return todayStart.toISOString();
   })();
 
   if (sb) {
-    const { count, error } = await sb
+    let query = sb
       .from("levelup_battle_logs")
       .select("*", { count: "exact", head: true })
       .or(`attacker_id.eq.${agentId},defender_id.eq.${agentId}`)
-      .eq("pvp", false)           // exclude PvP battles from training count
-      .gte("created_at", sinceISO);
+      .eq("pvp", false);          // exclude PvP battles from training count
+    query = rechargedAt ? query.gt("created_at", sinceISO) : query.gte("created_at", sinceISO);
+    const { count, error } = await query;
     if (error) return 0;
     return count ?? 0;
   }
@@ -623,23 +724,8 @@ export async function getAgentFightsToday(
     (l) =>
       !l.pvp &&                                          // exclude PvP battles
       (l.attackerId === agentId || l.defenderId === agentId) &&
-      l.createdAt >= sinceISO
+      (rechargedAt ? l.createdAt > sinceISO : l.createdAt >= sinceISO)
   ).length;
-}
-
-// ---------------------------------------------------------------------------
-// rechargeAgentFights — store timestamp so we only count fights after recharge
-// ---------------------------------------------------------------------------
-const rechargeTimestamps = new Map<string, string>();
-
-export async function rechargeAgentFights(agentId: string): Promise<void> {
-  const todayKey = `${agentId}_${new Date().toISOString().slice(0, 10)}`;
-  rechargeTimestamps.set(todayKey, new Date().toISOString());
-}
-
-function getRechargeTimestamp(agentId: string): string | undefined {
-  const todayKey = `${agentId}_${new Date().toISOString().slice(0, 10)}`;
-  return rechargeTimestamps.get(todayKey);
 }
 
 // ---------------------------------------------------------------------------
@@ -778,6 +864,7 @@ export async function savePvpBattleLog(log: BattleLog): Promise<void> {
       attacker_growth: log.attackerGrowth,
       defender_growth: log.defenderGrowth,
       pvp: true,
+      ...tacticalColumns(log),
     });
     if (error) throw error;
 

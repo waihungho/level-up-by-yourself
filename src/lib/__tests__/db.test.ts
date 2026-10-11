@@ -18,9 +18,10 @@ describe("db (demo mode — no Supabase)", () => {
     expect(a.id).toBe(b.id);
   });
 
-  it("returns empty agents for new player", async () => {
+  it("seeds 10 demo agents for a new player", async () => {
     const player = await getOrCreatePlayer("TestWallet2");
     const agents = await getPlayerAgents(player.id);
-    expect(agents).toEqual([]);
+    expect(agents).toHaveLength(10);
+    expect(agents.every((a) => a.playerId === player.id)).toBe(true);
   });
 });
