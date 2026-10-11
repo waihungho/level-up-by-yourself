@@ -638,12 +638,14 @@ export async function getAllAgentsWithDimensions(): Promise<AgentWithDimensions[
 
   if (sb) {
     // Paged: 55k+ dimension rows would otherwise be truncated to 1000 by PostgREST.
-    let agentRows: any[];
-    let allDimRows: any[];
+    type AgentRow = { id: string } & Record<string, unknown>;
+    type DimRow = { agent_id: string; dimension_id: number; value: number };
+    let agentRows: AgentRow[];
+    let allDimRows: DimRow[];
     try {
       [agentRows, allDimRows] = await Promise.all([
-        selectAllPages<any>((from, to) => sb.from("levelup_agents").select("*").order("id").range(from, to)),
-        selectAllPages<any>((from, to) =>
+        selectAllPages<AgentRow>((from, to) => sb.from("levelup_agents").select("*").order("id").range(from, to)),
+        selectAllPages<DimRow>((from, to) =>
           sb.from("levelup_agent_dimensions").select("*").order("agent_id").order("dimension_id").range(from, to)
         ),
       ]);
