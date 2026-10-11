@@ -14,6 +14,7 @@ import { createBattle, resolveRound, runAuto, toBattleLog } from "./engine";
 import { fail, type BattleStateBase, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
 import type { BattleSession, SessionMode, SessionStore } from "./session-store";
 import { squadHandler, startSquadBattle } from "./squad-service";
+import { raidHandler, startRaidAttempt } from "@/lib/raid/raid-service";
 import { InvalidActionError, type BattleMode, type PlayerAction, type TacticalState } from "./types";
 
 export { parseAction } from "./battle-service-actions";
@@ -47,12 +48,8 @@ const handlers: Partial<Record<SessionMode, ModeHandler<any>>> = {
   training: tacticalHandler,
   pvp: tacticalHandler,
   squad_pvp: squadHandler,
+  raid: raidHandler,
 };
-
-/** Lets later modes (raids) plug in without this module importing them. */
-export function registerModeHandler<S extends BattleStateBase>(mode: SessionMode, handler: ModeHandler<S>): void {
-  handlers[mode] = handler;
-}
 
 function handlerFor(mode: SessionMode): ModeHandler<BattleStateBase> {
   const h = handlers[mode];
@@ -143,14 +140,11 @@ async function startTacticalBattle(
 }
 
 type ExtraStarter = (player: Player, deps: ServiceDeps) => Promise<ServiceResult>;
+/** Player-level modes (no agentId); they resolve stale sessions of the same mode before starting. */
 const extraStarters: Partial<Record<SessionMode, ExtraStarter>> = {
   squad_pvp: startSquadBattle,
+  raid: startRaidAttempt,
 };
-
-/** Lets later modes (raids) add a start flow. Player-level modes resolve stale sessions of the same mode first. */
-export function registerModeStarter(mode: SessionMode, starter: ExtraStarter): void {
-  extraStarters[mode] = starter;
-}
 
 export async function startBattle(
   input: { mode?: string; agentId?: string; walletAddress?: string; opponentAgentId?: string },

@@ -29,6 +29,8 @@ export interface RaidContribution {
   damage: number;
   attempts: number;
   bestHit: number;
+  /** Latest attack label (lead agent name) for display. */
+  label: string;
 }
 
 export interface RaidHit {
@@ -253,8 +255,9 @@ export async function applyRaidDamage(input: {
     c.damage += damage;
     c.attempts += 1;
     c.bestHit = Math.max(c.bestHit, input.bestHit);
+    c.label = input.label;
   } else {
-    memContribs.push({ bossId: input.bossId, playerId: input.playerId, damage, attempts: 1, bestHit: input.bestHit });
+    memContribs.push({ bossId: input.bossId, playerId: input.playerId, damage, attempts: 1, bestHit: input.bestHit, label: input.label });
   }
   memHits.push({ id: crypto.randomUUID(), bossId: input.bossId, playerId: input.playerId, damage, counters: input.counters, label: input.label, createdAt: new Date().toISOString() });
   return { hpRemaining: boss.hpRemaining, killed };
@@ -265,7 +268,7 @@ export async function getContributions(bossId: string): Promise<RaidContribution
   if (sb) {
     const { data, error } = await sb.from("levelup_raid_contributions").select("*").eq("boss_id", bossId).order("damage", { ascending: false });
     if (error) throw error;
-    return (data ?? []).map((r) => ({ bossId: r.boss_id, playerId: r.player_id, damage: Number(r.damage), attempts: r.attempts, bestHit: r.best_hit }));
+    return (data ?? []).map((r) => ({ bossId: r.boss_id, playerId: r.player_id, damage: Number(r.damage), attempts: r.attempts, bestHit: r.best_hit, label: r.label ?? "" }));
   }
   return memContribs.filter((c) => c.bossId === bossId).sort((a, b) => b.damage - a.damage).map((c) => ({ ...c }));
 }

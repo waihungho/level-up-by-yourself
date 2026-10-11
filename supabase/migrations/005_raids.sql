@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS levelup_raid_contributions (
   damage    bigint NOT NULL DEFAULT 0,
   attempts  int NOT NULL DEFAULT 0,
   best_hit  int NOT NULL DEFAULT 0,
+  label     text NOT NULL DEFAULT '',
   PRIMARY KEY (boss_id, player_id)
 );
 CREATE INDEX IF NOT EXISTS levelup_idx_raid_contrib_damage ON levelup_raid_contributions(boss_id, damage DESC);
@@ -96,12 +97,13 @@ BEGIN
     WHERE id = p_boss;
   END IF;
 
-  INSERT INTO levelup_raid_contributions (boss_id, player_id, damage, attempts, best_hit)
-  VALUES (p_boss, p_player, GREATEST(p_damage, 0), 1, p_best)
+  INSERT INTO levelup_raid_contributions (boss_id, player_id, damage, attempts, best_hit, label)
+  VALUES (p_boss, p_player, GREATEST(p_damage, 0), 1, p_best, p_label)
   ON CONFLICT (boss_id, player_id) DO UPDATE SET
     damage   = levelup_raid_contributions.damage + EXCLUDED.damage,
     attempts = levelup_raid_contributions.attempts + 1,
-    best_hit = GREATEST(levelup_raid_contributions.best_hit, EXCLUDED.best_hit);
+    best_hit = GREATEST(levelup_raid_contributions.best_hit, EXCLUDED.best_hit),
+    label    = EXCLUDED.label;
 
   INSERT INTO levelup_raid_hits (boss_id, player_id, damage, counters, label)
   VALUES (p_boss, p_player, GREATEST(p_damage, 0), p_counters, p_label);

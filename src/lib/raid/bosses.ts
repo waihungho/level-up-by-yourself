@@ -102,3 +102,19 @@ export function computeBossStats(agents: AgentWithDimensions[], def: BossDef): B
   for (const c of CYCLE) catAvg[c] = p75(sides.map((s) => s.catAvg[c])) * def.profile[c];
   return { catAvg, speed: p75(sides.map((s) => s.speed)) };
 }
+
+/** Display-only agent record for the boss (sprite + name in battle UIs). */
+export function bossAgent(def: BossDef): AgentWithDimensions {
+  return {
+    id: `boss:${def.key}`,
+    playerId: "boss",
+    name: def.name,
+    role: def.role,
+    roleTitle: "World Boss",
+    character: def.lore,
+    objective: "",
+    spriteSeed: def.spriteSeed,
+    createdAt: new Date(0).toISOString(),
+    dimensions: [],
+  };
+}
