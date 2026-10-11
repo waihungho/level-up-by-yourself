@@ -52,7 +52,7 @@ function randomInRange(min: number, max: number): number {
   return min + Math.random() * (max - min);
 }
 
-function calculateGrowth(
+export function calculateGrowth(
   categories: DimensionCategory[],
   isWinner: boolean
 ): Record<number, number> {
