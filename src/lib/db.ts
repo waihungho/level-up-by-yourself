@@ -452,6 +452,23 @@ export async function getGrowthLogs(
 }
 
 // ---------------------------------------------------------------------------
+// addAbilityPoints
+// ---------------------------------------------------------------------------
+export async function addAbilityPoints(playerId: string, points: number): Promise<void> {
+  if (points <= 0) return;
+  const sb = getSupabase();
+
+  if (sb) {
+    const { error } = await sb.rpc("increment_ability_score", { p_player_id: playerId, p_points: points });
+    if (error) throw error;
+    return;
+  }
+
+  const player = localPlayers.find((p) => p.id === playerId);
+  if (player) player.abilityScore += points;
+}
+
+// ---------------------------------------------------------------------------
 // applyAgentGrowth — add dimension deltas to one agent
 // ---------------------------------------------------------------------------
 export async function applyAgentGrowth(agentId: string, growth: Record<number, number>): Promise<void> {
