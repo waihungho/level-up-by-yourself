@@ -2,6 +2,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TacticalRound } from "@/lib/tactical/types";
 
+const REFRESH_ATTEMPTS = 3;
+const REFRESH_RETRY_MS = 1500;
+
 export interface TurnResponse<S> {
   rounds: TacticalRound[];
   state: S;
@@ -39,11 +42,22 @@ export function useBattleTurns<S extends { round: number }>({ sessionId, walletA
     };
   }, []);
 
+  /**
+   * Reloads the authoritative state (after a 409/410). If the battle already finished, replays the
+   * stored result through onResponse so the result screen still appears when the final response was lost.
+   */
   const refresh = useCallback(async () => {
-    const res = await fetch(`/api/battle/session/${sessionId}?wallet=${encodeURIComponent(walletAddress)}`);
-    if (!res.ok) throw new Error("refresh_failed");
-    const data = (await res.json()) as { state: S };
-    if (mounted.current) setState(data.state);
+    for (let attempt = 0; attempt < REFRESH_ATTEMPTS; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, REFRESH_RETRY_MS));
+      const res = await fetch(`/api/battle/session/${sessionId}?wallet=${encodeURIComponent(walletAddress)}`);
+      if (!res.ok) throw new Error("refresh_failed");
+      const data = (await res.json()) as { state: S & { finished?: boolean }; result?: Record<string, unknown> | null };
+      if (!mounted.current) return;
+      if (!data.state.finished) return setState(data.state);
+      if (data.result) return onResponseRef.current({ ...data.result, rounds: [], state: data.state, finished: true });
+      // Finished but still being finalised by the request that lost its response: try again shortly.
+    }
+    if (mounted.current) setError("This battle has ended. Your results are in the battle history.");
   }, [sessionId, walletAddress]);
 
   const send = useCallback(
@@ -58,7 +72,7 @@ export function useBattleTurns<S extends { round: number }>({ sessionId, walletA
           body: JSON.stringify({ sessionId, walletAddress, round: state.round, action }),
         });
         const data = await res.json();
-        if (res.status === 409) {
+        if (res.status === 409 || res.status === 410) {
           await refresh();
           return;
         }

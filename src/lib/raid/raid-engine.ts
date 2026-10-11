@@ -102,6 +102,7 @@ export function createRaidAttempt(player: { playerId: string; agents: AgentWithD
     intent: { kind: "strike", category: CYCLE[0] },
     manualActions: 0,
     counters: 0,
+    manualCounters: 0,
     rounds: [],
     finished: false,
     winner: null,

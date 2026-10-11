@@ -37,10 +37,15 @@ export function useRoundPlayback(attackerIdForRound: (r: TacticalRound) => strin
     idFor.current = attackerIdForRound;
   }, [attackerIdForRound]);
 
-  useEffect(() => {
-    const pending = timers.current;
-    return () => pending.forEach(clearTimeout);
-  }, []);
+  useEffect(
+    () => () => {
+      // Read the ref at unmount: finish() swaps in a new array, so a mount-time capture would miss timers.
+      timers.current.forEach(clearTimeout);
+      timers.current = [];
+      done.current = null;
+    },
+    []
+  );
 
   const finish = useCallback(() => {
     timers.current.forEach(clearTimeout);

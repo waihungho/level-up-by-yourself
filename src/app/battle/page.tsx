@@ -295,7 +295,7 @@ export default function BattlePage() {
 
   function renderMastery(log: BattleLog) {
     if (!log.manualActions) return null;
-    const counters = log.rounds.filter((r) => r.countered).length;
+    const counters = log.rounds.filter((r) => r.countered && r.manual).length;
     if (counters === 0) return null;
     const pct = Math.round((Math.min(1 + MASTERY_PER_COUNTER * counters, MASTERY_MAX) - 1) * 100);
     return (

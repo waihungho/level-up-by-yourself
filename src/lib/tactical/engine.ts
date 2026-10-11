@@ -63,9 +63,9 @@ export function feintChance(side: SideState): number {
   return Math.min(FEINT_MAX, Math.max(FEINT_MIN, social / (social + FEINT_SOCIAL_K)));
 }
 
-export function masteryMultiplier(state: { manualActions: number; counters: number }): number {
+export function masteryMultiplier(state: { manualActions: number; manualCounters: number }): number {
   if (state.manualActions <= 0) return 1;
-  return Math.min(1 + MASTERY_PER_COUNTER * state.counters, MASTERY_MAX);
+  return Math.min(1 + MASTERY_PER_COUNTER * state.manualCounters, MASTERY_MAX);
 }
 
 // ---------------------------------------------------------------------------
@@ -125,6 +125,7 @@ export function createBattle(
     intent: chooseIntent(sides.defender, rng),
     manualActions: 0,
     counters: 0,
+    manualCounters: 0,
     rounds: [],
     finished: false,
     winner: null,
@@ -398,6 +399,7 @@ export function resolveRound(
   const round = state.round + 1;
   const winner = decideWinner(attacker, defender, round, MAX_ROUNDS);
   const record = toRoundRecord(round, state.intent, ex, attacker.hp, defender.hp);
+  record.manual = opts.manual;
 
   return {
     ...state,
@@ -406,6 +408,7 @@ export function resolveRound(
     intent: winner ? state.intent : chooseIntent(defender, rng),
     manualActions: state.manualActions + (opts.manual ? 1 : 0),
     counters: state.counters + (ex.countered ? 1 : 0),
+    manualCounters: state.manualCounters + (ex.countered && opts.manual ? 1 : 0),
     rounds: [...state.rounds, record],
     finished: winner !== null,
     winner,

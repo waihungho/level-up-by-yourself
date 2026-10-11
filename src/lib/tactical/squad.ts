@@ -60,6 +60,8 @@ export interface SquadState {
   intent: Intent;
   manualActions: number;
   counters: number;
+  /** Counters landed on manual turns (only these earn the mastery bonus). */
+  manualCounters: number;
   rounds: TacticalRound[];
   finished: boolean;
   winner: SideKey | null;
@@ -140,6 +142,7 @@ export function createSquadBattle(
     intent: chooseIntent(activeSide(teams.defender), rng),
     manualActions: 0,
     counters: 0,
+    manualCounters: 0,
     rounds: [],
     finished: false,
     winner: null,
@@ -199,6 +202,7 @@ export function resolveSquadRound(state: SquadState, action: SquadAction, rng: R
   const round = s.round + 1;
   const record = toRoundRecord(round, s.intent, ex, atk.hp, def.hp);
   record.actorSlot = A.active;
+  record.manual = opts.manual;
   if (swap) {
     record.swap = swap;
     record.playerAction = "swap";
@@ -224,6 +228,7 @@ export function resolveSquadRound(state: SquadState, action: SquadAction, rng: R
   s.damageDealt += ex.attackerDamage;
   s.manualActions += opts.manual ? 1 : 0;
   s.counters += ex.countered ? 1 : 0;
+  s.manualCounters += ex.countered && opts.manual ? 1 : 0;
   s.finished = winner !== null;
   s.winner = winner;
   if (!winner) s.intent = opts.nextIntent ? opts.nextIntent(s, rng) : chooseIntent(activeSide(D), rng);

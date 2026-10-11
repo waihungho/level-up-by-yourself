@@ -102,4 +102,17 @@ describe("TacticalBattle", () => {
     renderBattle();
     expect(screen.getByText(/How tactical battles work/i)).toBeInTheDocument();
   });
+
+  it("recovers the result when the final turn was applied but its response was lost (410)", async () => {
+    const done = { ...initial(), round: 4, finished: true, winner: "attacker" as const };
+    const log = { id: "log-lost", winnerId: "a" };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 410, json: async () => ({ error: "session_finished" }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ state: done, status: "finished", result: { battleLog: log } }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const onFinished = renderBattle();
+    fireEvent.click(screen.getByRole("button", { name: /Guard/ }));
+    await waitFor(() => expect(onFinished).toHaveBeenCalledWith(log), { timeout: 3000 });
+  });
 });

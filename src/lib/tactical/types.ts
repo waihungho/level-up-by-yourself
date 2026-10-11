@@ -38,6 +38,8 @@ export interface TacticalRound extends BattleRound {
   opponentIntent: string;
   opponentAction: string;
   countered: boolean;
+  /** The player chose this round's action (not Auto). */
+  manual?: boolean;
   /** The defender's strike beat the attacker's category. */
   counteredBy?: boolean;
   feint: boolean;
@@ -57,6 +59,8 @@ export interface TacticalState {
   intent: Intent;
   manualActions: number;
   counters: number;
+  /** Counters landed on manual turns (only these earn the mastery bonus). */
+  manualCounters: number;
   rounds: TacticalRound[];
   finished: boolean;
   winner: SideKey | null;

@@ -73,6 +73,7 @@ export interface BattleRound {
   opponentIntent?: string;
   opponentAction?: string;
   countered?: boolean;
+  manual?: boolean;
   feint?: boolean;
   special?: string;
 }

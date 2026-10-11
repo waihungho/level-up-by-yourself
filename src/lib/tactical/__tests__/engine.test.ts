@@ -270,12 +270,24 @@ describe("runAuto + toBattleLog", () => {
   });
 });
 
+describe("manual counters", () => {
+  it("only counters made on manual turns count toward mastery", () => {
+    const s = battle("modern", "modern");
+    const auto = resolveRound(s, { type: "strike", category: "Physical" }, half, { manual: false });
+    expect(auto.counters).toBe(1);
+    expect(auto.manualCounters).toBe(0);
+    const manual = resolveRound(s, { type: "strike", category: "Physical" }, half, { manual: true });
+    expect(manual.manualCounters).toBe(1);
+    expect(manual.rounds[0].manual).toBe(true);
+  });
+});
+
 describe("masteryMultiplier", () => {
   it("is 1 for auto-only battles", () => {
-    expect(masteryMultiplier({ manualActions: 0, counters: 3 })).toBe(1);
+    expect(masteryMultiplier({ manualActions: 0, manualCounters: 3 })).toBe(1);
   });
   it("adds 10% per counter when played manually, capped at 1.5", () => {
-    expect(masteryMultiplier({ manualActions: 1, counters: 3 })).toBeCloseTo(1.3);
-    expect(masteryMultiplier({ manualActions: 1, counters: 10 })).toBe(1.5);
+    expect(masteryMultiplier({ manualActions: 1, manualCounters: 3 })).toBeCloseTo(1.3);
+    expect(masteryMultiplier({ manualActions: 1, manualCounters: 10 })).toBe(1.5);
   });
 });
