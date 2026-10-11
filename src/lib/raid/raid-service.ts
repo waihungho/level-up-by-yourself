@@ -1,9 +1,9 @@
-import { applyAgentGrowth, getAgentWithDimensions, getPlayerAgents, getPlayerByWallet } from "@/lib/db";
-import { getOrBuildSquad } from "@/lib/squads";
+import { applyAgentGrowth, getPlayerByWallet } from "@/lib/db";
+import { getOrBuildSquad, strongestAgent } from "@/lib/squads";
 import { fail, runDeferred, usedToday, withinLimitAfterCreate, type ModeHandler, type ServiceDeps, type ServiceResult } from "@/lib/tactical/service-common";
 import { squadGrowth, type SquadAction } from "@/lib/tactical/squad";
-import { parseSquadAction } from "@/lib/tactical/squad-service";
-import type { AgentWithDimensions, Player } from "@/lib/types";
+import { parseSquadAction, squadInvalidCode } from "@/lib/tactical/squad-service";
+import type { Player } from "@/lib/types";
 import { bossAgent, bossByKey } from "./bosses";
 import { applyRaidDamage, countRaidAttemptsToday, getActiveBoss, getContributions, getLatestBoss, getRecentHits, getUnpaidFinishedBoss, MAX_RAID_ATTEMPTS, payoutBoss } from "./raid-db";
 import { attemptDamage, createRaidAttempt, currentWeakness, phaseFor, resolveRaidRound, runRaidAuto, type RaidState } from "./raid-engine";
@@ -26,7 +26,7 @@ export const raidHandler: ModeHandler<RaidSessionState> = {
   parseAction: (raw) => parseSquadAction(raw) as ReturnType<ModeHandler<RaidSessionState>["parseAction"]>,
   resolve: (state, action, rng) => resolveRaidRound(state, action as unknown as SquadAction, rng, { manual: true }) as RaidSessionState,
   auto: (state, rng) => runRaidAuto(state, rng) as RaidSessionState,
-  invalidCode: (action) => (action.type === "swap" ? "invalid_swap" : "invalid_action"),
+  invalidCode: squadInvalidCode,
   async finalize(session, state, deps) {
     const result = await applyRaidDamage({
       bossId: state.bossId,
@@ -45,15 +45,6 @@ export const raidHandler: ModeHandler<RaidSessionState> = {
   },
 };
 
-async function bestSingleAgent(playerId: string): Promise<AgentWithDimensions | null> {
-  const agents = await getPlayerAgents(playerId);
-  const full = (await Promise.all(agents.map((a) => getAgentWithDimensions(a.id)))).filter(
-    (a): a is AgentWithDimensions => !!a && a.dimensions.length > 0
-  );
-  const total = (a: AgentWithDimensions) => a.dimensions.reduce((s, d) => s + d.value, 0);
-  return full.sort((a, b) => total(b) - total(a))[0] ?? null;
-}
-
 /** Validates the boss and daily limit, then creates the attempt session. Stale raid sessions are resolved by the caller first. */
 export async function startRaidAttempt(player: Player, deps: ServiceDeps): Promise<ServiceResult> {
   const boss = await getActiveBoss();
@@ -67,7 +58,7 @@ export async function startRaidAttempt(player: Player, deps: ServiceDeps): Promi
   let attackers = await getOrBuildSquad(player.id);
   let solo = false;
   if (!attackers) {
-    const best = await bestSingleAgent(player.id);
+    const best = await strongestAgent(player.id);
     if (!best) return fail(409, "no_agents");
     attackers = [best];
     solo = true;

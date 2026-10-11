@@ -4,6 +4,7 @@ import Link from "next/link";
 import { PixelSprite } from "@/components/PixelSprite";
 import { SquadBattle, type SquadResult } from "@/components/SquadBattle";
 import { synergyLabel } from "@/components/tactical/synergyLabel";
+import { GENERIC_START_ERROR, NETWORK_ERROR, postStart } from "@/lib/battle-client";
 import { DIMENSIONS } from "@/lib/constants";
 import type { SquadStats } from "@/lib/squads-read";
 import type { Synergy, SquadState } from "@/lib/tactical/squad";
@@ -29,6 +30,7 @@ const START_ERRORS: Record<string, string> = {
   no_squad: "You need at least 3 agents to form a squad.",
   squad_limit_reached: "You've used both squad battles today.",
   no_opponent: "No rival squads available yet. Check back soon!",
+  network: NETWORK_ERROR,
 };
 
 function dimName(id: string) {
@@ -59,24 +61,14 @@ export function SquadArena({ walletAddress, onAgentsChanged }: { walletAddress: 
   async function start() {
     setStarting(true);
     setError(null);
-    try {
-      const res = await fetch("/api/battle/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "squad_pvp", walletAddress }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(START_ERRORS[data.error] ?? "Something went wrong. Please try again.");
-        return;
-      }
-      setResult(null);
-      setLive(data as LiveSquadBattle);
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setStarting(false);
+    const result = await postStart<LiveSquadBattle>({ mode: "squad_pvp", walletAddress });
+    setStarting(false);
+    if (!result.ok) {
+      setError(START_ERRORS[result.error] ?? GENERIC_START_ERROR);
+      return;
     }
+    setResult(null);
+    setLive(result.data);
   }
 
   const handleFinished = useCallback(

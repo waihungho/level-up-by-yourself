@@ -5,7 +5,6 @@ interface HpBarProps {
   hp: number;
   maxHp: number;
   align?: "left" | "right";
-  shake?: boolean;
   floater?: number | null;
   compact?: boolean;
 }
@@ -16,10 +15,10 @@ function color(pct: number) {
   return "bg-red-500";
 }
 
-export function HpBar({ name, hp, maxHp, align = "left", shake, floater, compact }: HpBarProps) {
+export function HpBar({ name, hp, maxHp, align = "left", floater, compact }: HpBarProps) {
   const pct = maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 0;
   return (
-    <div className={`relative ${shake ? "animate-shakeHit" : ""}`}>
+    <div className="relative">
       <div className={`flex justify-between font-mono ${compact ? "text-[9px]" : "text-[11px]"} mb-0.5 ${align === "right" ? "flex-row-reverse" : ""}`}>
         <span className="text-white font-bold truncate">{name}</span>
         <span className="text-gray-400">{Math.round(hp).toLocaleString()} HP</span>

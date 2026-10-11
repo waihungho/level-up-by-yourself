@@ -6,6 +6,7 @@ import { BossStage } from "@/components/BossStage";
 import { SquadBattle, type SquadResult } from "@/components/SquadBattle";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { useRaidLive } from "@/hooks/useRaidLive";
+import { GENERIC_START_ERROR, NETWORK_ERROR, postStart } from "@/lib/battle-client";
 import type { RaidState } from "@/lib/raid/raid-engine";
 import type { AgentWithDimensions } from "@/lib/types";
 
@@ -20,6 +21,7 @@ const START_ERRORS: Record<string, string> = {
   no_active_boss: "The boss has left. A new one arrives Monday 00:00 UTC.",
   raid_limit_reached: "You've used all 3 raid attempts today.",
   no_agents: "Summon an agent to join the raid.",
+  network: NETWORK_ERROR,
 };
 
 function untilNextMonday(now: Date): string {
@@ -75,24 +77,14 @@ export default function RaidPage() {
     if (!wallet) return;
     setStarting(true);
     setStartError(null);
-    try {
-      const res = await fetch("/api/battle/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "raid", walletAddress: wallet }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setStartError(START_ERRORS[data.error] ?? "Something went wrong. Please try again.");
-        return;
-      }
-      setResult(null);
-      setAttempt(data as LiveAttempt);
-    } catch {
-      setStartError("Network error. Please try again.");
-    } finally {
-      setStarting(false);
+    const res = await postStart<LiveAttempt>({ mode: "raid", walletAddress: wallet });
+    setStarting(false);
+    if (!res.ok) {
+      setStartError(START_ERRORS[res.error] ?? GENERIC_START_ERROR);
+      return;
     }
+    setResult(null);
+    setAttempt(res.data);
   }
 
   if (loading || !player) return null;

@@ -2,7 +2,7 @@ import type { AgentWithDimensions } from "@/lib/types";
 import { CYCLE } from "@/lib/tactical/constants";
 import { strongestCategory, weightedCategory, type ExchangeMods } from "@/lib/tactical/engine";
 import type { Rng } from "@/lib/tactical/rng";
-import { buildTeam, resolveSquadRound, squadAiAction, type SquadAction, type SquadState, type TeamState } from "@/lib/tactical/squad";
+import { buildTeam, initialSquadState, NO_SWAP_YET, resolveSquadRound, runSquadAuto, type SquadAction, type SquadState, type TeamState } from "@/lib/tactical/squad";
 import type { Category, Intent, SideState } from "@/lib/tactical/types";
 import type { BossDef, BossStats } from "./bosses";
 
@@ -61,7 +61,7 @@ function bossTeam(ctx: RaidContext): TeamState {
     catAvg: { ...ctx.stats.catAvg },
     speed: ctx.stats.speed,
   };
-  return { playerId: "boss", members: [boss], active: 0, focus: 0, synergy: { name: "none" }, lastSwapRound: -99, participated: [false] };
+  return { playerId: "boss", members: [boss], active: 0, focus: 0, synergy: { name: "none" }, lastSwapRound: NO_SWAP_YET, participated: [false] };
 }
 
 export function raidMods(state: SquadState): ExchangeMods {
@@ -70,9 +70,14 @@ export function raidMods(state: SquadState): ExchangeMods {
   const weak = currentWeakness(s.raid.def, phase);
   const resist = s.raid.def.resist;
   const solo = s.raid.solo ? SOLO_DAMAGE_MULT : 1;
+  const affinity = (c: Category) => {
+    if (c === weak) return WEAKNESS_MULT;
+    if (c === resist) return RESIST_MULT;
+    return 1;
+  };
   return {
     outgoingMult: {
-      attacker: (c) => (c === weak ? WEAKNESS_MULT : c === resist ? RESIST_MULT : 1) * solo,
+      attacker: (c) => affinity(c) * solo,
       defender: () => (phase === 3 ? ENRAGE_MULT : 1),
     },
     counterMult: phase === 3 ? ENRAGE_COUNTER_MULT : undefined,
@@ -95,18 +100,7 @@ export function raidIntent(state: SquadState, rng: Rng): Intent {
 
 export function createRaidAttempt(player: { playerId: string; agents: AgentWithDimensions[] }, ctx: RaidContext, rng: Rng): RaidState {
   const state: RaidState = {
-    mode: "raid",
-    round: 0,
-    maxRounds: RAID_MAX_ROUNDS,
-    teams: { attacker: buildTeam(player.playerId, player.agents), defender: bossTeam(ctx) },
-    intent: { kind: "strike", category: CYCLE[0] },
-    manualActions: 0,
-    counters: 0,
-    manualCounters: 0,
-    rounds: [],
-    finished: false,
-    winner: null,
-    damageDealt: 0,
+    ...initialSquadState("raid", RAID_MAX_ROUNDS, { attacker: buildTeam(player.playerId, player.agents), defender: bossTeam(ctx) }, { kind: "strike", category: CYCLE[0] }),
     raid: ctx,
   };
   state.intent = raidIntent(state, rng);
@@ -118,9 +112,7 @@ export function resolveRaidRound(state: RaidState, action: SquadAction, rng: Rng
 }
 
 export function runRaidAuto(state: RaidState, rng: Rng): RaidState {
-  let s = state;
-  while (!s.finished) s = resolveRaidRound(s, squadAiAction(s, rng), rng, { manual: false });
-  return s;
+  return runSquadAuto(state, rng, { mods: raidMods, nextIntent: raidIntent }) as RaidState;
 }
 
 export function attemptDamage(state: RaidState): number {

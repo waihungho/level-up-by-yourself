@@ -1,16 +1,15 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PixelSprite } from "@/components/PixelSprite";
 import { CounterWheel } from "@/components/CounterWheel";
 import { ActionGrid } from "@/components/tactical/ActionGrid";
 import { FocusPips } from "@/components/tactical/FocusPips";
-import { HpBar } from "@/components/tactical/HpBar";
 import { IntentBanner } from "@/components/tactical/IntentBanner";
 import { RoundLog } from "@/components/tactical/RoundLog";
-import { readTutorialSeen, writeTutorialSeen } from "@/components/tactical/categoryStyle";
+import { readTutorialSeen, writeTutorialSeen } from "@/components/tactical/tutorialStorage";
+import { FighterColumn } from "@/components/tactical/FighterColumn";
 import { useBattleTurns } from "@/components/tactical/useBattleTurns";
 import { useRoundPlayback } from "@/components/tactical/useRoundPlayback";
-import { SPECIALS } from "@/lib/tactical/constants";
+import { MAX_ROUNDS, SPECIAL_COST, SPECIALS } from "@/lib/tactical/constants";
 import { counterFor } from "@/lib/tactical/engine";
 import type { TacticalState } from "@/lib/tactical/types";
 import type { AgentWithDimensions, BattleLog } from "@/lib/types";
@@ -75,27 +74,19 @@ export function TacticalBattle({ sessionId, initialState, attacker, defender, wa
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between font-mono text-xs text-gray-500">
-        <span>Round {Math.min(state.round + 1, 12)}</span>
+        <span>Round {Math.min(state.round + 1, MAX_ROUNDS)}</span>
         <span>
-          {SPECIALS[me.role].name} ready at 3 focus
+          {SPECIALS[me.role].name} ready at {SPECIAL_COST} focus
         </span>
       </div>
 
       <div className="grid grid-cols-2 gap-4 items-end">
-        <div className="space-y-1">
-          <div className={`flex justify-center ${hit && hit.attackerDamage > 0 ? "animate-shakeHit" : ""}`}>
-            <PixelSprite spriteSeed={attacker.spriteSeed as Record<string, number>} role={attacker.role} size={72} />
-          </div>
-          <HpBar name={attacker.name} hp={hpA} maxHp={me.maxHp} floater={hit?.attackerDamage || null} />
+        <FighterColumn agent={attacker} hp={hpA} maxHp={me.maxHp} damage={hit?.attackerDamage}>
           <FocusPips focus={me.focus} />
-        </div>
-        <div className="space-y-1">
-          <div className={`flex justify-center ${hit && hit.defenderDamage > 0 ? "animate-shakeHit" : ""}`}>
-            <PixelSprite spriteSeed={defender.spriteSeed as Record<string, number>} role={defender.role} size={72} />
-          </div>
-          <HpBar name={defender.name} hp={hpD} maxHp={foe.maxHp} align="right" floater={hit?.defenderDamage || null} />
+        </FighterColumn>
+        <FighterColumn agent={defender} hp={hpD} maxHp={foe.maxHp} damage={hit?.defenderDamage} align="right">
           <FocusPips focus={foe.focus} />
-        </div>
+        </FighterColumn>
       </div>
 
       {hit?.countered && <div className="text-center font-mono font-bold text-yellow-300 animate-vsSlam">COUNTER!</div>}

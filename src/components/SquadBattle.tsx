@@ -1,12 +1,13 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PixelSprite } from "@/components/PixelSprite";
 import { ActionGrid } from "@/components/tactical/ActionGrid";
 import { FocusPips } from "@/components/tactical/FocusPips";
 import { HpBar } from "@/components/tactical/HpBar";
 import { IntentBanner } from "@/components/tactical/IntentBanner";
 import { RoundLog } from "@/components/tactical/RoundLog";
-import { CATEGORY_STYLE, readTutorialSeen } from "@/components/tactical/categoryStyle";
+import { CATEGORY_STYLE } from "@/components/tactical/categoryStyle";
+import { readTutorialSeen } from "@/components/tactical/tutorialStorage";
+import { FighterColumn } from "@/components/tactical/FighterColumn";
 import { synergyLabel } from "@/components/tactical/synergyLabel";
 import { useBattleTurns } from "@/components/tactical/useBattleTurns";
 import { useRoundPlayback } from "@/components/tactical/useRoundPlayback";
@@ -118,25 +119,17 @@ export function SquadBattle({ sessionId, initialState, attackers, defenders, wal
       </div>
 
       <div className="grid grid-cols-2 gap-4 items-end">
-        <div className="space-y-1">
-          <div className={`flex justify-center ${hit && hit.attackerDamage > 0 ? "animate-shakeHit" : ""}`}>
-            {meAgent && <PixelSprite spriteSeed={meAgent.spriteSeed as Record<string, number>} role={meAgent.role} size={64} />}
-          </div>
-          <HpBar name={meAgent?.name ?? ""} hp={display?.attacker ?? shown.hp} maxHp={shown.maxHp} floater={hit?.attackerDamage || null} />
+        <FighterColumn agent={meAgent} hp={display?.attacker ?? shown.hp} maxHp={shown.maxHp} damage={hit?.attackerDamage} size={64}>
           <FocusPips focus={A.focus} />
           {A.members.length > 1 && <p className="font-mono text-[10px] text-emerald-300">{synergyLabel(A.synergy)}</p>}
-        </div>
-        <div className="space-y-1">
-          <div className={`flex justify-center ${hit && hit.defenderDamage > 0 ? "animate-shakeHit" : ""}`}>
-            {foeAgent && <PixelSprite spriteSeed={foeAgent.spriteSeed as Record<string, number>} role={foeAgent.role} size={raid ? 96 : 64} />}
-          </div>
-          <HpBar name={foeAgent?.name ?? ""} hp={display?.defender ?? foe.hp} maxHp={foe.maxHp} align="right" floater={hit?.defenderDamage || null} />
+        </FighterColumn>
+        <FighterColumn agent={foeAgent} hp={display?.defender ?? foe.hp} maxHp={foe.maxHp} damage={hit?.defenderDamage} align="right" size={raid ? 96 : 64}>
           {raid ? (
             <p className="font-mono text-[10px] text-red-300 text-right">Damage dealt: {state.damageDealt.toLocaleString()}</p>
           ) : (
             <p className="font-mono text-[10px] text-rose-300 text-right">{synergyLabel(D.synergy)}</p>
           )}
-        </div>
+        </FighterColumn>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

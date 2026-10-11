@@ -17,8 +17,21 @@ export const MATCH_BAND = 150;
 export const MATCH_BAND_MAX = 2000;
 export const MAX_SQUAD_BATTLES = 2;
 
-function totalStats(a: AgentWithDimensions): number {
+export function totalStats(a: AgentWithDimensions): number {
   return a.dimensions.reduce((s, d) => s + d.value, 0);
+}
+
+/** All of a player's agents with dimensions loaded (agents without dimensions are dropped). */
+export async function loadFullAgents(playerId: string): Promise<AgentWithDimensions[]> {
+  const agents = await getPlayerAgents(playerId);
+  return (await Promise.all(agents.map((a) => getAgentWithDimensions(a.id)))).filter(
+    (a): a is AgentWithDimensions => !!a && a.dimensions.length > 0
+  );
+}
+
+/** The player's single strongest agent (solo raids, rewards for players without a squad). */
+export async function strongestAgent(playerId: string): Promise<AgentWithDimensions | null> {
+  return (await loadFullAgents(playerId)).sort((a, b) => totalStats(b) - totalStats(a))[0] ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -87,11 +100,7 @@ export async function saveSquad(playerId: string, agentIds: string[]): Promise<v
 }
 
 export async function getOrBuildSquad(playerId: string): Promise<AgentWithDimensions[] | null> {
-  const agents = await getPlayerAgents(playerId);
-  const full = (await Promise.all(agents.map((a) => getAgentWithDimensions(a.id)))).filter(
-    (a): a is AgentWithDimensions => !!a && a.dimensions.length > 0
-  );
-  return pickSquad(full, await savedSquadIds(playerId));
+  return pickSquad(await loadFullAgents(playerId), await savedSquadIds(playerId));
 }
 
 // ---------------------------------------------------------------------------

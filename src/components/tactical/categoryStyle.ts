@@ -7,21 +7,3 @@ export const CATEGORY_STYLE: Record<Category, { icon: string; text: string; bord
   Spiritual: { icon: "☯", text: "text-violet-300", border: "border-violet-600/60", bg: "bg-violet-900/30", hex: "#a78bfa" },
   Social: { icon: "☺", text: "text-amber-300", border: "border-amber-600/60", bg: "bg-amber-900/30", hex: "#fbbf24" },
 };
-
-export const TUTORIAL_KEY = "tactical_tutorial_seen";
-
-export function readTutorialSeen(): boolean {
-  try {
-    return localStorage.getItem(TUTORIAL_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function writeTutorialSeen(): void {
-  try {
-    localStorage.setItem(TUTORIAL_KEY, "1");
-  } catch {
-    // storage unavailable (private mode / WebView restrictions): tutorial just shows again
-  }
-}

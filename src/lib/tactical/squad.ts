@@ -98,6 +98,9 @@ export function synergyMult(team: TeamState, memberIndex: number, c: Category): 
   return 1;
 }
 
+/** lastSwapRound for a team that has not swapped yet (keeps the AI swap cooldown open). */
+export const NO_SWAP_YET = -99;
+
 export function buildTeam(playerId: string, agents: AgentWithDimensions[], hpFactor = SQUAD_HP_FACTOR): TeamState {
   return {
     playerId,
@@ -105,7 +108,7 @@ export function buildTeam(playerId: string, agents: AgentWithDimensions[], hpFac
     active: 0,
     focus: 0,
     synergy: synergyFor(agents.map((a) => a.role)),
-    lastSwapRound: -99,
+    lastSwapRound: NO_SWAP_YET,
     participated: agents.map(() => false),
   };
 }
@@ -128,18 +131,14 @@ function totalHpPct(team: TeamState): number {
   return max > 0 ? hp / max : 0;
 }
 
-export function createSquadBattle(
-  a: { playerId: string; agents: AgentWithDimensions[] },
-  d: { playerId: string; agents: AgentWithDimensions[] },
-  rng: Rng
-): SquadState {
-  const teams = { attacker: buildTeam(a.playerId, a.agents), defender: buildTeam(d.playerId, d.agents) };
+/** Fresh battle state shared by squad PvP and raids. */
+export function initialSquadState(mode: SquadMode, maxRounds: number, teams: Record<SideKey, TeamState>, intent: Intent): SquadState {
   return {
-    mode: "squad_pvp",
+    mode,
     round: 0,
-    maxRounds: SQUAD_MAX_ROUNDS,
+    maxRounds,
     teams,
-    intent: chooseIntent(activeSide(teams.defender), rng),
+    intent,
     manualActions: 0,
     counters: 0,
     manualCounters: 0,
@@ -148,6 +147,15 @@ export function createSquadBattle(
     winner: null,
     damageDealt: 0,
   };
+}
+
+export function createSquadBattle(
+  a: { playerId: string; agents: AgentWithDimensions[] },
+  d: { playerId: string; agents: AgentWithDimensions[] },
+  rng: Rng
+): SquadState {
+  const teams = { attacker: buildTeam(a.playerId, a.agents), defender: buildTeam(d.playerId, d.agents) };
+  return initialSquadState("squad_pvp", SQUAD_MAX_ROUNDS, teams, chooseIntent(activeSide(teams.defender), rng));
 }
 
 export function resolveSquadRound(state: SquadState, action: SquadAction, rng: Rng, opts: SquadRoundOpts): SquadState {

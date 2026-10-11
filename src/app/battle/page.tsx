@@ -5,6 +5,7 @@ import { useGame } from "@/components/GameProvider";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { PixelSprite } from "@/components/PixelSprite";
 import { TacticalBattle } from "@/components/TacticalBattle";
+import { GENERIC_START_ERROR, NETWORK_ERROR, postStart } from "@/lib/battle-client";
 import { SquadArena } from "@/components/SquadArena";
 import {
   getAgentWithDimensions,
@@ -49,20 +50,16 @@ interface TacticalSession {
   defender: AgentWithDimensions;
 }
 
-async function postStart(body: Record<string, unknown>): Promise<{ ok: true; session: TacticalSession } | { ok: false; error: string }> {
-  try {
-    const res = await fetch("/api/battle/start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) return { ok: false, error: data.error ?? "internal" };
-    return { ok: true, session: data as TacticalSession };
-  } catch {
-    return { ok: false, error: "network" };
-  }
-}
+const TRAINING_ERRORS: Record<string, string> = {
+  fight_limit_reached: "One of these agents has no fights left today.",
+  network: NETWORK_ERROR,
+};
+
+const PVP_ERRORS: Record<string, string> = {
+  fight_limit_reached: "Your agent has used all 3 PvP fights today.",
+  no_opponent: "No opponents available yet. Check back soon!",
+  network: NETWORK_ERROR,
+};
 
 function getTotalHp(agent: AgentWithDimensions): number {
   return DIMENSIONS.reduce((sum, dim) => {
@@ -146,16 +143,10 @@ export default function BattlePage() {
 
     setStarting(true);
     setTrainingError(null);
-    const result = await postStart({ mode: "training", agentId: atkId, opponentAgentId: defId, walletAddress: publicKey.toBase58() });
+    const result = await postStart<TacticalSession>({ mode: "training", agentId: atkId, opponentAgentId: defId, walletAddress: publicKey.toBase58() });
     setStarting(false);
     if (!result.ok) {
-      setTrainingError(
-        result.error === "fight_limit_reached"
-          ? "One of these agents has no fights left today."
-          : result.error === "network"
-          ? "Network error. Please try again."
-          : "Something went wrong. Please try again."
-      );
+      setTrainingError(TRAINING_ERRORS[result.error] ?? GENERIC_START_ERROR);
       return;
     }
     setFightsToday((prev) => ({
@@ -164,7 +155,7 @@ export default function BattlePage() {
       [defId]: (prev[defId] ?? 0) + 1,
     }));
     setBattleLog(null);
-    setTactical(result.session);
+    setTactical(result.data);
     setPhase("battle");
   }
 
@@ -196,22 +187,14 @@ export default function BattlePage() {
     if (!selectedId || !publicKey) return;
     setPvpLoading(true);
     setPvpError(null);
-    const result = await postStart({ mode: "pvp", agentId: selectedId, walletAddress: publicKey.toBase58() });
+    const result = await postStart<TacticalSession>({ mode: "pvp", agentId: selectedId, walletAddress: publicKey.toBase58() });
     setPvpLoading(false);
     if (!result.ok) {
-      setPvpError(
-        result.error === "fight_limit_reached"
-          ? "Your agent has used all 3 PvP fights today."
-          : result.error === "no_opponent"
-          ? "No opponents available yet. Check back soon!"
-          : result.error === "network"
-          ? "Network error. Please try again."
-          : "Something went wrong. Please try again."
-      );
+      setPvpError(PVP_ERRORS[result.error] ?? GENERIC_START_ERROR);
       setPvpSelected(null);
       return;
     }
-    setPvpTactical(result.session);
+    setPvpTactical(result.data);
     setPvpBattleLog(null);
     setPvpFightsToday((prev) => ({
       ...prev,

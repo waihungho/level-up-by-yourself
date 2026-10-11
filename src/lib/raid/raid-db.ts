@@ -1,5 +1,5 @@
-import { addAbilityPoints, applyAgentGrowth, getAgentWithDimensions, getPlayerAgents } from "@/lib/db";
-import { getOrBuildSquad } from "@/lib/squads";
+import { addAbilityPoints, applyAgentGrowth } from "@/lib/db";
+import { getOrBuildSquad, strongestAgent } from "@/lib/squads";
 import { getWriteClient } from "@/lib/supabase-admin";
 import { DIMENSIONS } from "@/lib/constants";
 import type { AgentWithDimensions } from "@/lib/types";
@@ -187,10 +187,8 @@ async function markPaidOut(bossId: string): Promise<boolean> {
 async function rewardAgents(playerId: string): Promise<AgentWithDimensions[]> {
   const squad = await getOrBuildSquad(playerId);
   if (squad) return squad;
-  const agents = await getPlayerAgents(playerId);
-  const full = (await Promise.all(agents.map((a) => getAgentWithDimensions(a.id)))).filter((a): a is AgentWithDimensions => !!a);
-  const total = (a: AgentWithDimensions) => a.dimensions.reduce((s, d) => s + d.value, 0);
-  return full.sort((a, b) => total(b) - total(a)).slice(0, 1);
+  const best = await strongestAgent(playerId);
+  return best ? [best] : [];
 }
 
 async function addTrophy(playerId: string, bossId: string, tier: TrophyTier): Promise<void> {

@@ -25,11 +25,13 @@ export function parseSquadAction(raw: unknown): SquadAction | { type: "auto" } |
   return parseAction(raw);
 }
 
+export const squadInvalidCode = (action: { type: string }) => (action.type === "swap" ? "invalid_swap" : "invalid_action");
+
 export const squadHandler: ModeHandler<SquadState> = {
   parseAction: (raw) => parseSquadAction(raw) as ReturnType<ModeHandler<SquadState>["parseAction"]>,
   resolve: (state, action, rng) => resolveSquadRound(state, action as unknown as SquadAction, rng, { manual: true }),
   auto: (state, rng) => runSquadAuto(state, rng),
-  invalidCode: (action) => (action.type === "swap" ? "invalid_swap" : "invalid_action"),
+  invalidCode: squadInvalidCode,
   async finalize(session: BattleSession<SquadState>, state: SquadState) {
     const growth = squadGrowth(state);
     await Promise.all(
