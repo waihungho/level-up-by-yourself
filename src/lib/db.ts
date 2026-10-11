@@ -67,6 +67,55 @@ function mapGrowthLogRow(row: any): GrowthLog {
   };
 }
 
+/** Extra insert columns for tactical battle logs (only sent when set, so legacy writes are unchanged). */
+function tacticalColumns(log: BattleLog): Record<string, unknown> {
+  return log.tactical ? { tactical: true, manual_actions: log.manualActions ?? 0 } : {};
+}
+
+// ---------------------------------------------------------------------------
+// getPlayerByWallet (read-only: never creates)
+// ---------------------------------------------------------------------------
+export async function getPlayerByWallet(walletAddress: string): Promise<Player | null> {
+  const sb = getSupabase();
+
+  if (sb) {
+    const { data, error } = await sb
+      .from("levelup_players")
+      .select("*")
+      .eq("wallet_address", walletAddress)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? mapPlayerRow(data) : null;
+  }
+
+  const found = localPlayers.find((p) => p.walletAddress === walletAddress);
+  return found ? { ...found } : null;
+}
+
+// ---------------------------------------------------------------------------
+// getRandomOpponentAgentId — any agent owned by another player
+// ---------------------------------------------------------------------------
+export async function getRandomOpponentAgentId(
+  excludePlayerId: string,
+  rng: () => number = Math.random
+): Promise<string | null> {
+  const sb = getSupabase();
+  let ids: string[];
+
+  if (sb) {
+    const { data, error } = await sb
+      .from("levelup_agents")
+      .select("id")
+      .neq("player_id", excludePlayerId);
+    if (error) throw error;
+    ids = (data ?? []).map((r: { id: string }) => r.id);
+  } else {
+    ids = localAgents.filter((a) => a.playerId !== excludePlayerId).map((a) => a.id);
+  }
+
+  return ids.length ? ids[Math.floor(rng() * ids.length)] : null;
+}
+
 // ---------------------------------------------------------------------------
 // getOrCreatePlayer
 // ---------------------------------------------------------------------------
@@ -417,6 +466,7 @@ export async function saveBattleLog(log: BattleLog): Promise<void> {
       rounds: log.rounds,
       attacker_growth: log.attackerGrowth,
       defender_growth: log.defenderGrowth,
+      ...tacticalColumns(log),
     });
     if (error) throw error;
 
@@ -778,6 +828,7 @@ export async function savePvpBattleLog(log: BattleLog): Promise<void> {
       attacker_growth: log.attackerGrowth,
       defender_growth: log.defenderGrowth,
       pvp: true,
+      ...tacticalColumns(log),
     });
     if (error) throw error;
 
