@@ -1,11 +1,11 @@
-import { getAgentFightsToday, getAgentWithDimensions, getPlayerByWallet } from "@/lib/db";
+import { getAgentFightsToday, getAgentWithDimensions, getPlayerAgents, getPlayerByWallet } from "@/lib/db";
 import { getWriteClient } from "@/lib/supabase-admin";
 import { fail, type ServiceResult } from "@/lib/tactical/service-common";
 import { recordRecharge } from "@/lib/tactical/recharge-service";
 import type { Player } from "@/lib/types";
 import { elixirGrowth, gemPackMemo, GEM_PACKS, getItem, isPackId, SHOP_ITEMS, type ShopItem } from "./catalog";
 import { applyGems, getGemBalance, InsufficientGemsError } from "./gems";
-import { addAttemptBonus, AlreadyOwnedError, applyGrowthAtomic, extendGrowthBuff, getTitles, grantTitle, setCosmetic } from "./shop-db";
+import { addAttemptBonus, AlreadyOwnedError, applyGrowthAtomic, getAgentBonusesToday, extendGrowthBuff, getTitles, grantTitle, setCosmetic } from "./shop-db";
 import { shopMem } from "./shop-memory";
 
 export interface PaymentVerifier {
@@ -126,4 +126,13 @@ export async function getShopView(input: { walletAddress?: string }): Promise<Se
   if (!player) return fail(403, "not_owner");
   const [balance, titles] = await Promise.all([getGemBalance(player.id), getTitles([player.id])]);
   return { status: 200, body: { balance, title: titles[player.id] ?? null, packs: GEM_PACKS, items: SHOP_ITEMS } };
+}
+
+/** Today's bought PvP fights per agent, so the battle page shows and allows them. */
+export async function getLimitsView(input: { walletAddress?: string }): Promise<ServiceResult> {
+  if (!input.walletAddress) return fail(400, "missing_fields");
+  const player = await getPlayerByWallet(input.walletAddress);
+  if (!player) return fail(403, "not_owner");
+  const agents = await getPlayerAgents(player.id);
+  return { status: 200, body: { pvpBonus: await getAgentBonusesToday(agents.map((a) => a.id), "pvp") } };
 }

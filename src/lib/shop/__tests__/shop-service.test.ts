@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { getAgentFightsToday, getAgentWithDimensions, getGrowthLogs, getOrCreatePlayer, getPlayerAgents, saveBattleLog } from "@/lib/db";
 import { DIMENSIONS } from "@/lib/constants";
-import { buyGemPack, buyItem, getShopView } from "../shop-service";
+import { buyGemPack, buyItem, getLimitsView, getShopView } from "../shop-service";
 import { applyGems, getGemBalance } from "../gems";
 import { resetShopMemory } from "../shop-memory";
 import { getActiveGrowthBuffs, getAttemptBonusToday, getCosmetics, getTitles } from "../shop-db";
@@ -152,5 +152,15 @@ describe("getShopView", () => {
     expect(v.body.balance).toBe(42);
     expect((v.body.items as unknown[]).length).toBeGreaterThan(20);
     expect(v.body.packs).toBeTruthy();
+  });
+});
+
+describe("getLimitsView", () => {
+  it("returns today's PvP bonus fights per agent so the battle page can allow them", async () => {
+    await fund(100);
+    await buyItem({ walletAddress: wallet, itemId: "refill_pvp", agentId: agentIds[3], purchaseId: pid() });
+    const v = await getLimitsView({ walletAddress: wallet });
+    expect(v.status).toBe(200);
+    expect(v.body.pvpBonus).toEqual({ [agentIds[3]]: 3 });
   });
 });

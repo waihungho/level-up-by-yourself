@@ -94,7 +94,10 @@ export async function addAttemptBonus(input: { playerId: string; agentId: string
   shopMem.bonuses.push({ ...input, day });
 }
 
-/** Extra attempts bought for today (UTC) for an agent (training/pvp) or a player (squad/raid). */
+/**
+ * Extra attempts bought for today (UTC) for an agent (training/pvp) or a player (squad/raid).
+ * Fails safe to 0 (e.g. before migration 008 exists) so battles never break over a bonus lookup.
+ */
 export async function getAttemptBonusToday(filter: { playerId?: string; agentId?: string; mode: AttemptMode }): Promise<number> {
   const day = todayDate();
   const sb = getWriteClient();
@@ -103,12 +106,36 @@ export async function getAttemptBonusToday(filter: { playerId?: string; agentId?
     if (filter.agentId) q = q.eq("agent_id", filter.agentId);
     if (filter.playerId) q = q.eq("player_id", filter.playerId);
     const { data, error } = await q;
-    if (error) throw error;
+    if (error) {
+      console.error("[getAttemptBonusToday]", error.message);
+      return 0;
+    }
     return (data ?? []).reduce((s, r) => s + r.extra, 0);
   }
   return shopMem.bonuses
     .filter((b) => b.day === day && b.mode === filter.mode && (!filter.agentId || b.agentId === filter.agentId) && (!filter.playerId || b.playerId === filter.playerId))
     .reduce((s, b) => s + b.extra, 0);
+}
+
+/** Today's bonus attempts per agent for one mode (battle page limits). */
+export async function getAgentBonusesToday(agentIds: string[], mode: AttemptMode): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  if (!agentIds.length) return out;
+  const day = todayDate();
+  const sb = getWriteClient();
+  const rows: { agent_id: string | null; extra: number }[] = [];
+  if (sb) {
+    const { data, error } = await sb.from("levelup_attempt_bonuses").select("agent_id, extra").eq("day", day).eq("mode", mode).in("agent_id", agentIds);
+    if (error) {
+      console.error("[getAgentBonusesToday]", error.message);
+      return out;
+    }
+    rows.push(...(data ?? []));
+  } else {
+    rows.push(...shopMem.bonuses.filter((b) => b.day === day && b.mode === mode && b.agentId && agentIds.includes(b.agentId)).map((b) => ({ agent_id: b.agentId, extra: b.extra })));
+  }
+  for (const r of rows) if (r.agent_id) out[r.agent_id] = (out[r.agent_id] ?? 0) + r.extra;
+  return out;
 }
 
 // ---------------------------------------------------------------------------
