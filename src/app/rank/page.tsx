@@ -4,8 +4,7 @@ import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
 import { PixelSprite } from "@/components/PixelSprite";
 import { getAgentsByIds, getPlayersByIds } from "@/lib/db";
-import { buildRankings, type Rankings } from "@/lib/rankings";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import { useRankings } from "@/hooks/useRankings";
 import { getSquadLeaderboard, type SquadStats } from "@/lib/squads-read";
 import { getAllTrophies, getChampionAndPlayerLabel, getPastBosses, type RaidBoss, type TrophyTier } from "@/lib/raid/raid-read";
 import { bossByKey } from "@/lib/raid/bosses";
@@ -36,14 +35,6 @@ const ROLE_BADGE: Record<string, string> = {
   medieval: "bg-amber-700 text-amber-200",
 };
 
-/** Rankings are computed server-side and CDN-cached; demo mode keeps data in the browser, so compute it here. */
-async function loadRankings(): Promise<Rankings> {
-  if (!isSupabaseConfigured) return buildRankings();
-  const res = await fetch("/api/rank");
-  if (!res.ok) throw new Error(`rank ${res.status}`);
-  return res.json();
-}
-
 const CATEGORY_COLORS: Record<string, string> = {
   Physical: "text-red-400",
   Mental: "text-blue-400",
@@ -56,8 +47,7 @@ export default function RankPage() {
   const { player, loading } = useGame();
   const router = useRouter();
 
-  const [rankings, setRankings] = useState<Rankings | null>(null);
-  const [rankError, setRankError] = useState(false);
+  const { rankings, error: rankError, retry: retryRankings } = useRankings();
   const [tab, setTab] = useState<"agents" | "squads" | "raid">("agents");
   const [raidData, setRaidData] = useState<Awaited<ReturnType<typeof loadHallOfFame>> | null>(null);
   const [squadBoard, setSquadBoard] = useState<(SquadStats & { agentIds: string[] })[] | null>(null);
@@ -96,16 +86,13 @@ export default function RankPage() {
   }, [loading, player, router]);
 
   useEffect(() => {
-    if (!player || rankings || rankError) return;
-    loadRankings()
-      .then((r) => {
-        setRankings(r);
-        setWallets((prev) => new Map([...prev, ...r.top.flatMap((a) => (a.wallet ? [[a.playerId, a.wallet] as const] : []))]));
-      })
-      .catch(() => setRankError(true));
-  }, [player, rankings, rankError]);
+    if (!rankings) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- merge owner wallets that arrive with the rankings
+    setWallets((prev) => new Map([...prev, ...rankings.top.flatMap((a) => (a.wallet ? [[a.playerId, a.wallet] as const] : []))]));
+  }, [rankings]);
 
-  if (loading || !player) return null;
+  // Render as soon as rankings are available; player startup only adds the "YOU" highlights.
+  if (!player && !rankings) return null;
 
   const loadingData = !rankings && !rankError;
   const shortWallet = (playerId: string) => {
@@ -188,7 +175,7 @@ export default function RankPage() {
                 return (
                   <ul className="space-y-1">
                     {rows.map(([playerId, list], i) => (
-                      <li key={playerId} className={`flex items-center justify-between gap-2 border rounded px-3 py-2 ${playerId === player.id ? "border-purple-700/50 bg-purple-900/10" : "border-gray-800 bg-gray-900"}`}>
+                      <li key={playerId} className={`flex items-center justify-between gap-2 border rounded px-3 py-2 ${playerId === player?.id ? "border-purple-700/50 bg-purple-900/10" : "border-gray-800 bg-gray-900"}`}>
                         <span className="font-mono text-xs text-gray-400">
                           #{i + 1} {shortWallet(playerId)}
                         </span>
@@ -212,7 +199,7 @@ export default function RankPage() {
               <div
                 key={row.playerId}
                 className={`border rounded-lg p-3 flex items-center gap-3 ${
-                  row.playerId === player.id ? "border-purple-700/50 bg-purple-900/10" : "border-gray-800 bg-gray-900"
+                  row.playerId === player?.id ? "border-purple-700/50 bg-purple-900/10" : "border-gray-800 bg-gray-900"
                 }`}
               >
                 <span className="w-8 text-center font-mono text-sm text-gray-400 font-bold">#{i + 1}</span>
@@ -244,7 +231,7 @@ export default function RankPage() {
           <span className="font-mono text-gray-400">Could not load rankings.</span>
           <button
             type="button"
-            onClick={() => setRankError(false)}
+            onClick={retryRankings}
             className="block mx-auto mt-3 px-4 py-2 min-h-[40px] border border-gray-700 rounded font-mono text-xs text-gray-300"
           >
             Retry
@@ -255,7 +242,7 @@ export default function RankPage() {
           <p className="font-mono text-xs text-gray-600 mb-2">Top {rankings.top.length} Agents by Ability</p>
           {rankings.top.map((agent, index) => {
             const rank = index + 1;
-            const isOwn = agent.playerId === player.id;
+            const isOwn = agent.playerId === player?.id;
             const topCategory = agent.topCategory;
 
             return (

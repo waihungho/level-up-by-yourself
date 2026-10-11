@@ -34,3 +34,25 @@ describe("getAgentsWithDimensions", () => {
     expect(fulls.every((a) => a.dimensions.length === DIMENSIONS.length)).toBe(true);
   });
 });
+
+describe("rankingsFromRpc", () => {
+  const payload = {
+    totalPlayers: 3,
+    totalAgents: 2,
+    top: [{ id: "a1", playerId: "p1", name: "A", role: "modern", spriteSeed: {}, totalAbility: 900, topCategory: "Mental", wallet: "W", pvp: { agentId: "a1", wins: 1, losses: 0 } }],
+  };
+
+  it("returns the database-computed rankings and asks for the top 100", async () => {
+    const calls: unknown[][] = [];
+    const sb = { rpc: async (...args: unknown[]) => (calls.push(args), { data: payload, error: null }) };
+    const { rankingsFromRpc } = await import("../rankings");
+    expect(await rankingsFromRpc(sb as never)).toEqual(payload);
+    expect(calls).toEqual([["levelup_rankings", { p_limit: 100 }]]);
+  });
+
+  it("returns null when the function is missing so callers fall back", async () => {
+    const sb = { rpc: async () => ({ data: null, error: { code: "PGRST202", message: "not found" } }) };
+    const { rankingsFromRpc } = await import("../rankings");
+    expect(await rankingsFromRpc(sb as never)).toBeNull();
+  });
+});

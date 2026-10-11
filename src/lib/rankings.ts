@@ -1,4 +1,5 @@
 import { getAllAgentsWithDimensions, getPlayersByIds, getPvpStatsForAgents } from "./db";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabase } from "./supabase";
 import { DIMENSIONS } from "./constants";
 import type { AgentWithDimensions, PvpStats, RoleCategory } from "./types";
@@ -55,8 +56,21 @@ async function countPlayers(fallback: number): Promise<number> {
   return error ? fallback : count ?? fallback;
 }
 
-/** Top agents by total ability, with owner wallets and PvP records. Heavy: reads every dimension row. */
+/** Rankings computed in Postgres (migration 007); null when the function is missing or fails. */
+export async function rankingsFromRpc(sb: SupabaseClient): Promise<Rankings | null> {
+  const { data, error } = await sb.rpc("levelup_rankings", { p_limit: TOP_N });
+  if (error || !data || !Array.isArray((data as Rankings).top)) return null;
+  return data as Rankings;
+}
+
+/** Top agents by total ability, with owner wallets and PvP records. */
 export async function buildRankings(): Promise<Rankings> {
+  const sb = getSupabase();
+  if (sb) {
+    const fromDb = await rankingsFromRpc(sb);
+    if (fromDb) return fromDb;
+    // Fallback until migration 007 is applied: reads every dimension row (slow).
+  }
   const all = await getAllAgentsWithDimensions();
   const scored = all.map((agent) => {
     const values = dimValues(agent);
