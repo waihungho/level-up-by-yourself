@@ -12,7 +12,7 @@ import {
 } from "../squad";
 import { InvalidActionError, type Intent } from "../types";
 import { mulberry32 } from "../rng";
-import { MAX_FOCUS, SQUAD_MAX_ROUNDS } from "../constants";
+import { MAX_FOCUS, SQUAD_MAX_ROUNDS, SYNERGY_LEGION, SYNERGY_LEGION_OFF, SYNERGY_PAIR, SYNERGY_TRINITY } from "../constants";
 import { makeAgent, half } from "./fixtures";
 import type { RoleCategory } from "@/lib/types";
 
@@ -40,20 +40,20 @@ describe("synergyFor", () => {
 });
 
 describe("synergyMult", () => {
-  it("Trinity gives +10% to everything", () => {
+  it("Trinity boosts everything", () => {
     const t = buildTeam("p", squad("x").agents);
-    expect(synergyMult(t, 0, "Social")).toBeCloseTo(1.1);
+    expect(synergyMult(t, 0, "Social")).toBeCloseTo(SYNERGY_TRINITY);
   });
-  it("Pair gives +15% on the role category to pair members only", () => {
+  it("Pair boosts the role category for pair members only", () => {
     const t = buildTeam("p", squad("x", ["future", "future", "medieval"]).agents);
-    expect(synergyMult(t, 0, "Technical")).toBeCloseTo(1.15);
+    expect(synergyMult(t, 0, "Technical")).toBeCloseTo(SYNERGY_PAIR);
     expect(synergyMult(t, 0, "Mental")).toBe(1);
     expect(synergyMult(t, 2, "Technical")).toBe(1);
   });
-  it("Legion gives +25% on the role category and -10% elsewhere", () => {
+  it("Legion boosts the role category and weakens the rest", () => {
     const t = buildTeam("p", squad("x", ["medieval", "medieval", "medieval"]).agents);
-    expect(synergyMult(t, 1, "Physical")).toBeCloseTo(1.25);
-    expect(synergyMult(t, 1, "Mental")).toBeCloseTo(0.9);
+    expect(synergyMult(t, 1, "Physical")).toBeCloseTo(SYNERGY_LEGION);
+    expect(synergyMult(t, 1, "Mental")).toBeCloseTo(SYNERGY_LEGION_OFF);
   });
 });
 
