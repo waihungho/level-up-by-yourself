@@ -38,6 +38,8 @@ export interface TacticalRound extends BattleRound {
   opponentIntent: string;
   opponentAction: string;
   countered: boolean;
+  /** The defender's strike beat the attacker's category. */
+  counteredBy?: boolean;
   feint: boolean;
   special?: string;
 }
