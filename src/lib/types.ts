@@ -37,6 +37,8 @@ export interface AgentDimension {
 
 export interface AgentWithDimensions extends Agent {
   dimensions: AgentDimension[];
+  /** Equipment levels (battle-time bonuses); attached by withGear() when building fighters. */
+  gear?: Partial<Record<"weapon" | "armor" | "relic", number>>;
 }
 
 export interface DailyTask {

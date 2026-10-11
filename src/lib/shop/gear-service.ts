@@ -1,0 +1,39 @@
+import { getAgentWithDimensions, getPlayerByWallet } from "@/lib/db";
+import { fail, type ServiceResult } from "@/lib/tactical/service-common";
+import { gearUpgradeCost, isGearSlot } from "./catalog";
+import { getGearForAgents, upgradeGearLevel } from "./gear-db";
+import { applyGems, getGemBalance, InsufficientGemsError } from "./gems";
+
+const PURCHASE_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+/**
+ * Buys the next level of a gear slot (no cap). The purchaseId makes it idempotent; if another
+ * upgrade of the same slot wins the race, this one is refunded.
+ */
+export async function upgradeGear(input: { walletAddress?: string; agentId?: string; slot?: string; purchaseId?: string }): Promise<ServiceResult> {
+  const { walletAddress, agentId, slot, purchaseId } = input;
+  if (!walletAddress || !agentId || !slot || !purchaseId || !PURCHASE_ID.test(purchaseId)) return fail(400, "missing_fields");
+  if (!isGearSlot(slot)) return fail(400, "invalid_item");
+  const player = await getPlayerByWallet(walletAddress);
+  const agent = player ? await getAgentWithDimensions(agentId) : null;
+  if (!player || !agent || agent.playerId !== player.id) return fail(403, "not_owner");
+
+  const current = (await getGearForAgents([agentId]))[agentId][slot] ?? 0;
+  const next = current + 1;
+  const cost = gearUpgradeCost(next);
+
+  let charged: { balance: number; applied: boolean };
+  try {
+    charged = await applyGems({ playerId: player.id, delta: -cost, reason: `gear:${slot}:${next}`, ref: `buy:${purchaseId}` });
+  } catch (e) {
+    if (e instanceof InsufficientGemsError) return { status: 402, body: { error: "insufficient_gems", balance: await getGemBalance(player.id) } };
+    throw e;
+  }
+  if (!charged.applied) return { status: 200, body: { balance: charged.balance, level: current, duplicate: true } };
+
+  if (!(await upgradeGearLevel(agentId, slot, current))) {
+    const refund = await applyGems({ playerId: player.id, delta: cost, reason: `refund:gear:${slot}`, ref: `refund:${purchaseId}` });
+    return { status: 409, body: { error: "upgrade_conflict", balance: refund.balance } };
+  }
+  return { status: 200, body: { balance: charged.balance, slot, level: next, nextCost: gearUpgradeCost(next + 1) } };
+}
