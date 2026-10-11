@@ -15,7 +15,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/battle", label: "Battle", icon: "⚔" },
   { href: "/rank", label: "Rank", icon: "🏆" },
   { href: "/summon", label: "Summon", icon: "+" },
-  { href: "/guide", label: "Guide", icon: "?" },
+  { href: "/raid", label: "Raid", icon: "🐉" },
 ];
 
 export function NavBar() {

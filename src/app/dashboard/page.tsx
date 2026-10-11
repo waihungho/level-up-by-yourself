@@ -10,6 +10,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { RaidBanner } from "@/components/RaidBanner";
 
 export default function Dashboard() {
   const { player, agents, loading } = useGame();
@@ -68,6 +69,8 @@ export default function Dashboard() {
         </Link>
       </div>
 
+      <RaidBanner />
+
       {/* My Agents */}
       <div className="bg-gray-900 border border-gray-800 rounded p-4">
         <h2 className="text-lg font-mono font-bold text-white mb-3">My Agents</h2>
@@ -112,6 +115,11 @@ export default function Dashboard() {
           className="flex-1 text-center px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-mono rounded transition-colors"
         >
           Summon Agent
+        </Link>
+      </div>
+      <div className="mt-3 text-center">
+        <Link href="/guide" className="font-mono text-xs text-gray-500 underline hover:text-gray-300">
+          How to play (guide)
         </Link>
       </div>
 

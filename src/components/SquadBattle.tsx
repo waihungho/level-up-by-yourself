@@ -12,7 +12,8 @@ import { useBattleTurns } from "@/components/tactical/useBattleTurns";
 import { useRoundPlayback } from "@/components/tactical/useRoundPlayback";
 import { SPECIAL_COST } from "@/lib/tactical/constants";
 import type { SquadState, TeamState } from "@/lib/tactical/squad";
-import type { Category, SideKey, TacticalRound } from "@/lib/tactical/types";
+import type { SideKey, TacticalRound } from "@/lib/tactical/types";
+import { currentWeakness, phaseFor, type RaidState } from "@/lib/raid/raid-engine";
 import type { AgentWithDimensions } from "@/lib/types";
 
 export interface SquadResult {
@@ -29,8 +30,6 @@ export interface SquadBattleProps {
   defenders: AgentWithDimensions[];
   walletAddress: string;
   onFinished: (result: SquadResult) => void;
-  /** Raid mode: shows the boss weakness chip. */
-  raid?: { weakness: Category; resist: Category; phase: number };
 }
 
 function Bench({ team, agents, label }: { team: TeamState; agents: AgentWithDimensions[]; label: string }) {
@@ -45,7 +44,7 @@ function Bench({ team, agents, label }: { team: TeamState; agents: AgentWithDime
   );
 }
 
-export function SquadBattle({ sessionId, initialState, attackers, defenders, walletAddress, onFinished, raid }: SquadBattleProps) {
+export function SquadBattle({ sessionId, initialState, attackers, defenders, walletAddress, onFinished }: SquadBattleProps) {
   const [hintsOn, setHintsOn] = useState(false);
   const [swapOpen, setSwapOpen] = useState(false);
   const onFinishedRef = useRef(onFinished);
@@ -85,6 +84,10 @@ export function SquadBattle({ sessionId, initialState, attackers, defenders, wal
   const bench = A.members.map((m, i) => ({ m, i })).filter(({ m, i }) => i !== A.active && m.hp > 0);
   const canSwap = bench.length > 0 && !me.stunned;
   const tag = A.focus >= SPECIAL_COST;
+  const raidState = state.mode === "raid" ? (state as RaidState) : null;
+  const raid = raidState
+    ? { weakness: currentWeakness(raidState.raid.def, phaseFor(foe.hp, raidState.raid.maxHp)), resist: raidState.raid.def.resist }
+    : null;
 
   const swapButton = (
     <button
