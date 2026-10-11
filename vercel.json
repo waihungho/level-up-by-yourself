@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/daily-growth",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/raid-weekly",
+      "schedule": "0 0 * * 1"
     }
   ]
 }
