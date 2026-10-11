@@ -1,12 +1,11 @@
-import { getAgentWithDimensions, getPlayerByWallet, saveGrowthLog } from "@/lib/db";
+import { getAgentFightsToday, getAgentWithDimensions, getPlayerByWallet } from "@/lib/db";
 import { getWriteClient } from "@/lib/supabase-admin";
 import { fail, type ServiceResult } from "@/lib/tactical/service-common";
 import { recordRecharge } from "@/lib/tactical/recharge-service";
-import { utcDayStartISO } from "@/lib/time";
 import type { Player } from "@/lib/types";
 import { elixirGrowth, GEM_PACKS, getItem, isPackId, SHOP_ITEMS, type ShopItem } from "./catalog";
 import { applyGems, getGemBalance, InsufficientGemsError } from "./gems";
-import { addAttemptBonus, AlreadyOwnedError, extendGrowthBuff, getTitles, grantTitle, setCosmetic } from "./shop-db";
+import { addAttemptBonus, AlreadyOwnedError, applyGrowthAtomic, extendGrowthBuff, getTitles, grantTitle, setCosmetic } from "./shop-db";
 import { shopMem } from "./shop-memory";
 
 export interface PaymentVerifier {
@@ -54,12 +53,7 @@ export async function buyGemPack(
 async function applyEffect(item: ShopItem, player: Player, agentId: string | null, purchaseId: string): Promise<string> {
   switch (item.kind) {
     case "elixir":
-      await saveGrowthLog({
-        agentId: agentId!,
-        date: utcDayStartISO().slice(0, 10),
-        dimensionChanges: elixirGrowth(item),
-        narrative: `elixir:${item.id}`,
-      });
+      await applyGrowthAtomic(agentId!, elixirGrowth(item));
       return item.category ? `+${item.perDim} to every ${item.category} stat` : `+${item.perDim} to all stats`;
     case "scroll": {
       const until = await extendGrowthBuff(agentId!, SCROLL_DAYS);
@@ -105,6 +99,7 @@ export async function buyItem(input: { walletAddress?: string; itemId?: string; 
     agentId = agent.id;
   }
   if (item.kind === "title" && (await getTitles([player.id]))[player.id] === item.value) return fail(409, "already_owned");
+  if (item.id === "refill_training" && (await getAgentFightsToday(agentId!)) === 0) return fail(409, "nothing_to_refill");
 
   let charged: { balance: number; applied: boolean };
   try {

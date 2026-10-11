@@ -103,3 +103,28 @@ BEGIN
 END;
 $$;
 REVOKE EXECUTE ON FUNCTION levelup_gems_apply(uuid, int, text, text) FROM anon, authenticated, public;
+
+-- Elixirs: add stat points to many dimensions atomically (all or nothing). p_changes = {"<dimension_id>": delta}.
+CREATE OR REPLACE FUNCTION levelup_apply_growth(p_agent uuid, p_changes jsonb)
+RETURNS void
+LANGUAGE sql
+AS $$
+  UPDATE levelup_agent_dimensions ad
+  SET value = ad.value + (c.value)::float
+  FROM jsonb_each_text(p_changes) AS c(key, value)
+  WHERE ad.agent_id = p_agent AND ad.dimension_id = c.key::int;
+$$;
+REVOKE EXECUTE ON FUNCTION levelup_apply_growth(uuid, jsonb) FROM anon, authenticated, public;
+
+-- Training Scroll: extend the growth buff atomically from max(now, current expiry).
+CREATE OR REPLACE FUNCTION levelup_extend_buff(p_agent uuid, p_kind text, p_days int)
+RETURNS timestamptz
+LANGUAGE sql
+AS $$
+  INSERT INTO levelup_agent_buffs (agent_id, kind, expires_at)
+  VALUES (p_agent, p_kind, now() + make_interval(days => p_days))
+  ON CONFLICT (agent_id, kind) DO UPDATE
+    SET expires_at = GREATEST(levelup_agent_buffs.expires_at, now()) + make_interval(days => p_days)
+  RETURNING expires_at;
+$$;
+REVOKE EXECUTE ON FUNCTION levelup_extend_buff(uuid, text, int) FROM anon, authenticated, public;

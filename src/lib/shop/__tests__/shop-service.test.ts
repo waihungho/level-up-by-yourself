@@ -51,7 +51,7 @@ describe("buyGemPack", () => {
 });
 
 describe("buyItem", () => {
-  it("an Elixir adds +3 to each stat of its category, logs it, and charges 30 gems", async () => {
+  it("an Elixir adds +3 to each stat of its category and charges 30 gems, without touching the daily growth log", async () => {
     await fund(100);
     const dim = DIMENSIONS.find((d) => d.category === "Mental")!.id;
     const before = (await getAgentWithDimensions(agentIds[0]))!.dimensions.find((d) => d.dimensionId === dim)!.value;
@@ -59,7 +59,25 @@ describe("buyItem", () => {
     expect(r).toMatchObject({ status: 200, body: { balance: 70 } });
     const after = (await getAgentWithDimensions(agentIds[0]))!.dimensions.find((d) => d.dimensionId === dim)!.value;
     expect(after - before).toBeCloseTo(3);
-    expect((await getGrowthLogs(agentIds[0]))[0].narrative).toBe("elixir:elixir_mental");
+    // growth logs are one-per-agent-per-day (daily growth job); elixirs must not use them
+    expect(await getGrowthLogs(agentIds[0])).toHaveLength(0);
+  });
+
+  it("a second Elixir on the same agent the same day also works", async () => {
+    await fund(100);
+    const dim = DIMENSIONS.find((d) => d.category === "Social")!.id;
+    const before = (await getAgentWithDimensions(agentIds[5]))!.dimensions.find((d) => d.dimensionId === dim)!.value;
+    expect((await buyItem({ walletAddress: wallet, itemId: "elixir_social", agentId: agentIds[5], purchaseId: pid() })).status).toBe(200);
+    expect((await buyItem({ walletAddress: wallet, itemId: "elixir_social", agentId: agentIds[5], purchaseId: pid() })).status).toBe(200);
+    const after = (await getAgentWithDimensions(agentIds[5]))!.dimensions.find((d) => d.dimensionId === dim)!.value;
+    expect(after - before).toBeCloseTo(6);
+  });
+
+  it("a Training Refill is refused (and not charged) when no training fights were used today", async () => {
+    await fund(40);
+    const r = await buyItem({ walletAddress: wallet, itemId: "refill_training", agentId: agentIds[6], purchaseId: pid() });
+    expect(r).toMatchObject({ status: 409, body: { error: "nothing_to_refill" } });
+    expect(await getGemBalance(playerId)).toBe(40);
   });
 
   it("charges once and applies once for a repeated purchaseId", async () => {

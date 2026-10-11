@@ -13,6 +13,15 @@ describe("gem packs", () => {
   });
 });
 
+describe("isPackId", () => {
+  it("accepts only real pack ids, not inherited object keys", async () => {
+    const { isPackId } = await import("../catalog");
+    expect(isPackId("whale")).toBe(true);
+    expect(isPackId("toString")).toBe(false);
+    expect(isPackId("constructor")).toBe(false);
+  });
+});
+
 describe("catalog", () => {
   it("prices every item as specified", () => {
     const price = (id: string) => getItem(id)?.price;

@@ -1,3 +1,4 @@
+import { applyAgentGrowth } from "@/lib/db";
 import { getWriteClient } from "@/lib/supabase-admin";
 import { utcDayStartISO } from "@/lib/time";
 import type { AttemptMode } from "./catalog";
@@ -17,28 +18,39 @@ export class AlreadyOwnedError extends Error {
 }
 
 // ---------------------------------------------------------------------------
+// Elixirs
+// ---------------------------------------------------------------------------
+
+/**
+ * Adds stat points to an agent in one atomic database call (all dimensions or none), so a
+ * charged Elixir can never apply partially. Elixirs don't write growth logs: those are
+ * one-per-agent-per-day and belong to the daily growth job.
+ */
+export async function applyGrowthAtomic(agentId: string, changes: Record<number, number>): Promise<void> {
+  const sb = getWriteClient();
+  if (sb) {
+    const { error } = await sb.rpc("levelup_apply_growth", { p_agent: agentId, p_changes: changes });
+    if (error) throw error;
+    return;
+  }
+  await applyAgentGrowth(agentId, changes);
+}
+
+// ---------------------------------------------------------------------------
 // Training Scroll buff
 // ---------------------------------------------------------------------------
 
-/** Extends the agent's ×2 growth buff by `days` from max(now, current expiry); returns the new expiry. */
+/** Extends the agent's ×2 growth buff by `days` from max(now, current expiry), atomically; returns the new expiry. */
 export async function extendGrowthBuff(agentId: string, days: number): Promise<string> {
   const sb = getWriteClient();
-  let current: string | null;
   if (sb) {
-    const { data, error } = await sb.from("levelup_agent_buffs").select("expires_at").eq("agent_id", agentId).eq("kind", "growth_x2").maybeSingle();
+    const { data, error } = await sb.rpc("levelup_extend_buff", { p_agent: agentId, p_kind: "growth_x2", p_days: days });
     if (error) throw error;
-    current = data?.expires_at ?? null;
-  } else {
-    current = shopMem.buffs.get(agentId) ?? null;
+    return new Date(data as string).toISOString();
   }
-  const base = Math.max(Date.now(), current ? Date.parse(current) : 0);
-  const expiresAt = new Date(base + days * DAY_MS).toISOString();
-  if (sb) {
-    const { error } = await sb.from("levelup_agent_buffs").upsert({ agent_id: agentId, kind: "growth_x2", expires_at: expiresAt }, { onConflict: "agent_id,kind" });
-    if (error) throw error;
-  } else {
-    shopMem.buffs.set(agentId, expiresAt);
-  }
+  const current = shopMem.buffs.get(agentId);
+  const expiresAt = new Date(Math.max(Date.now(), current ? Date.parse(current) : 0) + days * DAY_MS).toISOString();
+  shopMem.buffs.set(agentId, expiresAt);
   return expiresAt;
 }
 

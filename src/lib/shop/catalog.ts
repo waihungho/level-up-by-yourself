@@ -17,7 +17,7 @@ export const GEM_PACKS: Record<PackId, { sol: number; gems: number; label: strin
 };
 
 export function isPackId(id: string): id is PackId {
-  return id in GEM_PACKS;
+  return Object.hasOwn(GEM_PACKS, id);
 }
 
 // ---------------------------------------------------------------------------

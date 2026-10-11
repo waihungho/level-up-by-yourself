@@ -66,12 +66,10 @@ export async function runDailyGrowth() {
   }
 
   // Find agents already grown today
-  // Only the job's own entries (no narrative) count; Elixir logs ("elixir:<id>") must not skip natural growth.
   const { data: existingLogs } = await supabase
     .from("levelup_growth_logs")
     .select("agent_id")
-    .eq("date", today)
-    .is("narrative", null);
+    .eq("date", today);
   const alreadyGrown = new Set((existingLogs ?? []).map((r: any) => r.agent_id));
 
   // Agents with an active Training Scroll grow twice as fast (needs the service-role key; skipped if missing).

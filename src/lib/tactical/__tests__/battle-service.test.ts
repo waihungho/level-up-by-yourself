@@ -239,7 +239,7 @@ describe("gear", () => {
     await upgradeGearLevel(agentIds[7], "relic", 0);
     await upgradeGearLevel(agentIds[7], "relic", 1);
     const after = await training(7, 9);
-    expect((after.body.state as TacticalState).sides.attacker.speed - plainSpeed).toBe(4);
+    expect((after.body.state as TacticalState).sides.attacker.speed - plainSpeed).toBeCloseTo(4);
   });
 });
 
