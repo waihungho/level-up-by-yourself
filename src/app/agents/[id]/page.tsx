@@ -13,6 +13,12 @@ import { TrophyBadges } from "@/components/TrophyBadges";
 import { getTrophies, type TrophyTier } from "@/lib/raid/raid-read";
 import { getCosmetics, type Cosmetics } from "@/lib/shop/shop-read";
 import { auraStyle, nameColorClass } from "@/components/shop/cosmeticStyle";
+import { EquipmentPanel } from "@/components/shop/EquipmentPanel";
+import { weaponTint } from "@/components/shop/gearStyle";
+import { GemChip } from "@/components/GemChip";
+import { getGearForAgents } from "@/lib/shop/gear-read";
+import type { Gear } from "@/lib/shop/catalog";
+import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 
 const ROLE_COLORS = {
   future: "border-purple-700 bg-purple-900/30",
@@ -23,6 +29,8 @@ const ROLE_COLORS = {
 export default function AgentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { player, loading } = useGame();
+  const { publicKey } = useUnifiedWallet();
+  const [gear, setGear] = useState<Gear>({});
   const router = useRouter();
   const [agent, setAgent] = useState<AgentWithDimensions | null>(null);
   const [logs, setLogs] = useState<GrowthLog[]>([]);
@@ -58,6 +66,9 @@ export default function AgentDetailPage() {
         getTrophies([a.playerId])
           .then((t) => setTrophies(t[a.playerId] ?? []))
           .catch(() => setTrophies([]));
+        getGearForAgents([a.id])
+          .then((g) => setGear(g[a.id] ?? {}))
+          .catch(() => setGear({}));
         getCosmetics([a.id])
           .then((c) => setCosmetics(c[a.id] ?? {}))
           .catch(() => setCosmetics({}));
@@ -85,15 +96,18 @@ export default function AgentDetailPage() {
 
   return (
     <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto">
-      <Link href="/agents" className="text-sm text-gray-500 font-mono hover:text-gray-400 mb-4 block">
-        &larr; Back to agents
-      </Link>
+      <div className="flex items-center justify-between mb-4">
+        <Link href="/agents" className="text-sm text-gray-500 font-mono hover:text-gray-400">
+          &larr; Back to agents
+        </Link>
+        <GemChip />
+      </div>
 
       {/* Header */}
       <div className={`border rounded p-4 mb-6 ${ROLE_COLORS[agent.role]}`}>
         <div className="flex gap-4 items-center">
           <div style={{ filter: auraStyle(cosmetics.aura) }}>
-            <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={80} />
+            <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={80} weaponTint={weaponTint(gear)} />
           </div>
           <div>
             <h1 className={`text-2xl font-mono font-bold ${nameColorClass(cosmetics.namecolor)}`}>{agent.name}</h1>
@@ -115,6 +129,17 @@ export default function AgentDetailPage() {
           <h3 className="font-mono text-sm text-gray-500 mb-2">Objective</h3>
           <p className="text-sm text-gray-300 italic">&ldquo;{agent.objective}&rdquo;</p>
         </div>
+      </div>
+
+      {/* Equipment */}
+      <div className="mb-6">
+        <EquipmentPanel
+          agentId={agent.id}
+          role={agent.role}
+          gear={gear}
+          walletAddress={publicKey && player?.id === agent.playerId ? publicKey.toBase58() : null}
+          onUpgraded={(g) => setGear(g)}
+        />
       </div>
 
       {/* Dimensions */}

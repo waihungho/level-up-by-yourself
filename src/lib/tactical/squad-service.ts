@@ -82,14 +82,11 @@ export async function startSquadBattle(player: Player, deps: ServiceDeps): Promi
   }
   if (!opponentId || !defenders) return fail(409, "no_opponent");
 
-  const state = createSquadBattle(
-    { playerId: player.id, agents: await withGear(attackers) },
-    { playerId: opponentId, agents: await withGear(defenders) },
-    deps.rng
-  );
+  const [gearedAttackers, gearedDefenders] = await Promise.all([withGear(attackers), withGear(defenders)]);
+  const state = createSquadBattle({ playerId: player.id, agents: gearedAttackers }, { playerId: opponentId, agents: gearedDefenders }, deps.rng);
   const session = await deps.store.create({ mode: "squad_pvp", playerId: player.id, attackerId: null, defenderId: null, state });
   if (!(await withinLimitAfterCreate(session, used, limit, deps))) return fail(429, "squad_limit_reached");
-  return { status: 200, body: { sessionId: session.id, state, attackers, defenders } };
+  return { status: 200, body: { sessionId: session.id, state, attackers: gearedAttackers, defenders: gearedDefenders } };
 }
 
 export async function getSquadView(input: { walletAddress?: string }): Promise<ServiceResult> {

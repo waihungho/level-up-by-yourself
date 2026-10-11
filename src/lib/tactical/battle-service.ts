@@ -168,7 +168,7 @@ async function startTacticalBattle(
   for (const id of ownAgents) {
     if (!(await withinLimitAfterCreate(session, () => fightsUsed(id, battleMode, deps.store), limits.get(id)!, deps))) return fail(429, "fight_limit_reached");
   }
-  return { status: 200, body: { sessionId: session.id, state, attacker, defender } };
+  return { status: 200, body: { sessionId: session.id, state, attacker: gearedAttacker, defender: gearedDefender } };
 }
 
 type ExtraStarter = (player: Player, deps: ServiceDeps) => Promise<ServiceResult>;

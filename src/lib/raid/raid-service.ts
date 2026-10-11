@@ -77,7 +77,7 @@ export async function startRaidAttempt(player: Player, deps: ServiceDeps): Promi
   const state: RaidSessionState = { ...createRaidAttempt({ playerId: player.id, agents: fighters }, ctx, deps.rng), bossId: boss.id, label: attackers[0].name };
   const session = await deps.store.create({ mode: "raid", playerId: player.id, attackerId: null, defenderId: null, state });
   if (!(await withinLimitAfterCreate(session, used, limit, deps))) return fail(429, "raid_limit_reached");
-  return { status: 200, body: { sessionId: session.id, state, attackers, defenders: [bossAgent(def)] } };
+  return { status: 200, body: { sessionId: session.id, state, attackers: fighters, defenders: [bossAgent(def)] } };
 }
 
 /** Resumes a payout that failed or was interrupted (cheap check; runs deferred when possible). */

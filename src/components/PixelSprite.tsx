@@ -7,9 +7,11 @@ interface PixelSpriteProps {
   spriteSeed: Record<string, number>;
   role: RoleCategory;
   size?: number;
+  /** Gear tier colour for the weapon pixels. */
+  weaponTint?: string;
 }
 
-export function PixelSprite({ spriteSeed, role, size = 80 }: PixelSpriteProps) {
+export function PixelSprite({ spriteSeed, role, size = 80, weaponTint }: PixelSpriteProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -19,7 +21,7 @@ export function PixelSprite({ spriteSeed, role, size = 80 }: PixelSpriteProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const grid = generateSpriteData(spriteSeed as any, role);
+    const grid = generateSpriteData(spriteSeed as any, role, weaponTint);
 
     ctx.clearRect(0, 0, 32, 32);
 
@@ -32,7 +34,7 @@ export function PixelSprite({ spriteSeed, role, size = 80 }: PixelSpriteProps) {
         }
       }
     }
-  }, [spriteSeed, role]);
+  }, [spriteSeed, role, weaponTint]);
 
   return (
     <canvas

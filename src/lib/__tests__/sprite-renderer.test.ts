@@ -24,3 +24,20 @@ describe("generateSpriteData", () => {
     expect(a).not.toEqual(b);
   });
 });
+
+describe("weapon tint (gear tier)", () => {
+  const seed = { bodyType: 1, headType: 2, eyeType: 3, weaponType: 1, auraType: 0, colorSeed: 42 };
+  it("recolours only weapon pixels and leaves the sprite unchanged without a tint", () => {
+    const plain = generateSpriteData(seed, "medieval");
+    expect(generateSpriteData(seed, "medieval", undefined)).toEqual(plain);
+    const tinted = generateSpriteData(seed, "medieval", "#ffd700");
+    let changed = 0;
+    for (let y = 0; y < 32; y++)
+      for (let x = 0; x < 32; x++)
+        if (tinted[y][x] !== plain[y][x]) {
+          changed++;
+          expect(tinted[y][x]).toBe("#ffd700");
+        }
+    expect(changed).toBeGreaterThan(0);
+  });
+});
