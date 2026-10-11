@@ -19,6 +19,7 @@ import { GemChip } from "@/components/GemChip";
 import { getGearForAgents } from "@/lib/shop/gear-read";
 import type { Gear } from "@/lib/shop/catalog";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
+import { announceGemBalance } from "@/lib/shop-client";
 
 const ROLE_COLORS = {
   future: "border-purple-700 bg-purple-900/30",
@@ -138,7 +139,10 @@ export default function AgentDetailPage() {
           role={agent.role}
           gear={gear}
           walletAddress={publicKey && player?.id === agent.playerId ? publicKey.toBase58() : null}
-          onUpgraded={(g) => setGear(g)}
+          onUpgraded={(g, balance) => {
+            setGear(g);
+            announceGemBalance(balance);
+          }}
         />
       </div>
 

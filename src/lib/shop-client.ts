@@ -35,3 +35,10 @@ export async function postJson(url: string, body: unknown, retryDelayMs = 1500):
   }
   throw lastError;
 }
+
+export const GEM_BALANCE_EVENT = "levelup:gem-balance";
+
+/** Tells every gem display on the page (chips, shop header) about a new balance. */
+export function announceGemBalance(balance: number): void {
+  window.dispatchEvent(new CustomEvent<number>(GEM_BALANCE_EVENT, { detail: balance }));
+}
