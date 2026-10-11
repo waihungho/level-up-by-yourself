@@ -11,6 +11,8 @@ import Link from "next/link";
 import { PixelSprite } from "@/components/PixelSprite";
 import { TrophyBadges } from "@/components/TrophyBadges";
 import { getTrophies, type TrophyTier } from "@/lib/raid/raid-read";
+import { getCosmetics, type Cosmetics } from "@/lib/shop/shop-read";
+import { auraStyle, nameColorClass } from "@/components/shop/cosmeticStyle";
 
 const ROLE_COLORS = {
   future: "border-purple-700 bg-purple-900/30",
@@ -29,6 +31,7 @@ export default function AgentDetailPage() {
   const [growthCount, setGrowthCount] = useState(0);
   const [loadingAgent, setLoadingAgent] = useState(true);
   const [trophies, setTrophies] = useState<{ tier: TrophyTier }[]>([]);
+  const [cosmetics, setCosmetics] = useState<Cosmetics>({});
 
   useEffect(() => {
     if (!loading && !player) router.push("/");
@@ -55,6 +58,9 @@ export default function AgentDetailPage() {
         getTrophies([a.playerId])
           .then((t) => setTrophies(t[a.playerId] ?? []))
           .catch(() => setTrophies([]));
+        getCosmetics([a.id])
+          .then((c) => setCosmetics(c[a.id] ?? {}))
+          .catch(() => setCosmetics({}));
       }
     }
     if (player) load();
@@ -86,9 +92,11 @@ export default function AgentDetailPage() {
       {/* Header */}
       <div className={`border rounded p-4 mb-6 ${ROLE_COLORS[agent.role]}`}>
         <div className="flex gap-4 items-center">
-          <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={80} />
+          <div style={{ filter: auraStyle(cosmetics.aura) }}>
+            <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={80} />
+          </div>
           <div>
-            <h1 className="text-2xl font-mono font-bold">{agent.name}</h1>
+            <h1 className={`text-2xl font-mono font-bold ${nameColorClass(cosmetics.namecolor)}`}>{agent.name}</h1>
             <p className="text-gray-400 font-mono">{agent.roleTitle} &middot; {agent.role}</p>
             <div className="mt-1">
               <TrophyBadges trophies={trophies} />

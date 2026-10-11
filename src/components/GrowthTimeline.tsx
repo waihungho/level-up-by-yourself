@@ -1,6 +1,7 @@
 "use client";
 import type { GrowthLog } from "@/lib/types";
 import { DIMENSIONS } from "@/lib/constants";
+import { getItem } from "@/lib/shop/catalog";
 
 export function GrowthTimeline({ logs, totalCount }: { logs: GrowthLog[]; totalCount: number }) {
   if (logs.length === 0) {
@@ -32,8 +33,10 @@ export function GrowthTimeline({ logs, totalCount }: { logs: GrowthLog[]; totalC
                 </span>
               ))}
             </div>
-            {log.narrative && (
-              <p className="text-sm text-gray-400 italic">{log.narrative}</p>
+            {log.narrative?.startsWith("elixir:") ? (
+              <p className="text-sm text-purple-300 font-mono">🧪 {getItem(log.narrative.slice(7))?.name ?? "Elixir"}</p>
+            ) : (
+              log.narrative && <p className="text-sm text-gray-400 italic">{log.narrative}</p>
             )}
           </div>
         );

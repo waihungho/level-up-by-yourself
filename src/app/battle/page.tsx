@@ -7,6 +7,7 @@ import { PixelSprite } from "@/components/PixelSprite";
 import { TacticalBattle } from "@/components/TacticalBattle";
 import { GENERIC_START_ERROR, NETWORK_ERROR, postStart } from "@/lib/battle-client";
 import { SquadArena } from "@/components/SquadArena";
+import { GemChip } from "@/components/GemChip";
 import {
   getAgentsWithDimensions,
   getAgentFightsToday,
@@ -359,9 +360,12 @@ export default function BattlePage() {
   if (phase === "select") {
     return (
       <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-mono font-bold mb-2 text-center">
-          Battle Arena
-        </h1>
+        <div className="relative mb-2">
+          <h1 className="text-2xl font-mono font-bold text-center">Battle Arena</h1>
+          <div className="absolute right-0 top-1">
+            <GemChip />
+          </div>
+        </div>
 
         <div className="flex justify-center gap-2 mb-6" role="tablist">
           {(["duel", "squad"] as const).map((tab) => (

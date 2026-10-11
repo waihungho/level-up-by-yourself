@@ -3,10 +3,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 /** Bump when announcing a new release so the banner shows again for everyone. */
-const RELEASE = "2026-10-tactical-squad-raid";
+const RELEASE = "2026-10-gem-shop-gear";
 const STORAGE_KEY = `whats_new_dismissed_${RELEASE}`;
 
 const FEATURES = [
+  { href: "/shop", icon: "💎", title: "Gem Shop & Gear", text: "Elixirs, boosts, cosmetics — and upgradeable weapons, armor and relics." },
   { href: "/battle", icon: "⚔", title: "Tactical Battles", text: "Read the enemy's move, counter it, and fire role Specials." },
   { href: "/squad", icon: "⛨", title: "Squad 3v3", text: "Field 3 agents, tag-swap mid-fight and climb the squad rating." },
   { href: "/raid", icon: "🐉", title: "World Boss Raid", text: "Team up with everyone to take down this week's boss." },
