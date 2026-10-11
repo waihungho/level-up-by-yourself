@@ -1,11 +1,11 @@
 import { applyAgentGrowth, getAgentWithDimensions, getPlayerAgents, getPlayerByWallet } from "@/lib/db";
 import { getOrBuildSquad } from "@/lib/squads";
-import { fail, type ModeHandler, type ServiceDeps, type ServiceResult } from "@/lib/tactical/service-common";
+import { fail, runDeferred, usedToday, withinLimitAfterCreate, type ModeHandler, type ServiceDeps, type ServiceResult } from "@/lib/tactical/service-common";
 import { squadGrowth, type SquadAction } from "@/lib/tactical/squad";
 import { parseSquadAction } from "@/lib/tactical/squad-service";
 import type { AgentWithDimensions, Player } from "@/lib/types";
 import { bossAgent, bossByKey } from "./bosses";
-import { applyRaidDamage, countRaidAttemptsToday, getActiveBoss, getContributions, getLatestBoss, getRecentHits, MAX_RAID_ATTEMPTS, payoutBoss } from "./raid-db";
+import { applyRaidDamage, countRaidAttemptsToday, getActiveBoss, getContributions, getLatestBoss, getRecentHits, getUnpaidFinishedBoss, MAX_RAID_ATTEMPTS, payoutBoss } from "./raid-db";
 import { attemptDamage, createRaidAttempt, currentWeakness, phaseFor, resolveRaidRound, runRaidAuto, type RaidState } from "./raid-engine";
 
 /** Raid session state also remembers which boss it is fighting and the feed label. */
@@ -27,20 +27,21 @@ export const raidHandler: ModeHandler<RaidSessionState> = {
   resolve: (state, action, rng) => resolveRaidRound(state, action as unknown as SquadAction, rng, { manual: true }) as RaidSessionState,
   auto: (state, rng) => runRaidAuto(state, rng) as RaidSessionState,
   invalidCode: (action) => (action.type === "swap" ? "invalid_swap" : "invalid_action"),
-  async finalize(session, state) {
-    const damage = attemptDamage(state);
+  async finalize(session, state, deps) {
     const result = await applyRaidDamage({
       bossId: state.bossId,
       playerId: session.playerId,
-      damage,
+      damage: attemptDamage(state),
       bestHit: bestHit(state),
       counters: state.counters,
       label: state.label,
+      createdAt: session.createdAt,
     });
     const growth = squadGrowth(state).attacker;
-    for (const [agentId, g] of Object.entries(growth)) await applyAgentGrowth(agentId, g);
-    if (result.killed) await payoutBoss(state.bossId);
-    return { damage, hpRemaining: result.hpRemaining, killed: result.killed, growth };
+    await Promise.all(Object.entries(growth).map(([agentId, g]) => applyAgentGrowth(agentId, g)));
+    // Paying every raider is slow; never make the killing player's request wait for it.
+    if (result.killed) await runDeferred(deps, "raid payout", async () => void (await payoutBoss(state.bossId)));
+    return { damage: result.applied, hpRemaining: result.hpRemaining, killed: result.killed, growth };
   },
 };
 
@@ -60,8 +61,8 @@ export async function startRaidAttempt(player: Player, deps: ServiceDeps): Promi
   const def = bossByKey(boss.bossKey);
   if (!def) return fail(500, "internal");
 
-  const used = (await countRaidAttemptsToday(player.id)) + (await deps.store.countActiveToday({ playerId: player.id, mode: "raid" }));
-  if (used >= MAX_RAID_ATTEMPTS) return fail(429, "raid_limit_reached");
+  const used = () => usedToday(countRaidAttemptsToday(player.id), deps.store, { playerId: player.id, mode: "raid" });
+  if ((await used()) >= MAX_RAID_ATTEMPTS) return fail(429, "raid_limit_reached");
 
   let attackers = await getOrBuildSquad(player.id);
   let solo = false;
@@ -75,10 +76,18 @@ export async function startRaidAttempt(player: Player, deps: ServiceDeps): Promi
   const ctx = { def, stats: boss.stats, maxHp: boss.maxHp, hpAtStart: boss.hpRemaining, solo };
   const state: RaidSessionState = { ...createRaidAttempt({ playerId: player.id, agents: attackers }, ctx, deps.rng), bossId: boss.id, label: attackers[0].name };
   const session = await deps.store.create({ mode: "raid", playerId: player.id, attackerId: null, defenderId: null, state });
+  if (!(await withinLimitAfterCreate(session, used, MAX_RAID_ATTEMPTS, deps))) return fail(429, "raid_limit_reached");
   return { status: 200, body: { sessionId: session.id, state, attackers, defenders: [bossAgent(def)] } };
 }
 
-export async function getRaidView(input: { walletAddress?: string }): Promise<ServiceResult> {
+/** Resumes a payout that failed or was interrupted (cheap check; runs deferred when possible). */
+export async function retryPendingPayout(deps: Pick<ServiceDeps, "defer"> = {}): Promise<void> {
+  const unpaid = await getUnpaidFinishedBoss();
+  if (unpaid) await runDeferred(deps as ServiceDeps, "raid payout retry", async () => void (await payoutBoss(unpaid.id)));
+}
+
+export async function getRaidView(input: { walletAddress?: string }, deps: Pick<ServiceDeps, "defer"> = {}): Promise<ServiceResult> {
+  await retryPendingPayout(deps);
   const boss = (await getActiveBoss()) ?? (await getLatestBoss());
   if (!boss) return { status: 200, body: { boss: null } };
   const def = bossByKey(boss.bossKey);

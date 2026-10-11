@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAdminSupabase } from "@/lib/supabase-admin";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import { utcDayStartISO } from "@/lib/time";
 import type { BattleMode } from "./types";
 
 export type SessionMode = BattleMode | "squad_pvp" | "raid";
-export type SessionStatus = "active" | "finished";
+/** active → finalizing (one caller persists results) → finished. */
+export type SessionStatus = "active" | "finalizing" | "finished";
 
 export interface BattleSession<S = unknown> {
   id: string;
@@ -15,6 +17,8 @@ export interface BattleSession<S = unknown> {
   state: S;
   status: SessionStatus;
   createdAt: string;
+  /** Response fields saved at finish so a client that lost the final response can recover them. */
+  result?: Record<string, unknown> | null;
 }
 
 export interface SessionFilter {
@@ -29,15 +33,17 @@ export interface SessionStore {
   findActive<S>(filter: SessionFilter): Promise<BattleSession<S>[]>;
   /** Optimistic update: succeeds only if the stored state.round equals expectedRound and the session is active. */
   updateState<S>(id: string, expectedRound: number, state: S): Promise<boolean>;
-  markFinished(id: string, battleLogId: string | null): Promise<void>;
+  /** Moves active → finalizing; true for exactly one caller. */
+  claimFinalize(id: string): Promise<boolean>;
+  /** Moves finalizing → active after a failed finalisation so it can be retried. */
+  releaseFinalize(id: string): Promise<void>;
+  markFinished(id: string, battleLogId: string | null, result?: Record<string, unknown>): Promise<void>;
   countActiveToday(filter: SessionFilter & { mode: SessionMode }): Promise<number>;
+  /** Active sessions created before the cutoff (abandoned fights to sweep). */
+  findStale<S>(beforeISO: string): Promise<BattleSession<S>[]>;
 }
 
-function todayStartISO(): string {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
-}
+const todayStartISO = () => utcDayStartISO();
 
 function roundOf(state: unknown): number {
   return (state as { round: number }).round;
@@ -81,15 +87,34 @@ export class MemorySessionStore implements SessionStore {
     return true;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async markFinished(id: string, _battleLogId: string | null) {
+  async claimFinalize(id: string) {
     const s = this.sessions.get(id);
-    if (s) s.status = "finished";
+    if (!s || s.status !== "active") return false;
+    s.status = "finalizing";
+    return true;
+  }
+
+  async releaseFinalize(id: string) {
+    const s = this.sessions.get(id);
+    if (s && s.status === "finalizing") s.status = "active";
+  }
+
+  async markFinished(id: string, _battleLogId: string | null, result?: Record<string, unknown>) {
+    const s = this.sessions.get(id);
+    if (!s) return;
+    s.status = "finished";
+    s.result = result ? structuredClone(result) : null;
   }
 
   async countActiveToday(filter: SessionFilter & { mode: SessionMode }) {
     const since = todayStartISO();
     return [...this.sessions.values()].filter((s) => s.status === "active" && s.createdAt >= since && this.matches(s, filter)).length;
+  }
+
+  async findStale<S>(beforeISO: string) {
+    return [...this.sessions.values()]
+      .filter((s) => s.status === "active" && s.createdAt < beforeISO)
+      .map((s) => structuredClone(s) as BattleSession<S>);
   }
 }
 
@@ -110,6 +135,7 @@ function mapRow<S>(row: any): BattleSession<S> {
     state: row.state,
     status: row.status,
     createdAt: row.created_at,
+    result: row.result ?? null,
   };
 }
 
@@ -159,12 +185,35 @@ export class SupabaseSessionStore implements SessionStore {
     return (data ?? []).length === 1;
   }
 
-  async markFinished(id: string, battleLogId: string | null) {
+  async claimFinalize(id: string) {
+    const { data, error } = await this.sb
+      .from(TABLE)
+      .update({ status: "finalizing", updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("status", "active")
+      .select("id");
+    if (error) throw error;
+    return (data ?? []).length === 1;
+  }
+
+  async releaseFinalize(id: string) {
+    const { error } = await this.sb.from(TABLE).update({ status: "active" }).eq("id", id).eq("status", "finalizing");
+    if (error) throw error;
+  }
+
+  async markFinished(id: string, battleLogId: string | null, result?: Record<string, unknown>) {
     const { error } = await this.sb
       .from(TABLE)
-      .update({ status: "finished", battle_log_id: battleLogId, updated_at: new Date().toISOString() })
+      .update({ status: "finished", battle_log_id: battleLogId, result: result ?? null, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) throw error;
+  }
+
+  async findStale<S>(beforeISO: string) {
+    const { data, error } = await this.sb.from(TABLE).select("*").eq("status", "active").lt("created_at", beforeISO).limit(200);
+    if (error) throw error;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((r: any) => mapRow<S>(r));
   }
 
   async countActiveToday(filter: SessionFilter & { mode: SessionMode }) {

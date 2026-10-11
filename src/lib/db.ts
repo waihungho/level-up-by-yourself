@@ -69,7 +69,7 @@ function mapGrowthLogRow(row: any): GrowthLog {
 
 /** Extra insert columns for tactical battle logs (only sent when set, so legacy writes are unchanged). */
 function tacticalColumns(log: BattleLog): Record<string, unknown> {
-  return log.tactical ? { tactical: true, manual_actions: log.manualActions ?? 0 } : {};
+  return log.tactical ? { tactical: true, manual_actions: log.manualActions ?? 0, created_at: log.createdAt } : {};
 }
 
 // ---------------------------------------------------------------------------

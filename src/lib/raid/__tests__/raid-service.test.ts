@@ -3,7 +3,7 @@ import { getAllAgentsWithDimensions, getOrCreatePlayer } from "@/lib/db";
 import { startBattle, takeTurn, type ServiceDeps } from "@/lib/tactical/battle-service";
 import { MemorySessionStore } from "@/lib/tactical/session-store";
 import { mulberry32 } from "@/lib/tactical/rng";
-import { createBoss, getActiveBoss, getTrophies, resetRaidMemory, getBossById } from "../raid-db";
+import { createBoss, getActiveBoss, getTrophies, resetRaidMemory, getBossById, applyRaidDamage, setBossStatus } from "../raid-db";
 import { BOSSES, computeBossStats } from "../bosses";
 import { getRaidView } from "../raid-service";
 import type { RaidState } from "../raid-engine";
@@ -92,6 +92,29 @@ describe("raid finish", () => {
     expect((await getBossById(boss.id))!.status).toBe("defeated");
     const trophies = await getTrophies([playerId]);
     expect(trophies[playerId].map((t) => t.tier).sort()).toEqual(["champion", "slayer"]);
+  });
+});
+
+describe("deferred payout", () => {
+  it("runs the payout through deps.defer instead of inside the killing turn", async () => {
+    const boss = await spawn(50);
+    const deferred: (() => Promise<void>)[] = [];
+    deps = { ...deps, defer: (task) => deferred.push(task) };
+    const r = await start();
+    const done = await auto(r.body.sessionId as string);
+    expect(done.body.killed).toBe(true);
+    expect((await getBossById(boss.id))!.paidOutAt).toBeNull();
+    expect(deferred).toHaveLength(1);
+    await deferred[0]();
+    expect((await getBossById(boss.id))!.paidOutAt).not.toBeNull();
+  });
+
+  it("retries an unfinished payout when the raid is viewed", async () => {
+    const boss = await spawn(1_000_000);
+    await applyRaidDamage({ bossId: boss.id, playerId, damage: 10, bestHit: 10, counters: 0, label: "A" });
+    await setBossStatus(boss.id, "expired");
+    await getRaidView({ walletAddress: wallet });
+    expect((await getBossById(boss.id))!.paidOutAt).not.toBeNull();
   });
 });
 

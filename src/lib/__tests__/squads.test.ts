@@ -103,6 +103,12 @@ describe("recordSquadBattle", () => {
 });
 
 describe("findSquadOpponent", () => {
+  it("never returns an excluded candidate", async () => {
+    const rng = mulberry32(2);
+    const first = await findSquadOpponent(playerId, 1000, rng);
+    for (let i = 0; i < 20; i++) expect(await findSquadOpponent(playerId, 1000, rng, [first!])).not.toBe(first);
+  });
+
   it("never returns the caller and still matches a repeat opponent when it is the only option", async () => {
     const rng = mulberry32(1);
     for (let i = 0; i < 20; i++) {

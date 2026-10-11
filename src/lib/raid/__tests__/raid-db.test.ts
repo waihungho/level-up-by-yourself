@@ -1,5 +1,22 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { getOrCreatePlayer, getPlayerByWallet } from "@/lib/db";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { getOrCreatePlayer, getPlayerByWallet, getAgentWithDimensions } from "@/lib/db";
+import { getOrBuildSquad } from "@/lib/squads";
+import { DIMENSIONS } from "@/lib/constants";
+
+const failAbilityFor = new Set<string>();
+vi.mock("@/lib/db", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/db")>();
+  return {
+    ...mod,
+    addAbilityPoints: async (playerId: string, points: number) => {
+      if (failAbilityFor.has(playerId)) {
+        failAbilityFor.delete(playerId);
+        throw new Error("transient");
+      }
+      return mod.addAbilityPoints(playerId, points);
+    },
+  };
+});
 import {
   applyRaidDamage,
   countRaidAttemptsToday,
@@ -15,6 +32,7 @@ import {
   resetRaidMemory,
   REWARDS,
   setBossStatus,
+  getBossById,
   tierForRank,
 } from "../raid-db";
 import { computeBossStats, BOSSES } from "../bosses";
@@ -67,14 +85,23 @@ describe("applyRaidDamage", () => {
     expect(after.lastHitPlayerId).toBe(killer);
   });
 
-  it("records contribution but no kill for damage after the boss is dead", async () => {
+  it("credits only the damage actually applied: overkill is capped and hits after the kill count as 0", async () => {
     const b = await newBoss(100);
     const [p1, p2] = [await player(), await player()];
-    await applyRaidDamage({ bossId: b.id, playerId: p1.id, damage: 150, bestHit: 150, counters: 0, label: "A" });
+    const kill = await applyRaidDamage({ bossId: b.id, playerId: p1.id, damage: 150, bestHit: 150, counters: 0, label: "A" });
+    expect(kill).toMatchObject({ killed: true, applied: 100 });
     const late = await applyRaidDamage({ bossId: b.id, playerId: p2.id, damage: 50, bestHit: 50, counters: 0, label: "B" });
-    expect(late.killed).toBe(false);
+    expect(late).toMatchObject({ killed: false, applied: 0 });
     const contribs = await getContributions(b.id);
-    expect(contribs.find((c) => c.playerId === p2.id)?.damage).toBe(50);
+    expect(contribs.find((c) => c.playerId === p1.id)?.damage).toBe(100);
+    expect(contribs.find((c) => c.playerId === p2.id)).toMatchObject({ damage: 0, attempts: 1 });
+  });
+
+  it("stamps the hit with the attempt's start time", async () => {
+    const b = await newBoss(1000);
+    const p = await player();
+    await applyRaidDamage({ bossId: b.id, playerId: p.id, damage: 5, bestHit: 5, counters: 0, label: "A", createdAt: "2030-01-01T10:00:00.000Z" });
+    expect((await getRecentHits(b.id, 1))[0].createdAt).toBe("2030-01-01T10:00:00.000Z");
   });
 
   it("accumulates contributions, attempts, best hit, hits feed and daily attempts", async () => {
@@ -118,6 +145,33 @@ describe("payouts", () => {
     await setBossStatus(b.id, "expired");
     expect(await payoutBoss(b.id)).toBe(true);
     expect((await getPlayerByWallet(p.wallet))!.abilityScore).toBe(Math.floor(REWARDS.champion.ability / 2));
+  });
+
+  it("spreads the growth reward across the boss's weakness dimensions", async () => {
+    const b = await newBoss(100);
+    const p = await player();
+    const squad = (await getOrBuildSquad(p.id))!;
+    const weakDim = DIMENSIONS.find((d) => d.category === BOSSES[0].weak)!.id;
+    const before = squad[0].dimensions.find((d) => d.dimensionId === weakDim)!.value;
+    await applyRaidDamage({ bossId: b.id, playerId: p.id, damage: 100, bestHit: 100, counters: 0, label: "A" });
+    await payoutBoss(b.id);
+    const after = (await getAgentWithDimensions(squad[0].id))!.dimensions.find((d) => d.dimensionId === weakDim)!.value;
+    const weakCount = DIMENSIONS.filter((d) => d.category === BOSSES[0].weak).length;
+    expect(after - before).toBeCloseTo(REWARDS.champion.growthTotal / weakCount, 2);
+  });
+
+  it("resumes a payout that failed partway without paying anyone twice", async () => {
+    const b = await newBoss(100);
+    const [p1, p2] = [await player(), await player()];
+    await applyRaidDamage({ bossId: b.id, playerId: p1.id, damage: 60, bestHit: 60, counters: 0, label: "A" });
+    await applyRaidDamage({ bossId: b.id, playerId: p2.id, damage: 60, bestHit: 60, counters: 0, label: "B" });
+    failAbilityFor.add(p2.id);
+    await expect(payoutBoss(b.id)).rejects.toThrow("transient");
+    expect((await getBossById(b.id))!.paidOutAt).toBeNull();
+    expect(await payoutBoss(b.id)).toBe(true);
+    expect((await getPlayerByWallet(p1.wallet))!.abilityScore).toBe(REWARDS.champion.ability);
+    expect((await getPlayerByWallet(p2.wallet))!.abilityScore).toBe(REWARDS.elite.ability + LAST_HIT_ABILITY);
+    expect((await getBossById(b.id))!.paidOutAt).not.toBeNull();
   });
 
   it("refuses to pay a boss that is still active", async () => {

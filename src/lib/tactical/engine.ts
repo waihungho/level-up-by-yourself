@@ -458,7 +458,7 @@ export function categoriesUsed(rounds: TacticalRound[]): Category[] {
   return used.size ? Array.from(used) : ["Physical"];
 }
 
-export function toBattleLog(state: TacticalState, id: string = crypto.randomUUID()): BattleLog {
+export function toBattleLog(state: TacticalState, id: string = crypto.randomUUID(), createdAt: string = new Date().toISOString()): BattleLog {
   if (!state.finished || !state.winner) throw new Error("battle not finished");
   const attackerWon = state.winner === "attacker";
   const cats = categoriesUsed(state.rounds);
@@ -470,7 +470,7 @@ export function toBattleLog(state: TacticalState, id: string = crypto.randomUUID
     rounds: state.rounds,
     attackerGrowth: scaleGrowth(calculateGrowth(cats, attackerWon), masteryMultiplier(state)),
     defenderGrowth: calculateGrowth(cats, !attackerWon),
-    createdAt: new Date().toISOString(),
+    createdAt,
     pvp: state.mode === "pvp",
     tactical: true,
     manualActions: state.manualActions,

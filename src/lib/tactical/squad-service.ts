@@ -13,7 +13,9 @@ import type { Player } from "@/lib/types";
 import { parseAction } from "./battle-service-actions";
 import { createSquadBattle, resolveSquadRound, runSquadAuto, squadGrowth, synergyFor, type SquadAction, type SquadState } from "./squad";
 import type { BattleSession } from "./session-store";
-import { fail, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
+import { fail, usedToday, withinLimitAfterCreate, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
+
+const OPPONENT_ATTEMPTS = 5;
 
 export function parseSquadAction(raw: unknown): SquadAction | { type: "auto" } | null {
   if (raw && typeof raw === "object" && (raw as { type?: unknown }).type === "swap") {
@@ -28,11 +30,11 @@ export const squadHandler: ModeHandler<SquadState> = {
   resolve: (state, action, rng) => resolveSquadRound(state, action as unknown as SquadAction, rng, { manual: true }),
   auto: (state, rng) => runSquadAuto(state, rng),
   invalidCode: (action) => (action.type === "swap" ? "invalid_swap" : "invalid_action"),
-  async finalize(_session: BattleSession<SquadState>, state: SquadState) {
+  async finalize(session: BattleSession<SquadState>, state: SquadState) {
     const growth = squadGrowth(state);
-    for (const side of ["attacker", "defender"] as const) {
-      for (const [agentId, g] of Object.entries(growth[side])) await applyAgentGrowth(agentId, g);
-    }
+    await Promise.all(
+      (["attacker", "defender"] as const).flatMap((side) => Object.entries(growth[side]).map(([agentId, g]) => applyAgentGrowth(agentId, g)))
+    );
     const A = state.teams.attacker;
     const D = state.teams.defender;
     const { ratingDelta } = await recordSquadBattle({
@@ -43,6 +45,7 @@ export const squadHandler: ModeHandler<SquadState> = {
       defenderSquad: D.members.map((m) => m.agentId),
       rounds: state.rounds,
       manualActions: state.manualActions,
+      createdAt: session.createdAt,
     });
     return { growth, ratingDelta, winner: state.winner };
   },
@@ -53,16 +56,25 @@ export async function startSquadBattle(player: Player, deps: ServiceDeps): Promi
   const attackers = await getOrBuildSquad(player.id);
   if (!attackers) return fail(409, "no_squad");
 
-  const used = (await countSquadBattlesToday(player.id)) + (await deps.store.countActiveToday({ playerId: player.id, mode: "squad_pvp" }));
-  if (used >= MAX_SQUAD_BATTLES) return fail(429, "squad_limit_reached");
+  const used = () => usedToday(countSquadBattlesToday(player.id), deps.store, { playerId: player.id, mode: "squad_pvp" });
+  if ((await used()) >= MAX_SQUAD_BATTLES) return fail(429, "squad_limit_reached");
 
   const rating = (await getSquadStats([player.id]))[player.id].rating;
-  const opponentId = await findSquadOpponent(player.id, rating, deps.rng);
-  const defenders = opponentId ? await getOrBuildSquad(opponentId) : null;
+  // A candidate may no longer field 3 agents; try a few others before giving up.
+  const tried: string[] = [];
+  let opponentId: string | null = null;
+  let defenders: Awaited<ReturnType<typeof getOrBuildSquad>> = null;
+  for (let i = 0; i < OPPONENT_ATTEMPTS && !defenders; i++) {
+    opponentId = await findSquadOpponent(player.id, rating, deps.rng, tried);
+    if (!opponentId) break;
+    tried.push(opponentId);
+    defenders = await getOrBuildSquad(opponentId);
+  }
   if (!opponentId || !defenders) return fail(409, "no_opponent");
 
   const state = createSquadBattle({ playerId: player.id, agents: attackers }, { playerId: opponentId, agents: defenders }, deps.rng);
   const session = await deps.store.create({ mode: "squad_pvp", playerId: player.id, attackerId: null, defenderId: null, state });
+  if (!(await withinLimitAfterCreate(session, used, MAX_SQUAD_BATTLES, deps))) return fail(429, "squad_limit_reached");
   return { status: 200, body: { sessionId: session.id, state, attackers, defenders } };
 }
 

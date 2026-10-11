@@ -11,7 +11,7 @@ import {
 import type { AgentWithDimensions, Player } from "@/lib/types";
 import { parseAction } from "./battle-service-actions";
 import { createBattle, resolveRound, runAuto, toBattleLog } from "./engine";
-import { fail, type BattleStateBase, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
+import { fail, usedToday, withinLimitAfterCreate, type BattleStateBase, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
 import type { BattleSession, SessionMode, SessionStore } from "./session-store";
 import { squadHandler, startSquadBattle } from "./squad-service";
 import { raidHandler, startRaidAttempt } from "@/lib/raid/raid-service";
@@ -30,8 +30,9 @@ const tacticalHandler: ModeHandler<TacticalState> = {
   resolve: (state, action, rng) => resolveRound(state, action as unknown as PlayerAction, rng, { manual: true }),
   auto: (state, rng) => runAuto(state, rng),
   invalidCode: () => "invalid_action",
-  async finalize(_session, state) {
-    const log = toBattleLog(state);
+  async finalize(session, state) {
+    // Session id as log id + session start time: a resolved abandoned fight counts on the day it was fought.
+    const log = toBattleLog(state, session.id, session.createdAt);
     if (state.mode === "pvp") {
       await savePvpBattleLog(log);
       const loserId = log.winnerId === log.attackerId ? log.defenderId : log.attackerId;
@@ -69,10 +70,31 @@ export async function finalizeSession(session: BattleSession<BattleStateBase>, d
     if (!(await deps.store.updateState(session.id, state.round, done))) return null;
     state = done;
   }
-  const extra = await handler.finalize(session, state, deps);
+  // Only one caller persists results; a failure releases the claim so the next start or sweep retries.
+  if (!(await deps.store.claimFinalize(session.id))) return null;
+  let extra: Record<string, unknown>;
+  try {
+    extra = await handler.finalize(session, state, deps);
+  } catch (e) {
+    await deps.store.releaseFinalize(session.id);
+    throw e;
+  }
   const log = extra.battleLog as { id?: string } | undefined;
-  await deps.store.markFinished(session.id, log?.id ?? null);
+  await deps.store.markFinished(session.id, log?.id ?? null, extra);
   return extra;
+}
+
+/** Finalises abandoned sessions created before the cutoff (run from the daily cron). Returns how many were closed. */
+export async function sweepStaleSessions(beforeISO: string, deps: ServiceDeps): Promise<number> {
+  let closed = 0;
+  for (const session of await deps.store.findStale<BattleStateBase>(beforeISO)) {
+    try {
+      if (await finalizeSession(session, deps)) closed++;
+    } catch (e) {
+      console.error("[sweepStaleSessions]", session.id, e);
+    }
+  }
+  return closed;
 }
 
 /** Auto-resolves the caller's own open sessions matching the filter. */
@@ -88,9 +110,8 @@ async function ownedAgent(player: Player, agentId: string): Promise<AgentWithDim
   return agent && agent.playerId === player.id ? agent : null;
 }
 
-async function fightsUsed(agentId: string, mode: BattleMode, store: SessionStore): Promise<number> {
-  const logged = mode === "pvp" ? await getPvpFightsToday(agentId) : await getAgentFightsToday(agentId);
-  return logged + (await store.countActiveToday({ agentId, mode }));
+function fightsUsed(agentId: string, mode: BattleMode, store: SessionStore): Promise<number> {
+  return usedToday(mode === "pvp" ? getPvpFightsToday(agentId) : getAgentFightsToday(agentId), store, { agentId, mode });
 }
 
 async function startTacticalBattle(
@@ -136,6 +157,9 @@ async function startTacticalBattle(
     defenderId: defender.id,
     state,
   });
+  for (const id of ownAgents) {
+    if (!(await withinLimitAfterCreate(session, () => fightsUsed(id, battleMode, deps.store), limit, deps))) return fail(429, "fight_limit_reached");
+  }
   return { status: 200, body: { sessionId: session.id, state, attacker, defender } };
 }
 
@@ -216,5 +240,6 @@ export async function getSessionView(
 ): Promise<ServiceResult> {
   const loaded = await loadOwnedSession(input.sessionId, input.walletAddress, deps);
   if ("status" in loaded) return loaded;
-  return { status: 200, body: { state: loaded.session.state, status: loaded.session.status } };
+  const { session } = loaded;
+  return { status: 200, body: { state: session.state, status: session.status, result: session.result ?? null } };
 }

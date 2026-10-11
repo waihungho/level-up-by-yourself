@@ -46,11 +46,12 @@ export interface RaidHit {
 export type RewardTier = "champion" | "elite" | "vanguard" | "participant";
 export type TrophyTier = "champion" | "elite" | "vanguard" | "slayer";
 
-export const REWARDS: Record<RewardTier, { ability: number; growthPerDim: number }> = {
-  champion: { ability: 300, growthPerDim: 3.0 },
-  elite: { ability: 150, growthPerDim: 2.0 },
-  vanguard: { ability: 75, growthPerDim: 1.0 },
-  participant: { ability: 30, growthPerDim: 0.5 },
+/** growthTotal is spread evenly across the boss's weakness-category dimensions for each reward agent. */
+export const REWARDS: Record<RewardTier, { ability: number; growthTotal: number }> = {
+  champion: { ability: 300, growthTotal: 3.0 },
+  elite: { ability: 150, growthTotal: 2.0 },
+  vanguard: { ability: 75, growthTotal: 1.0 },
+  participant: { ability: 30, growthTotal: 0.5 },
 };
 export const LAST_HIT_ABILITY = 100;
 export const EXPIRED_REWARD_FACTOR = 0.5;
@@ -63,6 +64,7 @@ let memBosses: RaidBoss[] = [];
 let memContribs: RaidContribution[] = [];
 let memHits: RaidHit[] = [];
 let memTrophies: { playerId: string; bossId: string; tier: TrophyTier }[] = [];
+let memPayouts = new Set<string>();
 
 /** Clears demo-mode raid data (tests). */
 export function resetRaidMemory(): void {
@@ -70,6 +72,7 @@ export function resetRaidMemory(): void {
   memContribs = [];
   memHits = [];
   memTrophies = [];
+  memPayouts = new Set<string>();
 }
 
 function reader(): SupabaseClient | null {
@@ -211,7 +214,11 @@ export async function setBossStatus(id: string, status: "expired"): Promise<void
 // Damage
 // ---------------------------------------------------------------------------
 
-/** Atomically subtracts damage; exactly one call can report killed=true. Contribution and feed are always recorded. */
+/**
+ * Atomically subtracts damage; exactly one call can report killed=true. Only damage actually applied
+ * to the boss is credited (overkill is capped, hits after the kill count as 0), so the leaderboard
+ * always matches what payout ranks. The attempt itself is always recorded (daily limit, feed).
+ */
 export async function applyRaidDamage(input: {
   bossId: string;
   playerId: string;
@@ -219,8 +226,11 @@ export async function applyRaidDamage(input: {
   bestHit: number;
   counters: number;
   label: string;
-}): Promise<{ hpRemaining: number; killed: boolean }> {
+  /** When the attempt started (defaults to now) so it counts on the day it was fought. */
+  createdAt?: string;
+}): Promise<{ hpRemaining: number; killed: boolean; applied: number }> {
   const damage = Math.max(0, Math.round(input.damage));
+  const createdAt = input.createdAt ?? new Date().toISOString();
   const sb = writer();
   if (sb) {
     const { data, error } = await sb.rpc("levelup_raid_apply_damage", {
@@ -230,19 +240,22 @@ export async function applyRaidDamage(input: {
       p_best: Math.round(input.bestHit),
       p_counters: input.counters,
       p_label: input.label,
+      p_created_at: createdAt,
     });
     if (error) throw error;
     const row = Array.isArray(data) ? data[0] : data;
-    return { hpRemaining: Number(row.hp_remaining), killed: !!row.killed };
+    return { hpRemaining: Number(row.hp_remaining), killed: !!row.killed, applied: Number(row.applied) };
   }
 
   // Demo mode: no awaits below, so this block is atomic in JS.
   const boss = memBosses.find((b) => b.id === input.bossId);
   if (!boss) throw new Error("boss not found");
   let killed = false;
+  let applied = 0;
   if (boss.status === "active") {
     const prev = boss.hpRemaining;
     boss.hpRemaining = Math.max(prev - damage, 0);
+    applied = prev - boss.hpRemaining;
     if (boss.hpRemaining === 0 && prev > 0) {
       killed = true;
       boss.status = "defeated";
@@ -252,15 +265,15 @@ export async function applyRaidDamage(input: {
   }
   const c = memContribs.find((x) => x.bossId === input.bossId && x.playerId === input.playerId);
   if (c) {
-    c.damage += damage;
+    c.damage += applied;
     c.attempts += 1;
     c.bestHit = Math.max(c.bestHit, input.bestHit);
     c.label = input.label;
   } else {
-    memContribs.push({ bossId: input.bossId, playerId: input.playerId, damage, attempts: 1, bestHit: input.bestHit, label: input.label });
+    memContribs.push({ bossId: input.bossId, playerId: input.playerId, damage: applied, attempts: 1, bestHit: input.bestHit, label: input.label });
   }
-  memHits.push({ id: crypto.randomUUID(), bossId: input.bossId, playerId: input.playerId, damage, counters: input.counters, label: input.label, createdAt: new Date().toISOString() });
-  return { hpRemaining: boss.hpRemaining, killed };
+  memHits.push({ id: crypto.randomUUID(), bossId: input.bossId, playerId: input.playerId, damage: applied, counters: input.counters, label: input.label, createdAt });
+  return { hpRemaining: boss.hpRemaining, killed, applied };
 }
 
 export async function getContributions(bossId: string): Promise<RaidContribution[]> {
@@ -314,22 +327,36 @@ export function tierForRank(rank: number): RewardTier {
   return "participant";
 }
 
-/** Marks the boss paid; true only for the first caller, and only once it is defeated or expired. */
-async function claimPayout(boss: RaidBoss): Promise<boolean> {
-  if (boss.status === "active" || boss.paidOutAt) return false;
+/** Claims one contributor's reward; true for exactly one caller, so retries never pay anyone twice. */
+async function claimPlayerPayout(bossId: string, playerId: string): Promise<boolean> {
+  const sb = writer();
+  if (sb) {
+    const { data, error } = await sb
+      .from("levelup_raid_payouts")
+      .upsert({ boss_id: bossId, player_id: playerId }, { onConflict: "boss_id,player_id", ignoreDuplicates: true })
+      .select("player_id");
+    if (error) throw error;
+    return (data ?? []).length === 1;
+  }
+  const key = `${bossId}:${playerId}`;
+  if (memPayouts.has(key)) return false;
+  memPayouts.add(key);
+  return true;
+}
+
+async function markPaidOut(bossId: string): Promise<boolean> {
   const sb = writer();
   if (sb) {
     const { data, error } = await sb
       .from("levelup_raid_bosses")
       .update({ paid_out_at: new Date().toISOString() })
-      .eq("id", boss.id)
+      .eq("id", bossId)
       .is("paid_out_at", null)
-      .neq("status", "active")
       .select("id");
     if (error) throw error;
     return (data ?? []).length === 1;
   }
-  const b = memBosses.find((x) => x.id === boss.id);
+  const b = memBosses.find((x) => x.id === bossId);
   if (!b || b.paidOutAt) return false;
   b.paidOutAt = new Date().toISOString();
   return true;
@@ -354,32 +381,71 @@ async function addTrophy(playerId: string, bossId: string, tier: TrophyTier): Pr
   if (!memTrophies.some((t) => t.playerId === playerId && t.bossId === bossId && t.tier === tier)) memTrophies.push({ playerId, bossId, tier });
 }
 
-export async function payoutBoss(bossId: string): Promise<boolean> {
-  const boss = await getBossById(bossId);
-  if (!boss || !(await claimPayout(boss))) return false;
-
+async function payContributor(boss: RaidBoss, c: RaidContribution, rank: number, weakDims: number[]): Promise<void> {
   const defeated = boss.status === "defeated";
   const factor = defeated ? 1 : EXPIRED_REWARD_FACTOR;
+  const tier = tierForRank(rank);
+  const reward = REWARDS[tier];
+  let ability = Math.floor(reward.ability * factor);
+  if (defeated && boss.lastHitPlayerId === c.playerId) {
+    ability += LAST_HIT_ABILITY;
+    await addTrophy(c.playerId, boss.id, "slayer");
+  }
+  if (tier !== "participant") await addTrophy(c.playerId, boss.id, tier);
+
+  if (weakDims.length) {
+    const perDim = parseFloat(((reward.growthTotal * factor) / weakDims.length).toFixed(2));
+    const growth = Object.fromEntries(weakDims.map((id) => [id, perDim]));
+    await Promise.all((await rewardAgents(c.playerId)).map((agent) => applyAgentGrowth(agent.id, growth)));
+  }
+  // Last: trophies are idempotent and growth is small, so a retry after a failure here re-grants the least.
+  await addAbilityPoints(c.playerId, ability);
+}
+
+/**
+ * Pays every contributor of a defeated or expired boss. Each player is claimed individually before
+ * being paid, and the boss is only marked paid once everyone is processed, so a failed run can be
+ * resumed without double-paying. Returns true when this call completed the payout.
+ */
+export async function payoutBoss(bossId: string): Promise<boolean> {
+  const boss = await getBossById(bossId);
+  if (!boss || boss.status === "active" || boss.paidOutAt) return false;
+
   const def = bossByKey(boss.bossKey);
   const weakDims = def ? DIMENSIONS.filter((d) => d.category === def.weak).map((d) => d.id) : [];
   const contributions = await getContributions(bossId);
-
   for (const [i, c] of contributions.entries()) {
-    const tier = tierForRank(i + 1);
-    const reward = REWARDS[tier];
-    let ability = Math.floor(reward.ability * factor);
-    if (defeated && boss.lastHitPlayerId === c.playerId) {
-      ability += LAST_HIT_ABILITY;
-      await addTrophy(c.playerId, bossId, "slayer");
+    if (await claimPlayerPayout(bossId, c.playerId)) {
+      try {
+        await payContributor(boss, c, i + 1, weakDims);
+      } catch (e) {
+        await releasePlayerPayout(bossId, c.playerId);
+        throw e;
+      }
     }
-    await addAbilityPoints(c.playerId, ability);
-    if (tier !== "participant") await addTrophy(c.playerId, bossId, tier);
-
-    const perDim = parseFloat((reward.growthPerDim * factor).toFixed(2));
-    const growth = Object.fromEntries(weakDims.map((id) => [id, perDim]));
-    for (const agent of await rewardAgents(c.playerId)) await applyAgentGrowth(agent.id, growth);
   }
-  return true;
+  return markPaidOut(bossId);
+}
+
+async function releasePlayerPayout(bossId: string, playerId: string): Promise<void> {
+  const sb = writer();
+  if (sb) {
+    const { error } = await sb.from("levelup_raid_payouts").delete().eq("boss_id", bossId).eq("player_id", playerId);
+    if (error) throw error;
+    return;
+  }
+  memPayouts.delete(`${bossId}:${playerId}`);
+}
+
+/** Bosses that were defeated/expired but whose payout has not completed (retry target). */
+export async function getUnpaidFinishedBoss(): Promise<RaidBoss | null> {
+  const sb = reader();
+  if (sb) {
+    const { data, error } = await sb.from("levelup_raid_bosses").select("*").neq("status", "active").is("paid_out_at", null).limit(1).maybeSingle();
+    if (error) throw error;
+    return data ? mapBoss(data) : null;
+  }
+  return memBosses.find((b) => b.status !== "active" && !b.paidOutAt) ?? null;
 }
 
 export async function getTrophies(playerIds: string[]): Promise<Record<string, { bossId: string; tier: TrophyTier }[]>> {

@@ -50,4 +50,28 @@ describe("MemorySessionStore", () => {
     expect(await store.countActiveToday({ agentId: "a1", mode: "training" })).toBe(1);
     expect(await store.findActive({ agentId: "a1" })).toHaveLength(1);
   });
+
+  it("lets exactly one caller claim finalisation, and a release makes it claimable again", async () => {
+    const s = await store.create(base);
+    const claims = await Promise.all([store.claimFinalize(s.id), store.claimFinalize(s.id)]);
+    expect(claims.filter(Boolean)).toHaveLength(1);
+    expect(await store.findActive({ agentId: "a1" })).toHaveLength(0);
+    await store.releaseFinalize(s.id);
+    expect(await store.claimFinalize(s.id)).toBe(true);
+  });
+
+  it("stores the finish result for later reads", async () => {
+    const s = await store.create(base);
+    await store.claimFinalize(s.id);
+    await store.markFinished(s.id, "log-1", { winner: "attacker" });
+    const got = await store.get(s.id);
+    expect(got?.status).toBe("finished");
+    expect(got?.result).toEqual({ winner: "attacker" });
+  });
+
+  it("finds active sessions created before a cutoff", async () => {
+    await store.create(base);
+    expect(await store.findStale(new Date(Date.now() + 1000).toISOString())).toHaveLength(1);
+    expect(await store.findStale(new Date(Date.now() - 60_000).toISOString())).toHaveLength(0);
+  });
 });

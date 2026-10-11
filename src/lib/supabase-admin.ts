@@ -15,3 +15,15 @@ export function getAdminSupabase(): SupabaseClient | null {
   }
   return _admin;
 }
+
+/**
+ * Client for server-side writes: the service-role client when configured, null in demo mode
+ * (callers then use in-memory stores). Throws if Supabase is configured without the service key.
+ */
+export function getWriteClient(): SupabaseClient | null {
+  const admin = getAdminSupabase();
+  if (!admin && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
+  }
+  return admin;
+}

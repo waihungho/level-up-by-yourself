@@ -8,8 +8,9 @@ CREATE TABLE IF NOT EXISTS levelup_battle_sessions (
   attacker_id   uuid REFERENCES levelup_agents(id) ON DELETE CASCADE,
   defender_id   uuid REFERENCES levelup_agents(id) ON DELETE CASCADE,
   state         jsonb NOT NULL,
-  status        text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'finished')),
+  status        text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'finalizing', 'finished')),
   battle_log_id uuid,
+  result        jsonb,
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
@@ -17,6 +18,7 @@ CREATE TABLE IF NOT EXISTS levelup_battle_sessions (
 CREATE INDEX IF NOT EXISTS levelup_idx_sessions_attacker_active ON levelup_battle_sessions(attacker_id) WHERE status = 'active';
 CREATE INDEX IF NOT EXISTS levelup_idx_sessions_defender_active ON levelup_battle_sessions(defender_id) WHERE status = 'active';
 CREATE INDEX IF NOT EXISTS levelup_idx_sessions_player_active ON levelup_battle_sessions(player_id, mode) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS levelup_idx_sessions_stale ON levelup_battle_sessions(created_at) WHERE status = 'active';
 
 -- No policies: only the service role (server routes) can read or write sessions.
 ALTER TABLE levelup_battle_sessions ENABLE ROW LEVEL SECURITY;

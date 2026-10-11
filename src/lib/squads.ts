@@ -211,8 +211,8 @@ async function opponentPool(excludePlayerId: string): Promise<string[]> {
   return [...pool];
 }
 
-export async function findSquadOpponent(playerId: string, rating: number, rng: Rng): Promise<string | null> {
-  const pool = await opponentPool(playerId);
+export async function findSquadOpponent(playerId: string, rating: number, rng: Rng, exclude: string[] = []): Promise<string | null> {
+  const pool = (await opponentPool(playerId)).filter((id) => !exclude.includes(id));
   if (!pool.length) return null;
   const stats = await getSquadStats(pool);
   const recent = await getRecentSquadOpponents(playerId, 3);
@@ -242,7 +242,10 @@ export async function recordSquadBattle(input: {
   defenderSquad: string[];
   rounds: unknown[];
   manualActions: number;
+  /** When the battle started (defaults to now) so it counts on the day it was fought. */
+  createdAt?: string;
 }): Promise<{ ratingDelta: number }> {
+  const createdAt = input.createdAt ?? new Date().toISOString();
   const loserId = input.winnerPlayerId === input.attackerPlayerId ? input.defenderPlayerId : input.attackerPlayerId;
   const stats = await getSquadStats([input.winnerPlayerId, loserId]);
   const delta = eloDelta(stats[input.winnerPlayerId].rating, stats[loserId].rating);
@@ -258,6 +261,7 @@ export async function recordSquadBattle(input: {
       rounds: input.rounds,
       rating_delta: delta,
       manual_actions: input.manualActions,
+      created_at: createdAt,
     });
     if (error) throw error;
     const { error: rpcError } = await sb.rpc("levelup_squad_apply_result", {
@@ -269,7 +273,7 @@ export async function recordSquadBattle(input: {
     return { ratingDelta: delta };
   }
 
-  localBattles.push({ attackerPlayerId: input.attackerPlayerId, defenderPlayerId: input.defenderPlayerId, createdAt: new Date().toISOString() });
+  localBattles.push({ attackerPlayerId: input.attackerPlayerId, defenderPlayerId: input.defenderPlayerId, createdAt });
   const w = stats[input.winnerPlayerId];
   const l = stats[loserId];
   localStats.set(w.playerId, { ...w, wins: w.wins + 1, rating: w.rating + delta });

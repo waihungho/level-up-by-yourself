@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { getOrCreatePlayer, getPlayerAgents, getBattleLogs, getPvpStatsForAgents } from "@/lib/db";
-import { startBattle, takeTurn, getSessionView, type ServiceDeps } from "../battle-service";
+import { startBattle, takeTurn, getSessionView, finalizeSession, sweepStaleSessions, type ServiceDeps } from "../battle-service";
 import { MemorySessionStore } from "../session-store";
 import { mulberry32 } from "../rng";
+import { runAuto } from "../engine";
 import type { TacticalState } from "../types";
 
 let deps: ServiceDeps;
@@ -160,5 +161,55 @@ describe("getSessionView", () => {
     const id = s.body.sessionId as string;
     expect((await getSessionView({ sessionId: id, walletAddress: wallet }, deps)).status).toBe(200);
     expect((await getSessionView({ sessionId: id, walletAddress: otherWallet }, deps)).status).toBe(403);
+  });
+});
+
+describe("finalisation robustness", () => {
+  it("persists a battle once even when two finalisations race on an already-finished state", async () => {
+    const s = await training(0, 1);
+    const session = (await deps.store.get<TacticalState>(s.body.sessionId as string))!;
+    // The window between takeTurn storing the finished state and finalising it.
+    const done = runAuto(session.state, mulberry32(4));
+    await deps.store.updateState(session.id, 0, done);
+    const finished = { ...session, state: done };
+    const before = (await getBattleLogs(agentIds[0], 50)).length;
+    await Promise.all([finalizeSession(finished, deps), finalizeSession(finished, deps)]);
+    expect((await getBattleLogs(agentIds[0], 50)).length).toBe(before + 1);
+  });
+
+  it("returns the stored result to a client that lost the final response", async () => {
+    const s = await training();
+    const id = s.body.sessionId as string;
+    await finish(id, 0);
+    const view = await getSessionView({ sessionId: id, walletAddress: wallet }, deps);
+    expect(view.body.status).toBe("finished");
+    expect((view.body.result as { battleLog?: { tactical: boolean } }).battleLog?.tactical).toBe(true);
+  });
+
+  it("stamps a battle log with the session's start time, not the time it was resolved", async () => {
+    const s = await training(0, 1);
+    const session = (await deps.store.get<TacticalState>(s.body.sessionId as string))!;
+    await new Promise((r) => setTimeout(r, 15));
+    await training(0, 2); // resolves the abandoned session
+    const logs = await getBattleLogs(agentIds[0], 50);
+    expect(logs.some((l) => l.createdAt === session.createdAt)).toBe(true);
+  });
+
+  it("does not let concurrent starts exceed the daily limit", async () => {
+    for (const opp of [1, 2]) {
+      const r = await training(0, opp);
+      await finish(r.body.sessionId as string, 0);
+    }
+    const results = await Promise.all([training(0, 3), training(0, 4)]);
+    expect(results.filter((r) => r.status === 200).length).toBeLessThanOrEqual(1);
+  });
+
+  it("sweeps abandoned sessions older than the cutoff", async () => {
+    const s = await training(0, 1);
+    const before = (await getBattleLogs(agentIds[0], 50)).length;
+    const swept = await sweepStaleSessions(new Date(Date.now() + 1000).toISOString(), deps);
+    expect(swept).toBe(1);
+    expect((await deps.store.get(s.body.sessionId as string))?.status).toBe("finished");
+    expect((await getBattleLogs(agentIds[0], 50)).length).toBe(before + 1);
   });
 });

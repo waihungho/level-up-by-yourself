@@ -38,6 +38,15 @@ CREATE TABLE IF NOT EXISTS levelup_raid_hits (
 CREATE INDEX IF NOT EXISTS levelup_idx_raid_hits_boss ON levelup_raid_hits(boss_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS levelup_idx_raid_hits_player ON levelup_raid_hits(player_id, created_at DESC);
 
+-- One row per paid contributor: payouts are claimed per player so a failed run can resume safely.
+CREATE TABLE IF NOT EXISTS levelup_raid_payouts (
+  boss_id    uuid NOT NULL REFERENCES levelup_raid_bosses(id) ON DELETE CASCADE,
+  player_id  uuid NOT NULL REFERENCES levelup_players(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (boss_id, player_id)
+);
+ALTER TABLE levelup_raid_payouts ENABLE ROW LEVEL SECURITY; -- service role only
+
 CREATE TABLE IF NOT EXISTS levelup_player_trophies (
   player_id uuid NOT NULL REFERENCES levelup_players(id) ON DELETE CASCADE,
   boss_id   uuid NOT NULL REFERENCES levelup_raid_bosses(id) ON DELETE CASCADE,
@@ -65,19 +74,21 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- Atomic damage: row lock serialises concurrent attempts so exactly one call reports killed = true.
--- Contribution and feed rows are recorded even after the boss is defeated.
+-- Atomic damage: the row lock serialises concurrent attempts so exactly one call reports killed = true.
+-- Only damage actually applied is credited (overkill capped, 0 after the kill) so rankings match payouts.
 CREATE OR REPLACE FUNCTION levelup_raid_apply_damage(
-  p_boss uuid, p_player uuid, p_damage bigint, p_best int, p_counters int, p_label text
+  p_boss uuid, p_player uuid, p_damage bigint, p_best int, p_counters int, p_label text,
+  p_created_at timestamptz DEFAULT now()
 )
-RETURNS TABLE(hp_remaining bigint, killed boolean)
+RETURNS TABLE(hp_remaining bigint, killed boolean, applied bigint)
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  v_prev   bigint;
-  v_new    bigint;
-  v_status text;
-  v_killed boolean := false;
+  v_prev    bigint;
+  v_new     bigint;
+  v_status  text;
+  v_killed  boolean := false;
+  v_applied bigint := 0;
 BEGIN
   SELECT b.hp_remaining, b.status INTO v_prev, v_status
   FROM levelup_raid_bosses b WHERE b.id = p_boss FOR UPDATE;
@@ -88,6 +99,7 @@ BEGIN
   v_new := v_prev;
   IF v_status = 'active' THEN
     v_new := GREATEST(v_prev - GREATEST(p_damage, 0), 0);
+    v_applied := v_prev - v_new;
     v_killed := v_new = 0 AND v_prev > 0;
     UPDATE levelup_raid_bosses SET
       hp_remaining       = v_new,
@@ -98,22 +110,23 @@ BEGIN
   END IF;
 
   INSERT INTO levelup_raid_contributions (boss_id, player_id, damage, attempts, best_hit, label)
-  VALUES (p_boss, p_player, GREATEST(p_damage, 0), 1, p_best, p_label)
+  VALUES (p_boss, p_player, v_applied, 1, p_best, p_label)
   ON CONFLICT (boss_id, player_id) DO UPDATE SET
     damage   = levelup_raid_contributions.damage + EXCLUDED.damage,
     attempts = levelup_raid_contributions.attempts + 1,
     best_hit = GREATEST(levelup_raid_contributions.best_hit, EXCLUDED.best_hit),
     label    = EXCLUDED.label;
 
-  INSERT INTO levelup_raid_hits (boss_id, player_id, damage, counters, label)
-  VALUES (p_boss, p_player, GREATEST(p_damage, 0), p_counters, p_label);
+  INSERT INTO levelup_raid_hits (boss_id, player_id, damage, counters, label, created_at)
+  VALUES (p_boss, p_player, v_applied, p_counters, p_label, p_created_at);
 
   hp_remaining := v_new;
   killed := v_killed;
+  applied := v_applied;
   RETURN NEXT;
 END;
 $$;
-REVOKE EXECUTE ON FUNCTION levelup_raid_apply_damage(uuid, uuid, bigint, int, int, text) FROM anon, authenticated, public;
+REVOKE EXECUTE ON FUNCTION levelup_raid_apply_damage(uuid, uuid, bigint, int, int, text, timestamptz) FROM anon, authenticated, public;
 
 -- Live HP bar + hit feed. Requires Realtime to be enabled for the project.
 DO $$ BEGIN
