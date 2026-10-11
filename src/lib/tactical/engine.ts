@@ -189,14 +189,15 @@ function moveDamage(
   outgoing: ((c: Category) => number) | undefined,
   dstStunImmune: boolean
 ): number {
+  // Mods (synergy, weakness, enrage) scale net damage; special multipliers scale raw damage.
   const out = (c: Category) => outgoing?.(c) ?? 1;
   if (move.kind === "strike" || move.kind === "ultimate") {
-    return baseDamage(src, dst, move.category, rng, out(move.category), false);
+    return baseDamage(src, dst, move.category, rng, 1, false) * out(move.category);
   }
   if (move.kind === "special") {
     const sp = SPECIALS[src.role];
     const immuneBonus = src.role === "medieval" && dstStunImmune ? SHIELD_BASH_IMMUNE_MULT : 1;
-    return baseDamage(src, dst, sp.category, rng, sp.mult * immuneBonus * out(sp.category), src.role === "future");
+    return baseDamage(src, dst, sp.category, rng, sp.mult * immuneBonus, src.role === "future") * out(sp.category);
   }
   return 0;
 }
