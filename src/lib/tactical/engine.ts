@@ -1,5 +1,6 @@
 import { DIMENSIONS } from "@/lib/constants";
 import { calculateGrowth } from "@/lib/battle-engine";
+import { gearBonus } from "@/lib/shop/catalog";
 import type { AgentWithDimensions, BattleLog } from "@/lib/types";
 import {
   AI_SPECIAL_CHANCE,
@@ -80,6 +81,13 @@ export function toSide(agent: AgentWithDimensions, hpFactor = 1): SideState {
     catAvg[c] = ids.reduce((sum, id) => sum + value(id), 0) / ids.length;
   }
   const maxHp = Math.max(1, Math.round(DIMENSIONS.reduce((sum, d) => sum + value(d.id), 0) * HP_K * hpFactor));
+  // Equipment adds battle-time bonuses (HP stays derived from real stats).
+  let speed = value(SPEED_DIMENSION_ID);
+  if (agent.gear) {
+    const bonus = gearBonus(agent.role, agent.gear);
+    for (const c of CYCLE) catAvg[c] += bonus.catAvg[c];
+    speed += bonus.speed;
+  }
   return {
     agentId: agent.id,
     role: agent.role,
@@ -89,7 +97,7 @@ export function toSide(agent: AgentWithDimensions, hpFactor = 1): SideState {
     stunned: false,
     insightRounds: 0,
     catAvg,
-    speed: value(SPEED_DIMENSION_ID),
+    speed,
   };
 }
 

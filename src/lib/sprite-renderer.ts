@@ -88,7 +88,7 @@ function seededRand(seed: number, i: number): number {
   return x - Math.floor(x);
 }
 
-export function generateSpriteData(seed: SpriteSeed, role: RoleCategory): PixelGrid {
+export function generateSpriteData(seed: SpriteSeed, role: RoleCategory, weaponTint?: string): PixelGrid {
   const grid = createGrid();
   const p = getRolePalette(role, seed.colorSeed);
   const cx = 15;
@@ -291,89 +291,91 @@ export function generateSpriteData(seed: SpriteSeed, role: RoleCategory): PixelG
   }
 
   // ===== WEAPON =====
+  // Gear tier tint (equipment) overrides every weapon pixel's colour.
+  const setWeaponPixel = (g: PixelGrid, x: number, y: number, c: string) => setPixel(g, x, y, weaponTint ?? c);
   const wx = cx + shoulderWidth + 2;
   const wy = 12;
   const weaponType = seed.weaponType % 8;
 
   if (role === "future") {
     if (weaponType < 3) {
-      for (let i = 0; i < 6; i++) setPixel(grid, wx, wy + i, p.secondary);
-      setPixel(grid, wx + 1, wy, p.glow);
-      setPixel(grid, wx + 1, wy + 1, p.glow);
-      setPixel(grid, wx - 1, wy + 3, p.primary);
-      setPixel(grid, wx + 1, wy + 3, p.primary);
-      setPixel(grid, wx, wy - 1, p.glow);
-      setPixel(grid, wx, wy - 2, p.highlight);
+      for (let i = 0; i < 6; i++) setWeaponPixel(grid, wx, wy + i, p.secondary);
+      setWeaponPixel(grid, wx + 1, wy, p.glow);
+      setWeaponPixel(grid, wx + 1, wy + 1, p.glow);
+      setWeaponPixel(grid, wx - 1, wy + 3, p.primary);
+      setWeaponPixel(grid, wx + 1, wy + 3, p.primary);
+      setWeaponPixel(grid, wx, wy - 1, p.glow);
+      setWeaponPixel(grid, wx, wy - 2, p.highlight);
     } else if (weaponType < 5) {
-      for (let i = 0; i < 8; i++) setPixel(grid, wx, wy + i - 3, i < 4 ? p.glow : p.secondary);
-      setPixel(grid, wx - 1, wy - 3, p.highlight);
-      setPixel(grid, wx + 1, wy - 3, p.highlight);
-      setPixel(grid, wx, wy - 4, p.highlight);
+      for (let i = 0; i < 8; i++) setWeaponPixel(grid, wx, wy + i - 3, i < 4 ? p.glow : p.secondary);
+      setWeaponPixel(grid, wx - 1, wy - 3, p.highlight);
+      setWeaponPixel(grid, wx + 1, wy - 3, p.highlight);
+      setWeaponPixel(grid, wx, wy - 4, p.highlight);
     } else {
-      setPixel(grid, wx, wy - 2, p.glow);
-      setPixel(grid, wx - 1, wy - 1, p.secondary);
-      setPixel(grid, wx, wy - 1, p.secondary);
-      setPixel(grid, wx + 1, wy - 1, p.secondary);
-      setPixel(grid, wx - 1, wy, p.primary);
-      setPixel(grid, wx, wy, p.glow);
-      setPixel(grid, wx + 1, wy, p.primary);
-      setPixel(grid, wx - 2, wy, p.highlight);
-      setPixel(grid, wx + 2, wy, p.highlight);
+      setWeaponPixel(grid, wx, wy - 2, p.glow);
+      setWeaponPixel(grid, wx - 1, wy - 1, p.secondary);
+      setWeaponPixel(grid, wx, wy - 1, p.secondary);
+      setWeaponPixel(grid, wx + 1, wy - 1, p.secondary);
+      setWeaponPixel(grid, wx - 1, wy, p.primary);
+      setWeaponPixel(grid, wx, wy, p.glow);
+      setWeaponPixel(grid, wx + 1, wy, p.primary);
+      setWeaponPixel(grid, wx - 2, wy, p.highlight);
+      setWeaponPixel(grid, wx + 2, wy, p.highlight);
     }
   } else if (role === "medieval") {
     if (weaponType < 2) {
-      for (let i = -5; i <= 5; i++) setPixel(grid, wx, wy + i, i < 0 ? p.highlight : p.secondary);
-      setPixel(grid, wx - 1, wy, p.accent);
-      setPixel(grid, wx + 1, wy, p.accent);
-      setPixel(grid, wx, wy - 6, p.accent);
+      for (let i = -5; i <= 5; i++) setWeaponPixel(grid, wx, wy + i, i < 0 ? p.highlight : p.secondary);
+      setWeaponPixel(grid, wx - 1, wy, p.accent);
+      setWeaponPixel(grid, wx + 1, wy, p.accent);
+      setWeaponPixel(grid, wx, wy - 6, p.accent);
     } else if (weaponType < 4) {
-      for (let i = -4; i <= 6; i++) setPixel(grid, wx, wy + i, p.secondary);
-      setPixel(grid, wx - 1, wy - 4, p.glow);
-      setPixel(grid, wx, wy - 5, p.glow);
-      setPixel(grid, wx + 1, wy - 4, p.glow);
-      setPixel(grid, wx, wy - 4, p.highlight);
+      for (let i = -4; i <= 6; i++) setWeaponPixel(grid, wx, wy + i, p.secondary);
+      setWeaponPixel(grid, wx - 1, wy - 4, p.glow);
+      setWeaponPixel(grid, wx, wy - 5, p.glow);
+      setWeaponPixel(grid, wx + 1, wy - 4, p.glow);
+      setWeaponPixel(grid, wx, wy - 4, p.highlight);
     } else if (weaponType < 6) {
-      for (let i = -3; i <= 5; i++) setPixel(grid, wx, wy + i, p.secondary);
-      setPixel(grid, wx - 1, wy - 3, p.highlight);
-      setPixel(grid, wx - 2, wy - 2, p.highlight);
-      setPixel(grid, wx - 2, wy - 1, p.highlight);
-      setPixel(grid, wx - 1, wy - 2, p.highlight);
-      setPixel(grid, wx - 1, wy - 1, p.highlight);
+      for (let i = -3; i <= 5; i++) setWeaponPixel(grid, wx, wy + i, p.secondary);
+      setWeaponPixel(grid, wx - 1, wy - 3, p.highlight);
+      setWeaponPixel(grid, wx - 2, wy - 2, p.highlight);
+      setWeaponPixel(grid, wx - 2, wy - 1, p.highlight);
+      setWeaponPixel(grid, wx - 1, wy - 2, p.highlight);
+      setWeaponPixel(grid, wx - 1, wy - 1, p.highlight);
     } else {
       const sx = cx - shoulderWidth - 2;
       for (let dy = -1; dy <= 3; dy++) {
-        for (let ddx = -1; ddx <= 1; ddx++) setPixel(grid, sx + ddx, wy + dy + 3, p.accent);
+        for (let ddx = -1; ddx <= 1; ddx++) setWeaponPixel(grid, sx + ddx, wy + dy + 3, p.accent);
       }
-      setPixel(grid, sx, wy + 4, p.highlight);
-      for (let i = -2; i <= 3; i++) setPixel(grid, wx, wy + i, p.highlight);
-      setPixel(grid, wx - 1, wy, p.accent);
-      setPixel(grid, wx + 1, wy, p.accent);
+      setWeaponPixel(grid, sx, wy + 4, p.highlight);
+      for (let i = -2; i <= 3; i++) setWeaponPixel(grid, wx, wy + i, p.highlight);
+      setWeaponPixel(grid, wx - 1, wy, p.accent);
+      setWeaponPixel(grid, wx + 1, wy, p.accent);
     }
   } else {
     if (weaponType < 2) {
       for (let dy = 0; dy < 3; dy++) {
-        for (let ddx = -1; ddx <= 1; ddx++) setPixel(grid, wx + ddx, wy + dy + 4, p.secondary);
+        for (let ddx = -1; ddx <= 1; ddx++) setWeaponPixel(grid, wx + ddx, wy + dy + 4, p.secondary);
       }
-      setPixel(grid, wx, wy + 4, p.glow);
-      for (let ddx = -1; ddx <= 1; ddx++) setPixel(grid, wx + ddx, wy + 3, p.primary);
+      setWeaponPixel(grid, wx, wy + 4, p.glow);
+      for (let ddx = -1; ddx <= 1; ddx++) setWeaponPixel(grid, wx + ddx, wy + 3, p.primary);
     } else if (weaponType < 4) {
-      for (let i = 0; i < 7; i++) setPixel(grid, wx, wy + i, i < 2 ? p.highlight : p.secondary);
-      setPixel(grid, wx - 1, wy + 2, p.primary);
-      setPixel(grid, wx + 1, wy + 2, p.primary);
+      for (let i = 0; i < 7; i++) setWeaponPixel(grid, wx, wy + i, i < 2 ? p.highlight : p.secondary);
+      setWeaponPixel(grid, wx - 1, wy + 2, p.primary);
+      setWeaponPixel(grid, wx + 1, wy + 2, p.primary);
     } else if (weaponType < 6) {
       for (let dy = 0; dy < 3; dy++) {
-        for (let ddx = -1; ddx <= 1; ddx++) setPixel(grid, wx + ddx, wy + 4 + dy, p.dark);
+        for (let ddx = -1; ddx <= 1; ddx++) setWeaponPixel(grid, wx + ddx, wy + 4 + dy, p.dark);
       }
-      setPixel(grid, wx, wy + 3, p.dark);
-      setPixel(grid, wx, wy + 4, p.accent);
+      setWeaponPixel(grid, wx, wy + 3, p.dark);
+      setWeaponPixel(grid, wx, wy + 4, p.accent);
     } else {
       for (let dy = 0; dy < 4; dy++) {
-        for (let ddx = -1; ddx <= 1; ddx++) setPixel(grid, wx + ddx, wy + dy, p.glow);
+        for (let ddx = -1; ddx <= 1; ddx++) setWeaponPixel(grid, wx + ddx, wy + dy, p.glow);
       }
-      setPixel(grid, wx - 2, wy + 1, p.highlight);
-      setPixel(grid, wx + 2, wy + 1, p.highlight);
-      setPixel(grid, wx - 2, wy + 2, p.highlight);
-      setPixel(grid, wx + 2, wy + 2, p.highlight);
+      setWeaponPixel(grid, wx - 2, wy + 1, p.highlight);
+      setWeaponPixel(grid, wx + 2, wy + 1, p.highlight);
+      setWeaponPixel(grid, wx - 2, wy + 2, p.highlight);
+      setWeaponPixel(grid, wx + 2, wy + 2, p.highlight);
     }
   }
 

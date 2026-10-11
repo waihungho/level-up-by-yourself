@@ -9,6 +9,9 @@ import { getSquadLeaderboard, type SquadStats } from "@/lib/squads-read";
 import { getAllTrophies, getChampionAndPlayerLabel, getPastBosses, type RaidBoss, type TrophyTier } from "@/lib/raid/raid-read";
 import { bossByKey } from "@/lib/raid/bosses";
 import { TrophyBadges } from "@/components/TrophyBadges";
+import { getCosmetics, getTitles, type Cosmetics } from "@/lib/shop/shop-read";
+import { titleLabel } from "@/lib/shop/catalog";
+import { auraStyle, nameColorClass } from "@/components/shop/cosmeticStyle";
 
 interface HallEntry {
   boss: RaidBoss;
@@ -84,6 +87,15 @@ export default function RankPage() {
   useEffect(() => {
     if (!loading && !player) router.push("/");
   }, [loading, player, router]);
+
+  const [cosmetics, setCosmetics] = useState<Record<string, Cosmetics>>({});
+  const [titles, setTitles] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!rankings) return;
+    getCosmetics(rankings.top.map((a) => a.id)).then(setCosmetics).catch(() => {});
+    getTitles([...new Set(rankings.top.map((a) => a.playerId))]).then(setTitles).catch(() => {});
+  }, [rankings]);
 
   useEffect(() => {
     if (!rankings) return;
@@ -278,7 +290,7 @@ export default function RankPage() {
                   </div>
 
                   {/* Sprite */}
-                  <div className="shrink-0">
+                  <div className="shrink-0" style={{ filter: auraStyle(cosmetics[agent.id]?.aura) }}>
                     <PixelSprite
                       spriteSeed={agent.spriteSeed}
                       role={agent.role}
@@ -289,7 +301,7 @@ export default function RankPage() {
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm font-bold text-white truncate">
+                      <span className={`font-mono text-sm font-bold truncate ${nameColorClass(cosmetics[agent.id]?.namecolor) || "text-white"}`}>
                         {agent.name}
                       </span>
                       <span
@@ -307,6 +319,11 @@ export default function RankPage() {
                       <span className="font-mono text-[10px] text-gray-500">
                         {shortWallet(agent.playerId)}
                       </span>
+                      {titles[agent.playerId] && (
+                        <span className="font-mono text-[9px] px-1 rounded bg-yellow-900/40 text-yellow-300 border border-yellow-700/50">
+                          {titleLabel(titles[agent.playerId])}
+                        </span>
+                      )}
                       <span className="text-gray-700">·</span>
                       <span
                         className={`font-mono text-[10px] ${CATEGORY_COLORS[topCategory]}`}

@@ -6,32 +6,40 @@ interface ParsedTransferTx {
   meta?: { err: unknown } | null;
   transaction: {
     message: {
-      instructions: Array<{ program?: string; parsed?: { type?: string; info?: { source?: string; destination?: string; lamports?: number } } }>;
+      instructions: Array<{ program?: string; parsed?: string | { type?: string; info?: { source?: string; destination?: string; lamports?: number } } }>;
     };
   };
 }
 
-/** Pure check: a successful, recent system transfer of at least minLamports from payer to treasury. */
+/**
+ * Pure check: a successful, recent system transfer of at least minLamports from payer to treasury,
+ * and — when `memo` is given — a memo instruction with exactly that purpose.
+ */
 export function checkTransfer(
   tx: ParsedTransferTx | null,
-  opts: { payer: string; treasury: string; minLamports: number; nowSec: number; maxAgeSec: number }
+  opts: { payer: string; treasury: string; minLamports: number; nowSec: number; maxAgeSec: number; memo?: string }
 ): boolean {
   if (!tx || !tx.meta || tx.meta.err) return false;
   if (!tx.blockTime || opts.nowSec - tx.blockTime > opts.maxAgeSec) return false;
-  return tx.transaction.message.instructions.some(
-    (ix) =>
+  const ixs = tx.transaction.message.instructions;
+  const paid = ixs.some((ix) => {
+    const p = typeof ix.parsed === "object" ? ix.parsed : undefined;
+    return (
       ix.program === "system" &&
-      ix.parsed?.type === "transfer" &&
-      ix.parsed.info?.source === opts.payer &&
-      ix.parsed.info?.destination === opts.treasury &&
-      (ix.parsed.info?.lamports ?? 0) >= opts.minLamports
-  );
+      p?.type === "transfer" &&
+      p.info?.source === opts.payer &&
+      p.info?.destination === opts.treasury &&
+      (p.info?.lamports ?? 0) >= opts.minLamports
+    );
+  });
+  if (!paid) return false;
+  return opts.memo === undefined || ixs.some((ix) => ix.program === "spl-memo" && ix.parsed === opts.memo);
 }
 
 const MAX_PAYMENT_AGE_SEC = 15 * 60;
 
 /** Verifies on-chain that `signature` is a confirmed transfer of `minSol` from `payer` to the treasury. */
-export async function verifySolPayment(input: { signature: string; payer: string; minSol: number }): Promise<boolean> {
+export async function verifySolPayment(input: { signature: string; payer: string; minSol: number; memo?: string }): Promise<boolean> {
   const rpc = process.env.NEXT_PUBLIC_SOLANA_RPC_URL;
   if (!rpc) return false;
   const connection = new Connection(rpc, "confirmed");
@@ -42,5 +50,6 @@ export async function verifySolPayment(input: { signature: string; payer: string
     minLamports: Math.round(input.minSol * LAMPORTS_PER_SOL),
     nowSec: Math.floor(Date.now() / 1000),
     maxAgeSec: MAX_PAYMENT_AGE_SEC,
+    memo: input.memo,
   });
 }

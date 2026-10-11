@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RaidBanner } from "@/components/RaidBanner";
 import { WhatsNewBanner } from "@/components/WhatsNewBanner";
+import { GemChip } from "@/components/GemChip";
 
 const DONATION_SOL = 0.05;
 
@@ -63,6 +64,7 @@ export default function Dashboard() {
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-mono font-bold text-white">Level Up by Yourself</h1>
         </div>
+        <GemChip />
         <Link
           href="/seeker-task"
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-yellow-400 bg-yellow-500/10 border-yellow-500/30 hover:bg-yellow-500/20 hover:border-yellow-400/50 hover:shadow-[0_0_12px_rgba(255,215,0,0.25)] transition-all shrink-0"
@@ -119,6 +121,12 @@ export default function Dashboard() {
           className="flex-1 text-center px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-mono rounded transition-colors"
         >
           Summon Agent
+        </Link>
+        <Link
+          href="/shop"
+          className="flex-1 text-center px-4 py-3 bg-gradient-to-r from-purple-700 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-500 text-white font-mono rounded transition-colors"
+        >
+          💎 Shop
         </Link>
       </div>
       <div className="mt-3 text-center">

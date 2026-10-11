@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { PixelSprite } from "@/components/PixelSprite";
 import type { AgentWithDimensions } from "@/lib/types";
 import { HpBar } from "./HpBar";
+import { weaponTint } from "@/components/shop/gearStyle";
+import { auraStyle } from "@/components/shop/cosmeticStyle";
 
 interface FighterColumnProps {
   agent: AgentWithDimensions | undefined;
@@ -18,8 +20,8 @@ interface FighterColumnProps {
 export function FighterColumn({ agent, hp, maxHp, damage, align = "left", size = 72, children }: FighterColumnProps) {
   return (
     <div className="space-y-1">
-      <div className={`flex justify-center ${damage ? "animate-shakeHit" : ""}`}>
-        {agent && <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={size} />}
+      <div className={`flex justify-center ${damage ? "animate-shakeHit" : ""}`} style={{ filter: auraStyle(agent?.aura) }}>
+        {agent && <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={size} weaponTint={weaponTint(agent.gear)} />}
       </div>
       <HpBar name={agent?.name ?? ""} hp={hp} maxHp={maxHp} align={align} floater={damage || null} />
       {children}

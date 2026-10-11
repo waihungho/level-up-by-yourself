@@ -36,3 +36,11 @@ describe("calculateGrowth", () => {
     expect(highTotal).toBeGreaterThan(lowTotal);
   });
 });
+
+describe("effectiveMultiplier", () => {
+  it("doubles the ability-score multiplier while a Training Scroll is active", async () => {
+    const { effectiveMultiplier } = await import("../daily-growth");
+    expect(effectiveMultiplier(150, false)).toBe(1.5);
+    expect(effectiveMultiplier(150, true)).toBe(3);
+  });
+});

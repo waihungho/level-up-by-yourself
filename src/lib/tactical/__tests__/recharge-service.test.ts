@@ -56,4 +56,10 @@ describe("rechargeFights", () => {
     expect((await rechargeFights({ walletAddress: wallet, agentId: foreign, signature: "s" }, { verify: valid })).status).toBe(403);
     expect((await rechargeFights({ walletAddress: wallet, agentId: agentIds[0] }, { verify: valid })).status).toBe(400);
   });
+
+  it("asks for a recharge payment carrying this agent's purpose memo", async () => {
+    const calls: unknown[] = [];
+    await rechargeFights({ walletAddress: wallet, agentId: agentIds[0], signature: "sig-memo" }, { verify: async (x) => (calls.push(x), true) });
+    expect(calls).toEqual([{ signature: "sig-memo", payer: wallet, minSol: 0.05, memo: `levelup:recharge:${agentIds[0]}` }]);
+  });
 });

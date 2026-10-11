@@ -1,4 +1,6 @@
 import { applyAgentGrowth, getPlayerByWallet } from "@/lib/db";
+import { getAttemptBonusToday, getTitles } from "@/lib/shop/shop-db";
+import { withGear } from "@/lib/shop/gear-db";
 import { getOrBuildSquad, strongestAgent } from "@/lib/squads";
 import { fail, runDeferred, usedToday, withinLimitAfterCreate, type ModeHandler, type ServiceDeps, type ServiceResult } from "@/lib/tactical/service-common";
 import { squadGrowth, type SquadAction } from "@/lib/tactical/squad";
@@ -20,6 +22,11 @@ function bestHit(state: RaidState): number {
     const attackerFirst = ids.has(r.firstAttacker);
     return Math.max(best, attackerFirst ? r.firstDamage : r.secondDamage);
   }, 0);
+}
+
+/** Base daily raid attempts plus any Raid Tickets bought today. */
+async function raidLimitToday(playerId: string): Promise<number> {
+  return MAX_RAID_ATTEMPTS + (await getAttemptBonusToday({ playerId, mode: "raid" }));
 }
 
 export const raidHandler: ModeHandler<RaidSessionState> = {
@@ -53,7 +60,8 @@ export async function startRaidAttempt(player: Player, deps: ServiceDeps): Promi
   if (!def) return fail(500, "internal");
 
   const used = () => usedToday(countRaidAttemptsToday(player.id), deps.store, { playerId: player.id, mode: "raid" });
-  if ((await used()) >= MAX_RAID_ATTEMPTS) return fail(429, "raid_limit_reached");
+  const limit = await raidLimitToday(player.id);
+  if ((await used()) >= limit) return fail(429, "raid_limit_reached");
 
   let attackers = await getOrBuildSquad(player.id);
   let solo = false;
@@ -65,10 +73,11 @@ export async function startRaidAttempt(player: Player, deps: ServiceDeps): Promi
   }
 
   const ctx = { def, stats: boss.stats, maxHp: boss.maxHp, hpAtStart: boss.hpRemaining, solo };
-  const state: RaidSessionState = { ...createRaidAttempt({ playerId: player.id, agents: attackers }, ctx, deps.rng), bossId: boss.id, label: attackers[0].name };
+  const fighters = await withGear(attackers);
+  const state: RaidSessionState = { ...createRaidAttempt({ playerId: player.id, agents: fighters }, ctx, deps.rng), bossId: boss.id, label: fighters[0].name };
   const session = await deps.store.create({ mode: "raid", playerId: player.id, attackerId: null, defenderId: null, state });
-  if (!(await withinLimitAfterCreate(session, used, MAX_RAID_ATTEMPTS, deps))) return fail(429, "raid_limit_reached");
-  return { status: 200, body: { sessionId: session.id, state, attackers, defenders: [bossAgent(def)] } };
+  if (!(await withinLimitAfterCreate(session, used, limit, deps))) return fail(429, "raid_limit_reached");
+  return { status: 200, body: { sessionId: session.id, state, attackers: fighters, defenders: [bossAgent(def)] } };
 }
 
 /** Resumes a payout that failed or was interrupted (cheap check; runs deferred when possible). */
@@ -88,12 +97,14 @@ export async function getRaidView(input: { walletAddress?: string }, deps: Pick<
   const boss = active ?? (await getLatestBoss());
   if (!boss) return { status: 200, body: { boss: null } };
   const def = bossByKey(boss.bossKey);
-  const [standings, recentHits, attemptsUsed] = await Promise.all([
+  const [standings, recentHits, attemptsUsed, maxAttempts] = await Promise.all([
     getRaidStandings(boss.id, player?.id ?? null, 20),
     getRecentHits(boss.id, 15),
     player ? countRaidAttemptsToday(player.id) : Promise.resolve(0),
+    player ? raidLimitToday(player.id) : Promise.resolve(MAX_RAID_ATTEMPTS),
   ]);
   const phase = phaseFor(boss.hpRemaining, boss.maxHp);
+  const titles = await getTitles(standings.top.map((c) => c.playerId));
   return {
     status: 200,
     body: {
@@ -105,9 +116,10 @@ export async function getRaidView(input: { walletAddress?: string }, deps: Pick<
       participants: standings.participants,
       myRank: standings.me?.rank ?? null,
       myDamage: standings.me?.damage ?? 0,
-      attemptsLeft: player ? Math.max(0, MAX_RAID_ATTEMPTS - attemptsUsed) : null,
-      maxAttempts: MAX_RAID_ATTEMPTS,
+      attemptsLeft: player ? Math.max(0, maxAttempts - attemptsUsed) : null,
+      maxAttempts,
       recentHits,
+      titles,
     },
   };
 }

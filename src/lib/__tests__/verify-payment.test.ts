@@ -5,7 +5,7 @@ const payer = "Payer111111111111111111111111111111111111111";
 const treasury = "Treasury1111111111111111111111111111111111111";
 const now = 1_800_000_000;
 
-function tx(over: { err?: unknown; blockTime?: number; source?: string; destination?: string; lamports?: number } = {}) {
+function tx(over: { err?: unknown; blockTime?: number; source?: string; destination?: string; lamports?: number; memo?: string | null } = {}) {
   return {
     blockTime: over.blockTime ?? now - 30,
     meta: { err: over.err ?? null },
@@ -13,6 +13,7 @@ function tx(over: { err?: unknown; blockTime?: number; source?: string; destinat
       message: {
         instructions: [
           { program: "system", parsed: { type: "transfer", info: { source: over.source ?? payer, destination: over.destination ?? treasury, lamports: over.lamports ?? 50_000_000 } } },
+          ...(over.memo ? [{ program: "spl-memo", parsed: over.memo }] : []),
         ],
       },
     },
@@ -36,5 +37,13 @@ describe("checkTransfer", () => {
   });
   it("rejects transactions older than the window", () => {
     expect(checkTransfer(tx({ blockTime: now - 901 }), opts)).toBe(false);
+  });
+
+  it("requires the exact purpose memo when one is asked for", () => {
+    const withMemo = { ...opts, memo: "levelup:gems:starter" };
+    expect(checkTransfer(tx({ memo: "levelup:gems:starter" }), withMemo)).toBe(true);
+    expect(checkTransfer(tx({ memo: null }), withMemo)).toBe(false);
+    expect(checkTransfer(tx({ memo: "levelup:recharge:a1" }), withMemo)).toBe(false);
+    expect(checkTransfer(tx({ memo: "levelup:gems:whale" }), withMemo)).toBe(false);
   });
 });

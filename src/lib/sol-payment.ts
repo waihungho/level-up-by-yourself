@@ -4,13 +4,22 @@ import {
   Transaction,
   SystemProgram,
   LAMPORTS_PER_SOL,
+  TransactionInstruction,
 } from "@solana/web3.js";
 import { TREASURY_WALLET } from "./constants";
 
+/** SPL Memo program: tags a payment with its purpose so the server can tell payments apart. */
+export const MEMO_PROGRAM_ID = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
+
+/**
+ * Transfer of `solAmount` to the treasury. Server-verified purchases pass a `memo`
+ * (e.g. "levelup:gems:starter") so one payment can't be redeemed for something else.
+ */
 export async function createPaymentTransaction(
   connection: Connection,
   payerPublicKey: PublicKey,
-  solAmount: number
+  solAmount: number,
+  memo?: string
 ): Promise<Transaction> {
   const transaction = new Transaction().add(
     SystemProgram.transfer({
@@ -19,6 +28,9 @@ export async function createPaymentTransaction(
       lamports: Math.round(solAmount * LAMPORTS_PER_SOL),
     })
   );
+  if (memo) {
+    transaction.add(new TransactionInstruction({ programId: MEMO_PROGRAM_ID, keys: [], data: Buffer.from(memo, "utf8") }));
+  }
   const { blockhash } = await connection.getLatestBlockhash();
   transaction.recentBlockhash = blockhash;
   transaction.feePayer = payerPublicKey;

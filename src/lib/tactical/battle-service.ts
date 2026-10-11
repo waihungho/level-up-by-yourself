@@ -10,6 +10,8 @@ import {
 } from "@/lib/db";
 import type { AgentWithDimensions, Player } from "@/lib/types";
 import { parseAction } from "./battle-service-actions";
+import { getAttemptBonusToday } from "@/lib/shop/shop-db";
+import { withGear } from "@/lib/shop/gear-db";
 import { createBattle, resolveRound, runAuto, toBattleLog } from "./engine";
 import { fail, usedToday, withinLimitAfterCreate, type BattleStateBase, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
 import type { BattleSession, SessionMode, SessionStore } from "./session-store";
@@ -136,9 +138,13 @@ async function startTacticalBattle(
   const ownAgents = defender ? [attacker.id, defender.id] : [attacker.id];
   for (const id of ownAgents) await resolveStaleSessions({ playerId: player.id, agentId: id, modes: TACTICAL_MODES }, deps);
 
-  const limit = battleMode === "pvp" ? MAX_PVP_FIGHTS : MAX_TRAINING_FIGHTS;
+  // PvP refills add bought fights per agent; training refills reset via the recharge table instead.
+  const baseLimit = battleMode === "pvp" ? MAX_PVP_FIGHTS : MAX_TRAINING_FIGHTS;
+  const limits = new Map<string, number>();
   for (const id of ownAgents) {
+    const limit = baseLimit + (battleMode === "pvp" ? await getAttemptBonusToday({ agentId: id, mode: "pvp" }) : 0);
     if ((await fightsUsed(id, battleMode, deps.store)) >= limit) return fail(429, "fight_limit_reached");
+    limits.set(id, limit);
   }
 
   if (battleMode === "pvp") {
@@ -149,7 +155,8 @@ async function startTacticalBattle(
   }
   if (!defender || !attacker.dimensions.length || !defender.dimensions.length) return fail(500, "internal");
 
-  const state = createBattle(attacker, defender, battleMode, deps.rng);
+  const [gearedAttacker, gearedDefender] = await withGear([attacker, defender]);
+  const state = createBattle(gearedAttacker, gearedDefender, battleMode, deps.rng);
   const session = await deps.store.create({
     mode: battleMode,
     playerId: player.id,
@@ -158,9 +165,9 @@ async function startTacticalBattle(
     state,
   });
   for (const id of ownAgents) {
-    if (!(await withinLimitAfterCreate(session, () => fightsUsed(id, battleMode, deps.store), limit, deps))) return fail(429, "fight_limit_reached");
+    if (!(await withinLimitAfterCreate(session, () => fightsUsed(id, battleMode, deps.store), limits.get(id)!, deps))) return fail(429, "fight_limit_reached");
   }
-  return { status: 200, body: { sessionId: session.id, state, attacker, defender } };
+  return { status: 200, body: { sessionId: session.id, state, attacker: gearedAttacker, defender: gearedDefender } };
 }
 
 type ExtraStarter = (player: Player, deps: ServiceDeps) => Promise<ServiceResult>;

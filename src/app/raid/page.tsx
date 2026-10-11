@@ -7,6 +7,7 @@ import { SquadBattle, type SquadResult } from "@/components/SquadBattle";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { useRaidLive } from "@/hooks/useRaidLive";
 import { GENERIC_START_ERROR, NETWORK_ERROR, postStart } from "@/lib/battle-client";
+import { titleLabel } from "@/lib/shop/catalog";
 import type { RaidState } from "@/lib/raid/raid-engine";
 import type { AgentWithDimensions } from "@/lib/types";
 
@@ -193,6 +194,11 @@ export default function RaidPage() {
                     <span>
                       <span className="text-gray-500 mr-2">#{c.rank}</span>
                       {c.label || "Raider"}
+                      {view.titles?.[c.playerId] && (
+                        <span className="ml-1 px-1 rounded text-[9px] bg-yellow-900/40 text-yellow-300 border border-yellow-700/50">
+                          {titleLabel(view.titles[c.playerId])}
+                        </span>
+                      )}
                       {c.isMe && <span className="ml-1 text-purple-300">(you)</span>}
                     </span>
                     <span>{c.damage.toLocaleString()}</span>

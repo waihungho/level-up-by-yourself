@@ -82,3 +82,11 @@ pnpm daily-growth
 - Paid fight recharge: the client sends the payment signature to `/api/battle/recharge`, which verifies the transfer on-chain (`NEXT_PUBLIC_SOLANA_RPC_URL`, treasury, 0.05 SOL, < 15 min old) and records it in `levelup_fight_recharges`.
 - The daily-growth cron also sweeps battle sessions abandoned for 30+ minutes and retries unfinished raid payouts.
 - To spawn the first boss right after deploying, call the cron once: `curl -H "Authorization: Bearer $CRON_SECRET" https://<app>/api/cron/raid-weekly`.
+
+## Gem Shop & Equipment
+
+- Spec: `docs/superpowers/specs/2026-10-11-gem-shop-equipment-design.md`. Code: `src/lib/shop/*` (catalog, gems, shop-db/read, gear-db/read, shop-service, gear-service), routes `/api/shop`, `/api/shop/gems`, `/api/shop/buy`, `/api/shop/gear`, page `/shop`, `EquipmentPanel` on `/agents/[id]`.
+- Gems are off-chain points: `levelup_gem_wallets` + `levelup_gem_ledger` (unique `ref` = idempotency) changed only via `levelup_gems_apply` (service role; refuses negative balances). Gem packs are verified on-chain (`verifySolPayment`) and credited once per signature.
+- Prices/effects live in `src/lib/shop/catalog.ts` (no caps by design). Gear bonuses apply at battle time in `toSide` (`gearBonus`); fighters get gear via `withGear()`.
+- Elixir growth logs use `narrative = "elixir:<itemId>"`; the daily growth job only treats `narrative IS NULL` logs as "already grown today".
+- Migrations `008_gem_shop.sql` and `009_equipment.sql` must be applied in prod before deploying the shop.

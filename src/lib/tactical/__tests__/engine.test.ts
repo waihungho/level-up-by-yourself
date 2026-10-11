@@ -291,3 +291,17 @@ describe("masteryMultiplier", () => {
     expect(masteryMultiplier({ manualActions: 1, manualCounters: 10 })).toBe(1.5);
   });
 });
+
+describe("gear in battle", () => {
+  it("adds weapon/armor/relic bonuses to category averages and speed, but not HP", async () => {
+    const { toSide } = await import("../engine");
+    const plain = toSide(makeAgent("g", "future", 150));
+    const geared = toSide({ ...makeAgent("g", "future", 150), gear: { weapon: 2, armor: 3, relic: 4 } });
+    expect(geared.catAvg.Technical - plain.catAvg.Technical).toBeCloseTo(9);
+    expect(geared.catAvg.Physical - plain.catAvg.Physical).toBeCloseTo(3);
+    expect(geared.catAvg.Social - plain.catAvg.Social).toBeCloseTo(7);
+    expect(geared.speed - plain.speed).toBeCloseTo(8);
+    expect(geared.maxHp).toBe(plain.maxHp);
+  });
+});
+

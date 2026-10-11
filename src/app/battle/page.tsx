@@ -6,7 +6,9 @@ import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { PixelSprite } from "@/components/PixelSprite";
 import { TacticalBattle } from "@/components/TacticalBattle";
 import { GENERIC_START_ERROR, NETWORK_ERROR, postStart } from "@/lib/battle-client";
+import { rechargeMemo } from "@/lib/payment-memos";
 import { SquadArena } from "@/components/SquadArena";
+import { GemChip } from "@/components/GemChip";
 import {
   getAgentsWithDimensions,
   getAgentFightsToday,
@@ -56,7 +58,7 @@ const TRAINING_ERRORS: Record<string, string> = {
 };
 
 const PVP_ERRORS: Record<string, string> = {
-  fight_limit_reached: "Your agent has used all 3 PvP fights today.",
+  fight_limit_reached: "Your agent has used all its PvP fights today. Get a PvP Refill in the 💎 Shop.",
   no_opponent: "No opponents available yet. Check back soon!",
   network: NETWORK_ERROR,
 };
@@ -88,6 +90,17 @@ export default function BattlePage() {
   // PvP state
   const [pvpSelected, setPvpSelected] = useState<string | null>(null);
   const [pvpFightsToday, setPvpFightsToday] = useState<Record<string, number>>({});
+  const [pvpBonus, setPvpBonus] = useState<Record<string, number>>({});
+  const pvpMax = (agentId: string) => MAX_PVP_FIGHTS + (pvpBonus[agentId] ?? 0);
+
+  // PvP Refills bought in the shop raise an agent's limit for today.
+  useEffect(() => {
+    if (!publicKey) return;
+    fetch(`/api/shop/limits?wallet=${encodeURIComponent(publicKey.toBase58())}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.pvpBonus && setPvpBonus(d.pvpBonus))
+      .catch(() => {});
+  }, [publicKey]);
   const [pvpLoading, setPvpLoading] = useState(false);
   const [pvpError, setPvpError] = useState<string | null>(null);
   const [pvpBattleLog, setPvpBattleLog] = useState<BattleLog | null>(null);
@@ -209,7 +222,7 @@ export default function BattlePage() {
     if (!publicKey || !connected || !player || recharging) return;
     setRecharging(agentId);
     try {
-      const tx = await createPaymentTransaction(connection, publicKey, RECHARGE_COST_SOL);
+      const tx = await createPaymentTransaction(connection, publicKey, RECHARGE_COST_SOL, rechargeMemo(agentId));
       const signature = await sendTransaction(tx, connection);
       const confirmed = await confirmTransaction(connection, signature);
       if (!confirmed) {
@@ -359,9 +372,12 @@ export default function BattlePage() {
   if (phase === "select") {
     return (
       <main className="min-h-screen bg-gray-950 text-white p-6 pb-32 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-mono font-bold mb-2 text-center">
-          Battle Arena
-        </h1>
+        <div className="relative mb-2">
+          <h1 className="text-2xl font-mono font-bold text-center">Battle Arena</h1>
+          <div className="absolute right-0 top-1">
+            <GemChip />
+          </div>
+        </div>
 
         <div className="flex justify-center gap-2 mb-6" role="tablist">
           {(["duel", "squad"] as const).map((tab) => (
@@ -404,7 +420,7 @@ export default function BattlePage() {
           <div className="grid grid-cols-3 gap-2 mb-4">
             {allAgentsFull.map((agent) => {
               const pvpFights = pvpFightsToday[agent.id] ?? 0;
-              const pvpRemaining = Math.max(0, MAX_PVP_FIGHTS - pvpFights);
+              const pvpRemaining = Math.max(0, pvpMax(agent.id) - pvpFights);
               const disabled = pvpRemaining <= 0;
               const isSelected = pvpSelected === agent.id;
               return (
@@ -434,7 +450,7 @@ export default function BattlePage() {
                     {agent.role}
                   </span>
                   <p className={`font-mono text-[10px] mt-1 ${disabled ? "text-red-400" : "text-gray-500"}`}>
-                    PvP: {pvpRemaining}/{MAX_PVP_FIGHTS}
+                    PvP: {pvpRemaining}/{pvpMax(agent.id)}
                   </p>
                 </div>
               );
@@ -444,7 +460,7 @@ export default function BattlePage() {
           <div className="flex justify-center">
             <button
               onClick={startPvpBattle}
-              disabled={!pvpSelected || pvpLoading || (pvpFightsToday[pvpSelected ?? ""] ?? 0) >= MAX_PVP_FIGHTS}
+              disabled={!pvpSelected || pvpLoading || (pvpFightsToday[pvpSelected ?? ""] ?? 0) >= pvpMax(pvpSelected ?? "")}
               className="px-6 py-2.5 bg-gradient-to-r from-red-700 to-red-500 hover:from-red-600 hover:to-red-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-mono font-bold text-sm rounded-lg transition-all"
             >
               {pvpLoading ? "Searching..." : "Find Opponent and Fight ⚔"}
