@@ -4,18 +4,18 @@ import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { PixelSprite } from "@/components/PixelSprite";
-import { BattlePlayback } from "@/components/BattlePlayback";
+import { TacticalBattle } from "@/components/TacticalBattle";
 import {
   getAgentWithDimensions,
-  saveBattleLog,
   getAgentFightsToday,
   rechargeAgentFights,
   getPvpFightsToday,
   getPvpStatsForAgents,
 } from "@/lib/db";
-import { resolveBattle } from "@/lib/battle-engine";
 import { createPaymentTransaction, confirmTransaction } from "@/lib/sol-payment";
 import { DIMENSIONS } from "@/lib/constants";
+import { MASTERY_MAX, MASTERY_PER_COUNTER } from "@/lib/tactical/constants";
+import type { TacticalState } from "@/lib/tactical/types";
 import type { AgentWithDimensions, BattleLog, PvpStats } from "@/lib/types";
 import Link from "next/link";
 
@@ -42,6 +42,28 @@ const ROLE_BADGE: Record<string, string> = {
 
 type Phase = "select" | "battle";
 
+interface TacticalSession {
+  sessionId: string;
+  state: TacticalState;
+  attacker: AgentWithDimensions;
+  defender: AgentWithDimensions;
+}
+
+async function postStart(body: Record<string, unknown>): Promise<{ ok: true; session: TacticalSession } | { ok: false; error: string }> {
+  try {
+    const res = await fetch("/api/battle/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) return { ok: false, error: data.error ?? "internal" };
+    return { ok: true, session: data as TacticalSession };
+  } catch {
+    return { ok: false, error: "network" };
+  }
+}
+
 function getTotalHp(agent: AgentWithDimensions): number {
   return DIMENSIONS.reduce((sum, dim) => {
     const ad = agent.dimensions.find((d) => d.dimensionId === dim.id);
@@ -60,9 +82,9 @@ export default function BattlePage() {
   const [allAgentsFull, setAllAgentsFull] = useState<AgentWithDimensions[]>([]);
   const [fightsToday, setFightsToday] = useState<Record<string, number>>({});
   const [battleLog, setBattleLog] = useState<BattleLog | null>(null);
-  const [playbackDone, setPlaybackDone] = useState(false);
-  const [attackerFull, setAttackerFull] = useState<AgentWithDimensions | null>(null);
-  const [defenderFull, setDefenderFull] = useState<AgentWithDimensions | null>(null);
+  const [tactical, setTactical] = useState<TacticalSession | null>(null);
+  const [trainingError, setTrainingError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
   const [resetTimer, setResetTimer] = useState(getTimeUntilMidnight());
 
   // PvP state
@@ -71,10 +93,8 @@ export default function BattlePage() {
   const [pvpLoading, setPvpLoading] = useState(false);
   const [pvpError, setPvpError] = useState<string | null>(null);
   const [pvpBattleLog, setPvpBattleLog] = useState<BattleLog | null>(null);
-  const [pvpOpponent, setPvpOpponent] = useState<AgentWithDimensions | null>(null);
-  const [pvpAttacker, setPvpAttacker] = useState<AgentWithDimensions | null>(null);
+  const [pvpTactical, setPvpTactical] = useState<TacticalSession | null>(null);
   const [pvpPhase, setPvpPhase] = useState<"select" | "battle">("select");
-  const [pvpPlaybackDone, setPvpPlaybackDone] = useState(false);
   const [pvpMyStats, setPvpMyStats] = useState<PvpStats | null>(null);
 
   useEffect(() => {
@@ -119,43 +139,47 @@ export default function BattlePage() {
   }
 
   async function startBattle() {
-    if (selected.length !== 2) return;
-    const atk = allAgentsFull.find((a) => a.id === selected[0]);
-    const def = allAgentsFull.find((a) => a.id === selected[1]);
-    if (!atk || !def) return;
+    if (selected.length !== 2 || !publicKey || starting) return;
+    const [atkId, defId] = selected;
+    if ((fightsToday[atkId] ?? 0) >= MAX_FIGHTS_PER_DAY || (fightsToday[defId] ?? 0) >= MAX_FIGHTS_PER_DAY) return;
 
-    // Check both agents still have fights remaining
-    const atkRemaining = MAX_FIGHTS_PER_DAY - (fightsToday[atk.id] ?? 0);
-    const defRemaining = MAX_FIGHTS_PER_DAY - (fightsToday[def.id] ?? 0);
-    if (atkRemaining <= 0 || defRemaining <= 0) return;
-
-    // Immediately increment fight counts so UI stays in sync
+    setStarting(true);
+    setTrainingError(null);
+    const result = await postStart({ mode: "training", agentId: atkId, opponentAgentId: defId, walletAddress: publicKey.toBase58() });
+    setStarting(false);
+    if (!result.ok) {
+      setTrainingError(
+        result.error === "fight_limit_reached"
+          ? "One of these agents has no fights left today."
+          : result.error === "network"
+          ? "Network error. Please try again."
+          : "Something went wrong. Please try again."
+      );
+      return;
+    }
     setFightsToday((prev) => ({
       ...prev,
-      [atk.id]: (prev[atk.id] ?? 0) + 1,
-      [def.id]: (prev[def.id] ?? 0) + 1,
+      [atkId]: (prev[atkId] ?? 0) + 1,
+      [defId]: (prev[defId] ?? 0) + 1,
     }));
-
-    setAttackerFull(atk);
-    setDefenderFull(def);
-    const log = resolveBattle(atk, def);
-    await saveBattleLog(log);
-    await refreshAgents();
-    setBattleLog(log);
+    setBattleLog(null);
+    setTactical(result.session);
     setPhase("battle");
   }
 
-  const handlePlaybackComplete = useCallback(() => {
-    setPlaybackDone(true);
-  }, []);
+  const handleTrainingFinished = useCallback(
+    (log: BattleLog) => {
+      setBattleLog(log);
+      refreshAgents();
+    },
+    [refreshAgents]
+  );
 
   function resetBattle() {
     setPhase("select");
     setSelected([]);
-    setAttackerFull(null);
-    setDefenderFull(null);
+    setTactical(null);
     setBattleLog(null);
-    setPlaybackDone(false);
     // Reload fight counts
     (async () => {
       const counts: Record<string, number> = {};
@@ -171,55 +195,42 @@ export default function BattlePage() {
     if (!selectedId || !publicKey) return;
     setPvpLoading(true);
     setPvpError(null);
-    try {
-      const res = await fetch("/api/pvp/battle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          agentId: selectedId,
-          walletAddress: publicKey.toBase58(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (data.error === "fight_limit_reached") {
-          setPvpError("Your agent has used all 3 PvP fights today.");
-          setPvpSelected(null);
-        } else if (data.error === "no_opponent") {
-          setPvpError("No opponents available yet. Check back soon!");
-          setPvpSelected(null);
-        } else {
-          setPvpError("Something went wrong. Please try again.");
-          setPvpSelected(null);
-        }
-        return;
-      }
-      setPvpBattleLog(data.battleLog);
-      setPvpOpponent(data.opponentAgent);
-      setPvpAttacker(data.attackerAgent);
-      setPvpFightsToday((prev) => ({
-        ...prev,
-        [selectedId]: (prev[selectedId] ?? 0) + 1,
-      }));
-      const updatedStats = await getPvpStatsForAgents([selectedId]);
-      setPvpMyStats(updatedStats[selectedId] ?? null);
-      setPvpPhase("battle");
-    } catch {
-      setPvpError("Network error. Please try again.");
+    const result = await postStart({ mode: "pvp", agentId: selectedId, walletAddress: publicKey.toBase58() });
+    setPvpLoading(false);
+    if (!result.ok) {
+      setPvpError(
+        result.error === "fight_limit_reached"
+          ? "Your agent has used all 3 PvP fights today."
+          : result.error === "no_opponent"
+          ? "No opponents available yet. Check back soon!"
+          : result.error === "network"
+          ? "Network error. Please try again."
+          : "Something went wrong. Please try again."
+      );
       setPvpSelected(null);
-    } finally {
-      setPvpLoading(false);
+      return;
     }
+    setPvpTactical(result.session);
+    setPvpBattleLog(null);
+    setPvpFightsToday((prev) => ({
+      ...prev,
+      [selectedId]: (prev[selectedId] ?? 0) + 1,
+    }));
+    setPvpPhase("battle");
   }
+
+  const handlePvpFinished = useCallback(async (log: BattleLog) => {
+    setPvpBattleLog(log);
+    const updatedStats = await getPvpStatsForAgents([log.attackerId]);
+    setPvpMyStats(updatedStats[log.attackerId] ?? null);
+  }, []);
 
   function resetPvp() {
     setPvpPhase("select");
     setPvpSelected(null);
     setPvpBattleLog(null);
-    setPvpOpponent(null);
-    setPvpAttacker(null);
+    setPvpTactical(null);
     setPvpMyStats(null);
-    setPvpPlaybackDone(false);
     setPvpError(null);
   }
 
@@ -265,14 +276,27 @@ export default function BattlePage() {
     );
   }
 
+  function renderMastery(log: BattleLog) {
+    if (!log.manualActions) return null;
+    const counters = log.rounds.filter((r) => r.countered).length;
+    if (counters === 0) return null;
+    const pct = Math.round((Math.min(1 + MASTERY_PER_COUNTER * counters, MASTERY_MAX) - 1) * 100);
+    return (
+      <p className="text-center font-mono text-xs text-yellow-300">
+        Counters: {counters} → +{pct}% growth
+      </p>
+    );
+  }
+
   if (loading || !player) return null;
 
   // --------------------------------------------------
   // PvP Battle Phase
   // --------------------------------------------------
-  if (pvpPhase === "battle" && pvpBattleLog && pvpOpponent && pvpAttacker && phase === "select") {
-    const myAgentId = pvpBattleLog.attackerId;
-    const didWin = pvpBattleLog.winnerId === myAgentId;
+  if (pvpPhase === "battle" && pvpTactical && publicKey && phase === "select") {
+    const pvpOpponent = pvpTactical.defender;
+    const pvpAttacker = pvpTactical.attacker;
+    const didWin = pvpBattleLog?.winnerId === pvpAttacker.id;
 
     return (
       <main className="min-h-screen bg-gray-950 text-white p-4 pb-32 max-w-2xl mx-auto">
@@ -281,14 +305,16 @@ export default function BattlePage() {
           vs {pvpOpponent.name} ({pvpOpponent.role})
         </p>
 
-        <BattlePlayback
-          battleLog={pvpBattleLog}
+        <TacticalBattle
+          sessionId={pvpTactical.sessionId}
+          initialState={pvpTactical.state}
           attacker={pvpAttacker}
           defender={pvpOpponent}
-          onComplete={() => setPvpPlaybackDone(true)}
+          walletAddress={publicKey.toBase58()}
+          onFinished={handlePvpFinished}
         />
 
-        {pvpPlaybackDone && (
+        {pvpBattleLog && (
           <div className="mt-3 space-y-3">
             <div className={`text-center py-3 rounded-lg font-mono font-bold text-lg ${
               didWin
@@ -319,6 +345,7 @@ export default function BattlePage() {
               )}
             </p>
 
+            {renderMastery(pvpBattleLog)}
             {renderGrowth(pvpBattleLog.attackerGrowth, pvpAttacker.name)}
             {renderGrowth(pvpBattleLog.defenderGrowth, pvpOpponent.name)}
 
@@ -357,7 +384,7 @@ export default function BattlePage() {
             <span className="text-3xl">⚔</span>
           </div>
           <p className="font-mono text-xs text-gray-500 text-center mb-4">
-            Select an agent — we'll find a random opponent from another player
+            Select an agent — we&apos;ll find a random opponent from another player
           </p>
 
           {pvpError && (
@@ -432,12 +459,18 @@ export default function BattlePage() {
             {selected.length === 2 && (
               <button
                 onClick={startBattle}
+                disabled={starting}
                 className="px-5 py-2 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-mono font-bold text-sm rounded-lg transition-all animate-pulseGlow"
               >
                 Fight!
               </button>
             )}
           </div>
+          {trainingError && (
+            <div className="mb-3 px-3 py-2 bg-red-500/10 border border-red-700/30 rounded text-red-400 font-mono text-xs text-center">
+              {trainingError}
+            </div>
+          )}
           <div className="mb-4 px-3 py-2 bg-yellow-500/5 border border-yellow-600/20 rounded-lg flex items-center gap-2">
             <span className="text-yellow-400 text-sm">⚡</span>
             <p className="font-mono text-[10px] text-yellow-400/80">
@@ -542,22 +575,30 @@ export default function BattlePage() {
   // --------------------------------------------------
   // Phase 3: Battle Playback & Results
   // --------------------------------------------------
-  if (phase === "battle" && battleLog && attackerFull && defenderFull) {
+  if (phase === "battle" && tactical && publicKey) {
+    const attackerFull = tactical.attacker;
+    const defenderFull = tactical.defender;
     return (
       <main className="min-h-screen bg-gray-950 text-white p-4 pb-32 max-w-2xl mx-auto">
         <h1 className="text-xl font-mono font-bold mb-3 text-center">
           Battle Arena
         </h1>
 
-        <BattlePlayback
-          battleLog={battleLog}
+        <TacticalBattle
+          sessionId={tactical.sessionId}
+          initialState={tactical.state}
           attacker={attackerFull}
           defender={defenderFull}
-          onComplete={handlePlaybackComplete}
+          walletAddress={publicKey.toBase58()}
+          onFinished={handleTrainingFinished}
         />
 
-        {playbackDone && (
+        {battleLog && (
           <div className="mt-3 space-y-2 animate-fadeIn">
+            <div className="text-center font-mono font-bold text-lg text-green-400">
+              {battleLog.winnerId === attackerFull.id ? attackerFull.name : defenderFull.name} wins!
+            </div>
+            {renderMastery(battleLog)}
             {renderGrowth(battleLog.attackerGrowth, attackerFull.name)}
             {renderGrowth(battleLog.defenderGrowth, defenderFull.name)}
 
