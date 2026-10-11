@@ -23,18 +23,27 @@ export async function rechargeFights(
 
   if (!(await deps.verify({ signature, payer: walletAddress, minSol: RECHARGE_COST_SOL }))) return fail(402, "payment_invalid");
 
+  const createdAt = await recordRecharge({ agentId, playerId: player.id, ref: signature });
+  if (!createdAt) return fail(409, "signature_used");
+  return { status: 200, body: { rechargedAt: createdAt } };
+}
+
+/**
+ * Records a training-fight reset for an agent (paid SOL recharge or a gem Training Refill).
+ * `ref` is unique (payment signature or `gems:<purchaseId>`); returns the reset time, or null if already used.
+ */
+export async function recordRecharge(input: { agentId: string; playerId: string; ref: string }): Promise<string | null> {
   const createdAt = new Date().toISOString();
   const sb = getWriteClient();
   if (sb) {
     const { error } = await sb
       .from("levelup_fight_recharges")
-      .insert({ agent_id: agentId, player_id: player.id, tx_signature: signature, created_at: createdAt });
+      .insert({ agent_id: input.agentId, player_id: input.playerId, tx_signature: input.ref, created_at: createdAt });
     if (error) {
-      if ((error as { code?: string }).code === "23505") return fail(409, "signature_used");
+      if ((error as { code?: string }).code === "23505") return null;
       throw error;
     }
-  } else if (!memRecordRecharge({ agentId, playerId: player.id, txSignature: signature, createdAt })) {
-    return fail(409, "signature_used");
+    return createdAt;
   }
-  return { status: 200, body: { rechargedAt: createdAt } };
+  return memRecordRecharge({ agentId: input.agentId, playerId: input.playerId, txSignature: input.ref, createdAt }) ? createdAt : null;
 }
