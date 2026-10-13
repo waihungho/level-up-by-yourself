@@ -201,9 +201,8 @@ async function loadOwnedSession(
   walletAddress: string,
   deps: ServiceDeps
 ): Promise<{ session: BattleSession<BattleStateBase> } | ServiceResult> {
-  const session = await deps.store.get<BattleStateBase>(sessionId);
+  const [session, player] = await Promise.all([deps.store.get<BattleStateBase>(sessionId), getPlayerByWallet(walletAddress)]);
   if (!session) return fail(404, "no_session");
-  const player = await getPlayerByWallet(walletAddress);
   if (!player || player.id !== session.playerId) return fail(403, "not_owner");
   return { session };
 }
