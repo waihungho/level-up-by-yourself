@@ -27,7 +27,7 @@ import { createHash } from "node:crypto";
 import bs58 from "bs58";
 import { getAdminSupabase } from "@/lib/supabase-admin";
 import { getAgentWithDimensions, getPlayerByWallet } from "@/lib/db";
-import { getGearForAgents } from "@/lib/shop/gear-read";
+import type { Gear } from "@/lib/shop/catalog";
 import { weaponTint } from "@/components/shop/gearStyle";
 import { NFT_MINT_COST_SOL, TREASURY_WALLET } from "@/lib/constants";
 import { MEMO_PROGRAM_ID } from "@/lib/sol-payment";
@@ -196,12 +196,14 @@ export async function prepareMint(
   umi.use(signerIdentity(createSignerFromKeypair(umi, authority)));
   const asset = generateSigner(umi);
   const assetAddress = asset.publicKey.toString();
-  let tint: string | undefined;
-  try {
-    tint = weaponTint((await getGearForAgents([agent.id]))[agent.id]);
-  } catch {
-    tint = undefined;
+  // Strict read: getGearForAgents returns {} on error, which would bake the wrong colours into
+  // permanent artwork. A failed read fails the request instead.
+  const { data: gearRows, error: gearError } = await sb.from("levelup_agent_gear").select("slot, level").eq("agent_id", agent.id);
+  if (gearError) {
+    console.error("[nft/prepare] gear read failed", gearError);
+    return fail(503, "Could not load this agent's equipment. Try again shortly.");
   }
+  const tint = weaponTint(Object.fromEntries((gearRows ?? []).map((r) => [r.slot, r.level])) as Gear);
   // Includes everything the artwork and metadata depend on, so upload dedup can't reuse stale art.
   const snapshot = buildSnapshot(agent, tint, new Date());
 
