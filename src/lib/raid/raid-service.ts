@@ -35,17 +35,20 @@ export const raidHandler: ModeHandler<RaidSessionState> = {
   auto: (state, rng) => runRaidAuto(state, rng) as RaidSessionState,
   invalidCode: squadInvalidCode,
   async finalize(session, state, deps) {
-    const result = await applyRaidDamage({
-      bossId: state.bossId,
-      playerId: session.playerId,
-      damage: attemptDamage(state),
-      bestHit: bestHit(state),
-      counters: state.counters,
-      label: state.label,
-      createdAt: session.createdAt,
-    });
     const growth = squadGrowth(state).attacker;
-    await Promise.all(Object.entries(growth).map(([agentId, g]) => applyAgentGrowth(agentId, g)));
+    // Damage and growth are independent writes, so they go out together.
+    const [result] = await Promise.all([
+      applyRaidDamage({
+        bossId: state.bossId,
+        playerId: session.playerId,
+        damage: attemptDamage(state),
+        bestHit: bestHit(state),
+        counters: state.counters,
+        label: state.label,
+        createdAt: session.createdAt,
+      }),
+      ...Object.entries(growth).map(([agentId, g]) => applyAgentGrowth(agentId, g)),
+    ]);
     // Paying every raider is slow; never make the killing player's request wait for it.
     if (result.killed) await runDeferred(deps, "raid payout", async () => void (await payoutBoss(state.bossId)));
     return { damage: result.applied, hpRemaining: result.hpRemaining, killed: result.killed, growth };
@@ -54,16 +57,15 @@ export const raidHandler: ModeHandler<RaidSessionState> = {
 
 /** Validates the boss and daily limit, then creates the attempt session. Stale raid sessions are resolved by the caller first. */
 export async function startRaidAttempt(player: Player, deps: ServiceDeps): Promise<ServiceResult> {
-  const boss = await getActiveBoss();
+  const used = () => usedToday(countRaidAttemptsToday(player.id), deps.store, { playerId: player.id, mode: "raid" });
+  // Independent reads run together: each one is a database round trip.
+  const [boss, limit, usedBefore, squad] = await Promise.all([getActiveBoss(), raidLimitToday(player.id), used(), getOrBuildSquad(player.id)]);
   if (!boss) return fail(409, "no_active_boss");
   const def = bossByKey(boss.bossKey);
   if (!def) return fail(500, "internal");
+  if (usedBefore >= limit) return fail(429, "raid_limit_reached");
 
-  const used = () => usedToday(countRaidAttemptsToday(player.id), deps.store, { playerId: player.id, mode: "raid" });
-  const limit = await raidLimitToday(player.id);
-  if ((await used()) >= limit) return fail(429, "raid_limit_reached");
-
-  let attackers = await getOrBuildSquad(player.id);
+  let attackers = squad;
   let solo = false;
   if (!attackers) {
     const best = await strongestAgent(player.id);

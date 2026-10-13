@@ -533,14 +533,14 @@ export async function applyAgentGrowth(agentId: string, growth: Record<number, n
   const sb = getSupabase();
 
   if (sb) {
-    for (const [dimIdStr, delta] of Object.entries(growth)) {
-      const { error } = await sb.rpc("levelup_increment_dimension", {
-        p_agent_id: agentId,
-        p_dimension_id: Number(dimIdStr),
-        p_delta: delta,
-      });
-      if (error) throw error;
-    }
+    // Each increment is atomic and touches its own row, so they can run concurrently.
+    const results = await Promise.all(
+      Object.entries(growth).map(([dimIdStr, delta]) =>
+        sb.rpc("levelup_increment_dimension", { p_agent_id: agentId, p_dimension_id: Number(dimIdStr), p_delta: delta })
+      )
+    );
+    const failed = results.find((r) => r.error);
+    if (failed) throw failed.error;
     return;
   }
 
