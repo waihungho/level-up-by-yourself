@@ -20,6 +20,8 @@ import { getGearForAgents } from "@/lib/shop/gear-read";
 import type { Gear } from "@/lib/shop/catalog";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { announceGemBalance } from "@/lib/shop-client";
+import { MintNftPanel } from "@/components/nft/MintNftPanel";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 const ROLE_COLORS = {
   future: "border-purple-700 bg-purple-900/30",
@@ -145,6 +147,13 @@ export default function AgentDetailPage() {
           }}
         />
       </div>
+
+      {/* NFT (owner only; needs Supabase — demo mode has no server-side agents) */}
+      {isSupabaseConfigured && publicKey && player?.id === agent.playerId && (
+        <div className="mb-6">
+          <MintNftPanel agentId={agent.id} />
+        </div>
+      )}
 
       {/* Dimensions */}
       <div className="bg-gray-900 border border-gray-800 rounded p-4 mb-6">

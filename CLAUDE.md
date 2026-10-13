@@ -91,3 +91,11 @@ pnpm daily-growth
 - Prices/effects live in `src/lib/shop/catalog.ts` (no caps by design). Gear bonuses apply at battle time in `toSide` (`gearBonus`); fighters get gear via `withGear()`.
 - Elixir growth logs use `narrative = "elixir:<itemId>"`; the daily growth job only treats `narrative IS NULL` logs as "already grown today".
 - Migrations `008_gem_shop.sql` and `009_equipment.sql` must be applied in prod before deploying the shop.
+
+## Agent NFTs
+
+- Spec: `docs/superpowers/specs/2026-10-13-agent-nft-mint-design.md`. Code: `src/lib/nft/*` (metadata, render-avatar, verify-mint, eligibility, mint-service, nft-read), routes `/api/nft/{prepare,confirm}`, `MintNftPanel` on `/agents/[id]` (owner only).
+- 0.05 SOL (`NFT_MINT_COST_SOL`) + Metaplex Core `create` go in **one** transaction built and partially signed by `/api/nft/prepare`; never split them. Memo `levelup:nft:<agentId>` keeps the payment from being redeemed elsewhere.
+- One NFT per agent, frozen snapshot (agent keeps growing). Image = sprite rendered server-side to a 512×512 PNG (`renderAvatarPng`); attributes = role, 5 category totals, Total Power, all 50 dimensions. Trait names are permanent once minted.
+- Setup: apply `010_nft_mints.sql`; fund a mint-authority keypair (pays Irys uploads); `NFT_MINT_AUTHORITY_SECRET=<base58> node scripts/create-nft-collection.mjs --network devnet|mainnet [--yes]`; set `NFT_MINT_AUTHORITY_SECRET` (sensitive), `NEXT_PUBLIC_NFT_COLLECTION_ADDRESS`, optionally `SOLANA_RPC_URL` / `IRYS_ADDRESS` in Vercel.
+- Metaplex deps are pinned to umi 1.5.x via `overrides` in `pnpm-workspace.yaml` (umi 1.6 needs a newer web3.js); `@noble/hashes@1.8.0` is a direct dep for mpl-core's peer. Don't bump them casually.

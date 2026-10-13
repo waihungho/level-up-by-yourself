@@ -1,7 +1,7 @@
 import { Connection, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { TREASURY_WALLET } from "./constants";
 
-interface ParsedTransferTx {
+export interface ParsedTransferTx {
   blockTime?: number | null;
   meta?: { err: unknown } | null;
   transaction: {

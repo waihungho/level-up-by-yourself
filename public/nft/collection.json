@@ -1,0 +1,8 @@
+{
+  "name": "Level Up By Yourself",
+  "symbol": "LUBY",
+  "description": "AI agents summoned, trained and battle-tested in Level Up By Yourself. Each NFT freezes an agent's pixel avatar and all 50 dimensions at the moment it was minted.",
+  "image": "https://level-up-by-yourself.vercel.app/app_icon.png",
+  "external_url": "https://level-up-by-yourself.vercel.app",
+  "properties": { "files": [{ "uri": "https://level-up-by-yourself.vercel.app/app_icon.png", "type": "image/png" }], "category": "image" }
+}

@@ -1,2 +1,24 @@
 onlyBuiltDependencies:
   - esbuild
+# Metaplex: keep the umi family on 1.5.x (the versions feed-the-chicken mints with on mainnet).
+# umi 1.6 needs a @solana/web3.js with MessageV1, newer than our 1.98. mpl-core also breaks on
+# @noble/hashes 2.x (no ./sha3 export), so @noble/hashes@1.8.0 is a direct dep to satisfy its peer.
+overrides:
+  "@metaplex-foundation/umi": 1.5.1
+  "@metaplex-foundation/umi-bundle-defaults": 1.5.1
+  "@metaplex-foundation/umi-web3js-adapters": 1.5.1
+  "@metaplex-foundation/umi-downloader-http": 1.5.1
+  "@metaplex-foundation/umi-eddsa-web3js": 1.5.1
+  "@metaplex-foundation/umi-http-fetch": 1.5.1
+  "@metaplex-foundation/umi-options": 1.5.1
+  "@metaplex-foundation/umi-program-repository": 1.5.1
+  "@metaplex-foundation/umi-public-keys": 1.5.1
+  "@metaplex-foundation/umi-rpc-chunk-get-accounts": 1.5.1
+  "@metaplex-foundation/umi-rpc-web3js": 1.5.1
+  "@metaplex-foundation/umi-serializer-data-view": 1.5.1
+  "@metaplex-foundation/umi-serializers": 1.5.1
+  "@metaplex-foundation/umi-serializers-core": 1.5.1
+  "@metaplex-foundation/umi-serializers-encodings": 1.5.1
+  "@metaplex-foundation/umi-serializers-numbers": 1.5.1
+  "@metaplex-foundation/umi-transaction-factory-web3js": 1.5.1
+  "@metaplex-foundation/umi-uploader-irys": 1.5.0

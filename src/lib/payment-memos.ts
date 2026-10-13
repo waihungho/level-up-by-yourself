@@ -11,3 +11,7 @@ export function gemPackMemo(packId: string): string {
 export function rechargeMemo(agentId: string): string {
   return `levelup:recharge:${agentId}`;
 }
+
+export function nftMintMemo(agentId: string): string {
+  return `levelup:nft:${agentId}`;
+}
