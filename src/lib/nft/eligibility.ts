@@ -10,13 +10,17 @@ export interface NftMint {
   assetAddress: string;
   status: "pending" | "confirmed";
   createdAt: string;
+  /** When /prepare handed out the transaction; null if it never got that far. */
+  txBuiltAt: string | null;
   txSignature: string | null;
 }
 
 /**
- * How long a `pending` reservation blocks the agent. Must match `interval '3 minutes'` in
- * levelup_reserve_nft_mint. It has to outlast a blockhash's validity window (~60-150s), so an
- * abandoned transaction can no longer land once its reservation is reclaimed.
+ * How long the button treats a `pending` reservation as live, counted from when its transaction
+ * was built. A courtesy only: the server reclaims a reservation solely once the chain proves its
+ * transaction can't land (asset absent, blockhash expired), and answers 409 until then. Kept
+ * longer than a blockhash's validity window (~60-150s) so the two rarely disagree. Also how long
+ * mint-service waits before reclaiming a reservation whose transaction was never built.
  */
 export const MINT_RESERVATION_TTL_MS = 3 * 60 * 1000;
 
@@ -32,8 +36,7 @@ export function canMint(mint: NftMint | null, now: number = Date.now()): MintEli
   if (mint?.status === "confirmed") {
     return { ok: false, reason: "already_minted", message: "This agent has already been minted." };
   }
-  // Strict `<=`, mirroring the SQL's `created_at < now() - interval '3 minutes'`.
-  if (mint?.status === "pending" && now - new Date(mint.createdAt).getTime() <= MINT_RESERVATION_TTL_MS) {
+  if (mint?.status === "pending" && now - Date.parse(mint.txBuiltAt ?? mint.createdAt) <= MINT_RESERVATION_TTL_MS) {
     return { ok: false, reason: "mint_pending", message: "A mint for this agent is still confirming. Try again in a few minutes." };
   }
   return { ok: true };

@@ -1,8 +1,10 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Transaction } from "@solana/web3.js";
+import bs58 from "bs58";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { canMint, type MintPhase, type NftMint } from "@/lib/nft/eligibility";
+import { buildMintAuthMessage } from "@/lib/nft/mint-auth";
 import { getNftMint } from "@/lib/nft/nft-read";
 
 /**
@@ -13,7 +15,16 @@ import { getNftMint } from "@/lib/nft/nft-read";
 
 const MAX_CONFIRM_ATTEMPTS = 10;
 const CONFIRM_RETRY_MS = 3_000;
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** POSTs JSON without retrying (a retried prepare would reserve again); a bad body reads as {}. */
+async function postNft(path: string, body: Record<string, string>): Promise<{ ok: boolean; status: number; data: Record<string, unknown> }> {
+  const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return { ok: res.ok, status: res.status, data: await res.json().catch(() => ({})) };
+}
 
 export interface MintNftState {
   mint: NftMint | null;
@@ -25,14 +36,8 @@ export interface MintNftState {
   start: () => Promise<void>;
 }
 
-async function postConfirm(body: Record<string, string>): Promise<{ status: number; error?: string }> {
-  const res = await fetch("/api/nft/confirm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  const data = await res.json().catch(() => ({}));
-  return { status: res.status, error: data.error };
-}
-
-export function useMintNft(agentId: string): MintNftState {
-  const { publicKey, connection, sendTransaction } = useUnifiedWallet();
+export function useMintNft(agentId: string, confirmRetryMs = CONFIRM_RETRY_MS): MintNftState {
+  const { publicKey, connection, sendTransaction, signMessage } = useUnifiedWallet();
   const [mint, setMint] = useState<NftMint | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [phase, setPhase] = useState<MintPhase>("idle");
@@ -54,7 +59,7 @@ export function useMintNft(agentId: string): MintNftState {
     let cancelled = false;
     refresh().then(async (m) => {
       if (cancelled || !wallet || m?.status !== "pending") return;
-      const res = await postConfirm({ assetAddress: m.assetAddress, wallet }).catch(() => null);
+      const res = await postNft("/api/nft/confirm", { assetAddress: m.assetAddress, wallet }).catch(() => null);
       if (!cancelled && res?.status === 200) await refresh();
     });
     return () => {
@@ -83,58 +88,76 @@ export function useMintNft(agentId: string): MintNftState {
     [refresh]
   );
 
+  /** Phase 2: the tx is broadcast; ask the server to verify it until it's visible on chain. */
+  const pollConfirm = useCallback(
+    async (assetAddress: string, payer: string, signature: string) => {
+      setPhase("confirming");
+      for (let attempt = 1; attempt <= MAX_CONFIRM_ATTEMPTS; attempt++) {
+        const res = await postNft("/api/nft/confirm", { assetAddress, wallet: payer, signature }).catch(() => null);
+        // Exactly 200: 202 ("not visible yet") also counts as res.ok.
+        if (res?.status === 200) {
+          setPhase("done");
+          await refresh();
+          return;
+        }
+        // Only 202 (not visible yet) or a network blip is worth asking again about.
+        if (res && res.status !== 202) {
+          fail((res.data.error as string) ?? "The mint could not be confirmed.");
+          return;
+        }
+        if (attempt < MAX_CONFIRM_ATTEMPTS) await sleep(confirmRetryMs);
+      }
+      setPhase("unconfirmed");
+      setError(`Your NFT is still confirming. It is not lost — reopen this page in a moment. Transaction: ${signature}`);
+      void refresh();
+    },
+    [confirmRetryMs, fail, refresh]
+  );
+
   const start = useCallback(async () => {
-    if (!wallet || !publicKey || blockedReason || inFlight.current) return;
+    if (!wallet || blockedReason || inFlight.current) return;
     inFlight.current = true;
     setError(null);
-    let assetAddress: string | null = null;
+    let assetAddress: string;
     let signature: string;
+    // Phase 1: prepare, sign and broadcast. The in-flight guard only needs to cover this part;
+    // during confirmation the button is disabled by the busy phase.
     try {
       setPhase("preparing");
-      const prep = await fetch("/api/nft/prepare", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallet, agentId }),
-      });
-      const prepBody = await prep.json().catch(() => ({}));
+      // A signed authorization (desktop wallets) earns the normal rate limit; the mobile bridge
+      // can't sign messages, so it gets the stricter unsigned one. Never fabricated.
+      const auth: Record<string, string> = {};
+      if (signMessage) {
+        const message = buildMintAuthMessage(agentId, new Date().toISOString());
+        auth.signedMessage = message;
+        auth.signature = bs58.encode(await signMessage(new TextEncoder().encode(message)));
+      }
+      const prep = await postNft("/api/nft/prepare", { wallet, agentId, ...auth });
       if (!prep.ok) {
-        fail(prepBody.error ?? "Could not start the mint.");
+        fail((prep.data.error as string) ?? "Could not start the mint.");
         return;
       }
-      assetAddress = prepBody.assetAddress as string;
+      assetAddress = prep.data.assetAddress as string;
 
       setPhase("signing");
-      const tx = Transaction.from(Buffer.from(prepBody.transaction as string, "base64"));
-      // sendTransaction (not signTransaction): the mobile bridge only supports sign-and-send,
-      // and both paths preserve the server's partial signatures.
-      signature = await sendTransaction(tx, connection);
+      try {
+        const tx = Transaction.from(Buffer.from(prep.data.transaction as string, "base64"));
+        // sendTransaction (not signTransaction): the mobile bridge only supports sign-and-send,
+        // and both paths preserve the server's partial signatures.
+        signature = await sendTransaction(tx, connection);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "The mint failed.";
+        fail(`${message} If your wallet approved it, the NFT will appear here shortly.`);
+        return;
+      }
     } catch (e) {
-      const message = e instanceof Error ? e.message : "The mint failed.";
-      fail(assetAddress ? `${message} If your wallet approved it, the NFT will appear here shortly.` : message);
+      fail(e instanceof Error ? e.message : "Could not start the mint.");
       return;
     } finally {
       inFlight.current = false;
     }
-
-    setPhase("confirming");
-    for (let attempt = 1; attempt <= MAX_CONFIRM_ATTEMPTS; attempt++) {
-      const res = await postConfirm({ assetAddress: assetAddress!, wallet, signature }).catch(() => null);
-      if (res?.status === 200) {
-        setPhase("done");
-        await refresh();
-        return;
-      }
-      // Only 202 (not visible yet) or a network blip is worth asking again about.
-      if (res && res.status !== 202) {
-        fail(res.error ?? "The mint could not be confirmed.");
-        return;
-      }
-      if (attempt < MAX_CONFIRM_ATTEMPTS) await sleep(CONFIRM_RETRY_MS);
-    }
-    setPhase("unconfirmed");
-    setError(`Your NFT is still confirming. It is not lost — reopen this page in a moment. Transaction: ${signature}`);
-    void refresh();
-  }, [wallet, publicKey, blockedReason, agentId, connection, sendTransaction, fail, refresh]);
+    await pollConfirm(assetAddress, wallet, signature);
+  }, [wallet, blockedReason, signMessage, agentId, connection, sendTransaction, fail, pollConfirm]);
 
   return { mint, loaded, phase, error, blockedReason, start };
 }

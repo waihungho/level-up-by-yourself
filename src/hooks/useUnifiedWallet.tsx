@@ -21,6 +21,8 @@ export interface UnifiedWalletState {
   connection: Connection;
   connect: () => void;
   sendTransaction: (tx: Transaction, conn: Connection) => Promise<string>;
+  /** Desktop only: the mobile bridge has no sign_message, so callers must treat undefined as "can't sign". */
+  signMessage: ((message: Uint8Array) => Promise<Uint8Array>) | undefined;
   disconnect: () => void;
   wallet: ReturnType<typeof useWallet>["wallet"];
 }
@@ -96,10 +98,11 @@ export function UnifiedWalletProvider({ children }: { children: React.ReactNode 
       connection,
       connect,
       sendTransaction,
+      signMessage: mobile ? undefined : browserWallet.signMessage,
       disconnect,
       wallet: browserWallet.wallet,
     }),
-    [publicKey, connected, mobile, connection, connect, sendTransaction, disconnect, browserWallet.wallet]
+    [publicKey, connected, mobile, connection, connect, sendTransaction, browserWallet.signMessage, disconnect, browserWallet.wallet]
   );
 
   return (

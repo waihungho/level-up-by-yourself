@@ -7,7 +7,7 @@ export async function getNftMint(agentId: string): Promise<NftMint | null> {
   if (!sb) return null;
   const { data, error } = await sb
     .from("levelup_nft_mints")
-    .select("agent_id, asset_address, status, created_at, tx_signature")
+    .select("agent_id, asset_address, status, created_at, tx_built_at, tx_signature")
     .eq("agent_id", agentId)
     .in("status", ["pending", "confirmed"])
     .order("created_at", { ascending: false })
@@ -19,6 +19,7 @@ export async function getNftMint(agentId: string): Promise<NftMint | null> {
     assetAddress: data.asset_address,
     status: data.status,
     createdAt: data.created_at,
+    txBuiltAt: data.tx_built_at,
     txSignature: data.tx_signature,
   };
 }

@@ -2,7 +2,7 @@ import type { RoleCategory } from "./types";
 
 type PixelGrid = (string | null)[][];
 
-interface SpriteSeed {
+export interface SpriteSeed {
   bodyType: number;
   headType: number;
   eyeType: number;

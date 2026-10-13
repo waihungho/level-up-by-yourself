@@ -20,7 +20,7 @@ pixel avatar as its image and its dimensions as attributes.
 1. On `/agents/[id]`, the owner sees a **Mint as NFT · 0.05 SOL** panel (hidden for other players' agents and in demo mode).
 2. Clicking it walks through `preparing → signing → confirming → done`, showing progress in the panel.
 3. Once confirmed, the panel shows **Minted** with a Solscan link to the asset; the button is gone.
-4. While a mint is pending (< 3 min old) the button is disabled with "A mint is still confirming".
+4. While a mint is pending (its transaction was built less than 3 minutes ago) the button is disabled with "still confirming". The server stays authoritative and returns 409 until the old transaction provably can't land.
 5. If confirmation polling runs out, the panel shows a non-error "still confirming" state with the signature. The next page load reconciles it.
 
 ## NFT contents
@@ -72,28 +72,39 @@ The image uses the agent's current weapon tint (from gear) so it matches what th
 
 - Partial unique index on `(agent_id) WHERE status IN ('pending','confirmed')`: this is the double-mint guard.
 - RLS: public SELECT; writes only through SECURITY DEFINER functions granted to `service_role`.
-- `levelup_reserve_nft_mint(p_player_id, p_agent_id, p_asset_address, p_metadata_uri, p_snapshot, p_rate_limit)`:
+- Columns `last_valid_block_height` and `tx_built_at` are set when prepare hands out a transaction.
+- `levelup_reserve_nft_mint(p_player_id, p_agent_id, p_asset_address, p_metadata_uri, p_snapshot, p_rate_limit, p_reclaim_asset)`:
   1. Takes a per-player advisory lock.
-  2. Expires pending rows older than 3 minutes.
+  2. Expires only the pending row the server names in `p_reclaim_asset`.
   3. Checks that the player owns the agent.
-  4. Enforces the rate limit: at most `p_rate_limit` reservations per player in 10 minutes. The default is 5.
+  4. Enforces the rate limit: at most `p_rate_limit` reservations per player in 10 minutes.
   5. Inserts the row. A unique violation raises "already has a mint".
 - `levelup_confirm_nft_mint(p_asset_address, p_tx_signature, p_sol_amount)`:
   - Idempotent for the same signature, and refuses a different one.
   - Also accepts an `expired` row. A transaction that landed after its reservation was reclaimed is still a real paid mint, but only if no other live row exists for the agent.
 
-### Prepare (`POST /api/nft/prepare {wallet, agentId}`)
+### Prepare (`POST /api/nft/prepare {wallet, agentId, signature?, signedMessage?}`)
 
+0. Optional wallet-signed authorization (`mint-auth.ts`: header, agent id, issued time within 5 minutes).
+   - A valid signature gets the signed rate limit (6 per player per 10 minutes).
+   - An unsigned request gets 3 per player, 4 per client IP (stored as a salted hash) and 60 across all players, each per 10 minutes.
+   - A signature that is present but invalid returns 401.
+   - The mobile bridge can't sign messages, so it uses the unsigned tier.
 1. Validate the env (`NFT_MINT_AUTHORITY_SECRET`, `NEXT_PUBLIC_NFT_COLLECTION_ADDRESS`, RPC, service role). If anything is missing, return 503.
 2. Resolve the player by wallet and the agent by id plus player. If either is missing, return 404.
 3. Load the agent's dimensions and gear tint.
-4. Generate the asset signer, then reserve the row with metadata_uri `"pending"`. A 409 means it's taken; a 429 means rate limited.
-5. Render the PNG, then upload the image and the metadata JSON via Irys. On failure, return 502 and leave the reservation to expire.
-6. Update the row with metadata_uri.
+4. Check the agent's live row (`reclaimablePending`). RPC errors return 503, so the server fails closed.
+   - **Confirmed:** return 409.
+   - **Transaction never built and the row is under 3 minutes old:** return 409.
+   - **Transaction built and blockhash still valid:** `getEpochInfo` reports a block height ≤ `last_valid_block_height`; return 409.
+   - **Asset is on chain:** read with `minContextSlot` set to that epoch's slot. Confirm it and return 409.
+   - **Otherwise:** reclaim the row. The SQL reclaim re-checks the row against the observed block height, so a prepare that publishes at the same moment wins.
+5. Generate the asset signer, then reserve the row with metadata_uri `"pending"`. A 409 means it's taken; a 429 means rate limited.
+6. Reuse an earlier upload of the identical snapshot. The snapshot includes the weapon tint and the mint date, so a match means identical art and metadata. Otherwise render the PNG and upload the image and the metadata JSON via Irys. On failure, return 502.
 7. Build the transaction:
    - `SystemProgram.transfer(wallet → TREASURY_WALLET, 0.05 SOL)` plus the Core `create({asset, collection, name, uri, owner: wallet, payer: noop(wallet), authority: identity})`.
    - feePayer is the wallet. It's partially signed by the asset key and the authority key.
-8. Return `{ transaction (base64), assetAddress }`. Any throw returns 500 with `detail`.
+8. Publish with a compare-and-set: record `metadata_uri`, `last_valid_block_height` and `tx_built_at` only if the row is still `pending`. If it isn't (a slow prepare whose row was reclaimed), discard the transaction and return 409. Otherwise return `{ transaction (base64), assetAddress }`.
 
 ### Confirm (`POST /api/nft/confirm {assetAddress, wallet, signature?}`)
 
@@ -120,8 +131,8 @@ The image uses the agent's current weapon tint (from gear) so it matches what th
 ## Error handling
 
 - Every route returns JSON `{ error }` with a status: 400, 401/403, 404, 409, 429, 502 or 503.
-- A wallet rejection after prepare leaves a pending row. It blocks for 3 minutes, which is past the blockhash validity window, so an abandoned transaction can't land after the row is reclaimed.
-- If the upload or build fails after the reservation, there's no cleanup; the row expires on its own.
+- A wallet rejection after prepare leaves a pending row. The next prepare reclaims it only once the chain shows its blockhash has expired and the asset was never created. That way, two transactions that could both land never exist for one agent.
+- If the upload or build fails after the reservation, the row has no built transaction. The next prepare reclaims it once it is 3 minutes old.
 
 ## Configuration / deployment
 
@@ -137,7 +148,7 @@ The image uses the agent's current weapon tint (from gear) so it matches what th
 
 ## Out of scope
 
-- Signed-message auth tier, upload dedup, re-sync or re-mint, marketplace UI, and burning.
+- Re-sync or re-mint, marketplace UI, and burning.
 
 ## Testing (vitest)
 

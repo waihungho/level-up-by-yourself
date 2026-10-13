@@ -4,7 +4,7 @@
  * agent always yields the same bytes.
  */
 import { deflateSync } from "node:zlib";
-import { generateSpriteData } from "@/lib/sprite-renderer";
+import { generateSpriteData, type SpriteSeed } from "@/lib/sprite-renderer";
 import type { RoleCategory } from "@/lib/types";
 
 export const AVATAR_SIZE = 512;
@@ -66,11 +66,11 @@ export function encodePng(width: number, height: number, rgb: Uint8Array): Buffe
   ]);
 }
 
-export function renderAvatarPng(spriteSeed: Record<string, unknown>, role: RoleCategory, weaponTint?: string): Buffer {
-  const grid = generateSpriteData(spriteSeed as unknown as Parameters<typeof generateSpriteData>[0], role, weaponTint);
+export function renderAvatarPng(spriteSeed: SpriteSeed, role: RoleCategory, weaponTint?: string): Buffer {
+  const grid = generateSpriteData(spriteSeed, role, weaponTint);
   const rgb = new Uint8Array(AVATAR_SIZE * AVATAR_SIZE * 3);
-  const [br, bg, bb] = hexToRgb(ROLE_BACKGROUND[role] ?? ROLE_BACKGROUND.modern);
-  for (let i = 0; i < AVATAR_SIZE * AVATAR_SIZE; i++) rgb.set([br, bg, bb], i * 3);
+  const background = hexToRgb(ROLE_BACKGROUND[role] ?? ROLE_BACKGROUND.modern);
+  for (let i = 0; i < AVATAR_SIZE * AVATAR_SIZE; i++) rgb.set(background, i * 3);
 
   for (let gy = 0; gy < GRID; gy++) {
     for (let gx = 0; gx < GRID; gx++) {

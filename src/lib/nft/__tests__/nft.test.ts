@@ -1,9 +1,13 @@
+// @vitest-environment node
 import { describe, it, expect } from "vitest";
 import { inflateSync } from "node:zlib";
 import { canMint, MINT_RESERVATION_TTL_MS, type NftMint } from "../eligibility";
 import { buildNftMetadata, buildSnapshot, NFT_SYMBOL } from "../metadata";
 import { renderAvatarPng, AVATAR_SIZE, ROLE_BACKGROUND } from "../render-avatar";
 import { verifyMint } from "../verify-mint";
+import { buildMintAuthMessage, verifyMintAuth } from "../mint-auth";
+import nacl from "tweetnacl";
+import bs58 from "bs58";
 import { DIMENSIONS } from "@/lib/constants";
 import { generateSpriteData } from "@/lib/sprite-renderer";
 import type { AgentWithDimensions } from "@/lib/types";
@@ -27,7 +31,7 @@ const agent: AgentWithDimensions = {
 describe("canMint", () => {
   const now = Date.parse("2026-10-13T12:00:00Z");
   const row = (status: NftMint["status"], ageMs: number): NftMint => ({
-    agentId: "a", assetAddress: "x", status, createdAt: new Date(now - ageMs).toISOString(), txSignature: null,
+    agentId: "a", assetAddress: "x", status, createdAt: new Date(now - ageMs).toISOString(), txBuiltAt: null, txSignature: null,
   });
   it("allows an agent with no mint", () => expect(canMint(null, now).ok).toBe(true));
   it("blocks a confirmed mint", () => expect(canMint(row("confirmed", 1e9), now)).toMatchObject({ ok: false, reason: "already_minted" }));
@@ -41,7 +45,7 @@ describe("canMint", () => {
 });
 
 describe("buildNftMetadata", () => {
-  const meta = buildNftMetadata(agent, "https://arweave.net/img", new Date("2026-10-13T08:00:00Z"));
+  const meta = buildNftMetadata(agent, buildSnapshot(agent, "#facc15", new Date("2026-10-13T08:00:00Z")), "https://arweave.net/img");
   const trait = (t: string) => meta.attributes.find((a) => a.trait_type === t)?.value;
 
   it("carries every dimension as a numeric trait", () => {
@@ -64,14 +68,17 @@ describe("buildNftMetadata", () => {
   });
   it("collapses whitespace and caps the description at 500 chars", () => {
     expect(meta.description).toBe("Aria-7 — Quantum Ranger. Calm and precise. Objective: Map the void.");
-    const long = buildNftMetadata({ ...agent, character: "x".repeat(900) }, "u", new Date());
+    const longAgent = { ...agent, character: "x".repeat(900) };
+    const long = buildNftMetadata(longAgent, buildSnapshot(longAgent, undefined, new Date()), "u");
     expect(long.description).toHaveLength(500);
     expect(long.description.endsWith("…")).toBe(true);
   });
   it("treats missing dimensions as 0 in the snapshot", () => {
-    const snap = buildSnapshot({ ...agent, dimensions: [] });
+    const snap = buildSnapshot({ ...agent, dimensions: [] }, undefined, new Date("2026-10-13T08:00:00Z"));
     expect(snap.totalPower).toBe(0);
     expect(snap.dimensions.Strength).toBe(0);
+    expect(snap.weaponTint).toBeNull();
+    expect(snap.mintedOn).toBe("2026-10-13");
   });
 });
 
@@ -162,5 +169,38 @@ describe("verifyMint", () => {
     for (const bad of [{ noAsset: true }, { assetPre: 100 }, { assetPost: 0 }]) {
       expect(verifyMint(tx(bad), opts)).toEqual({ ok: false, reason: "asset_missing" });
     }
+  });
+});
+
+describe("verifyMintAuth", () => {
+  const kp = nacl.sign.keyPair();
+  const wallet = bs58.encode(kp.publicKey);
+  const now = Date.parse("2026-10-13T12:00:00Z");
+  const sign = (msg: string) => bs58.encode(nacl.sign.detached(new TextEncoder().encode(msg), kp.secretKey));
+  const msg = buildMintAuthMessage("agent-1", new Date(now - 60_000).toISOString());
+
+  it("accepts a fresh message signed by the wallet for this agent", () => {
+    expect(verifyMintAuth(msg, sign(msg), wallet, "agent-1", now)).toEqual({ ok: true });
+  });
+  it("rejects another agent, a stale message, a garbled message and another signer", () => {
+    expect(verifyMintAuth(msg, sign(msg), wallet, "agent-2", now)).toMatchObject({ reason: "wrong_agent" });
+    expect(verifyMintAuth(msg, sign(msg), wallet, "agent-1", now + 10 * 60_000)).toMatchObject({ reason: "expired" });
+    expect(verifyMintAuth("hello", sign("hello"), wallet, "agent-1", now)).toMatchObject({ reason: "malformed_message" });
+    const other = nacl.sign.keyPair();
+    const forged = bs58.encode(nacl.sign.detached(new TextEncoder().encode(msg), other.secretKey));
+    expect(verifyMintAuth(msg, forged, wallet, "agent-1", now)).toMatchObject({ reason: "bad_signature" });
+    expect(verifyMintAuth(msg, "0OIl", wallet, "agent-1", now)).toMatchObject({ reason: "malformed_signature" });
+  });
+});
+
+describe("canMint with a built transaction", () => {
+  it("counts the TTL from when the transaction was built, not from the reservation", () => {
+    const now = Date.parse("2026-10-13T12:00:00Z");
+    const mint: NftMint = {
+      agentId: "a", assetAddress: "x", status: "pending", txSignature: null,
+      createdAt: new Date(now - 10 * 60_000).toISOString(),
+      txBuiltAt: new Date(now - 60_000).toISOString(),
+    };
+    expect(canMint(mint, now)).toMatchObject({ ok: false, reason: "mint_pending" });
   });
 });

@@ -1,4 +1,5 @@
 "use client";
+import { useId } from "react";
 import { useMintNft } from "@/hooks/useMintNft";
 import { isMintBusy, type MintPhase } from "@/lib/nft/eligibility";
 import { NFT_MINT_COST_SOL } from "@/lib/constants";
@@ -15,9 +16,16 @@ function solscanUrl(address: string): string {
   return `https://solscan.io/token/${address}${cluster}`;
 }
 
+interface MintNftPanelProps {
+  agentId: string;
+  /** Delay between confirmation polls; overridable for tests. */
+  confirmRetryMs?: number;
+}
+
 /** Mint an agent as an NFT. Rendered only for the agent's owner. */
-export function MintNftPanel({ agentId }: { agentId: string }) {
-  const { mint, loaded, phase, error, blockedReason, start } = useMintNft(agentId);
+export function MintNftPanel({ agentId, confirmRetryMs }: MintNftPanelProps) {
+  const { mint, loaded, phase, error, blockedReason, start } = useMintNft(agentId, confirmRetryMs);
+  const reasonId = useId();
   if (!loaded) return null;
 
   const busy = isMintBusy(phase);
@@ -41,12 +49,14 @@ export function MintNftPanel({ agentId }: { agentId: string }) {
           <button
             type="button"
             disabled={busy || !!blockedReason}
+            aria-busy={busy}
+            aria-describedby={blockedReason && !busy ? reasonId : undefined}
             onClick={start}
             className="w-full min-h-[44px] rounded bg-purple-700 hover:bg-purple-600 disabled:opacity-40 font-mono text-sm font-bold text-white"
           >
             {PHASE_LABEL[phase] ?? `Mint as NFT · ${NFT_MINT_COST_SOL} SOL`}
           </button>
-          {blockedReason && !busy && <p className="mt-2 font-mono text-xs text-gray-400">{blockedReason}</p>}
+          {blockedReason && !busy && <p id={reasonId} className="mt-2 font-mono text-xs text-gray-400">{blockedReason}</p>}
         </>
       )}
       {error && (

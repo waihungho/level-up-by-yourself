@@ -36,22 +36,36 @@ export interface MintSnapshot {
   dimensions: Record<string, number>;
   categories: Record<DimensionCategory, number>;
   totalPower: number;
+  /** Gear colour baked into the image (null = default sprite colours). */
+  weaponTint: string | null;
+  /** UTC date (YYYY-MM-DD) recorded as the "Minted" trait. */
+  mintedOn: string;
 }
 
 const ROLE_LABEL: Record<RoleCategory, string> = { future: "Future", modern: "Modern", medieval: "Medieval" };
 const CATEGORIES: DimensionCategory[] = ["Physical", "Mental", "Social", "Spiritual", "Technical"];
 
-export function buildSnapshot(agent: AgentWithDimensions): MintSnapshot {
+export function buildSnapshot(agent: AgentWithDimensions, weaponTint: string | undefined, mintedAt: Date): MintSnapshot {
   const byId = new Map(agent.dimensions.map((d) => [d.dimensionId, d.value]));
   const dimensions: Record<string, number> = {};
   const categories = Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<DimensionCategory, number>;
+  let totalPower = 0;
   for (const dim of DIMENSIONS) {
     const value = Math.round(byId.get(dim.id) ?? 0);
     dimensions[dim.name] = value;
     categories[dim.category] += value;
+    totalPower += value;
   }
-  const totalPower = CATEGORIES.reduce((sum, c) => sum + categories[c], 0);
-  return { name: agent.name, role: agent.role, roleTitle: agent.roleTitle, dimensions, categories, totalPower };
+  return {
+    name: agent.name,
+    role: agent.role,
+    roleTitle: agent.roleTitle,
+    dimensions,
+    categories,
+    totalPower,
+    weaponTint: weaponTint ?? null,
+    mintedOn: mintedAt.toISOString().slice(0, 10),
+  };
 }
 
 function describe(agent: AgentWithDimensions): string {
@@ -59,15 +73,14 @@ function describe(agent: AgentWithDimensions): string {
   return text.length > DESCRIPTION_MAX ? `${text.slice(0, DESCRIPTION_MAX - 1)}…` : text;
 }
 
-export function buildNftMetadata(agent: AgentWithDimensions, imageUri: string, mintedAt: Date): NftMetadata {
-  const snap = buildSnapshot(agent);
+export function buildNftMetadata(agent: AgentWithDimensions, snap: MintSnapshot, imageUri: string): NftMetadata {
   const attributes: NftAttribute[] = [
     { trait_type: "Role", value: ROLE_LABEL[agent.role] ?? agent.role },
     { trait_type: "Role Title", value: agent.roleTitle },
     ...CATEGORIES.map((c) => ({ trait_type: c, value: snap.categories[c] })),
     { trait_type: "Total Power", value: snap.totalPower },
     ...DIMENSIONS.map((d) => ({ trait_type: d.name, value: snap.dimensions[d.name] })),
-    { trait_type: "Minted", value: mintedAt.toISOString().slice(0, 10) },
+    { trait_type: "Minted", value: snap.mintedOn },
   ];
   return {
     name: agent.name,

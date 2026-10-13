@@ -46,6 +46,6 @@ export function verifyMint(
   const i = keys.indexOf(opts.assetAddress);
   const pre = tx.meta.preBalances?.[i];
   const post = tx.meta.postBalances?.[i];
-  if (i === -1 || pre !== 0 || !post || post <= 0) return { ok: false, reason: "asset_missing" };
+  if (i === -1 || pre !== 0 || !post) return { ok: false, reason: "asset_missing" };
   return { ok: true };
 }
