@@ -1,7 +1,7 @@
 /**
  * Server half of an agent NFT mint. Server-only: holds the mint-authority key.
  *
- * prepareMint builds ONE transaction carrying both the 0.05 SOL treasury transfer and the
+ * prepareMint builds ONE transaction carrying both the NFT_MINT_COST_SOL (0.08 SOL) treasury transfer and the
  * Metaplex Core `create`. Solana executes it whole or not at all, so there is no state where
  * the treasury was paid and no NFT exists. Do not split it into two transactions.
  *

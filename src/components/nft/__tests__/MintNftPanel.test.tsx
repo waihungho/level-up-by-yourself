@@ -47,7 +47,7 @@ describe("MintNftPanel", () => {
     });
 
     render(<MintNftPanel agentId="a1" confirmRetryMs={0} />);
-    fireEvent.click(await screen.findByRole("button", { name: /mint as nft · 0.05 sol/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /mint as nft · 0.08 sol/i }));
 
     await screen.findByText(/minted on solana/i);
     expect(screen.getByRole("link", { name: /solscan/i }).getAttribute("href")).toContain("Asset1");

@@ -4,7 +4,7 @@ Date: 2026-10-13 · Branch: `feature/nft` · Reference: `feed-the-chicken` (`src
 
 ## Goal
 
-A player pays **0.05 SOL** to mint one of their agents as a Solana NFT. The NFT carries the agent's
+A player pays **0.08 SOL** to mint one of their agents as a Solana NFT. The NFT carries the agent's
 pixel avatar as its image and its dimensions as attributes.
 
 ## Decisions
@@ -13,11 +13,11 @@ pixel avatar as its image and its dimensions as attributes.
 - **One NFT per agent.** Enforced in the database, not just the UI.
 - **Avatar-only image.** 512×512 PNG: the 32×32 sprite scaled ×16 on a role-coloured background. Stats live only in metadata attributes.
 - **Metaplex Core** asset in a single "Level Up By Yourself" collection, 5% royalty to the treasury.
-- **Atomic pay + mint.** The 0.05 SOL treasury transfer and the Core `create` share one transaction, so there is no state where the player paid and no NFT exists.
+- **Atomic pay + mint.** The 0.08 SOL treasury transfer and the Core `create` share one transaction, so there is no state where the player paid and no NFT exists.
 
 ## Player flow
 
-1. On `/agents/[id]`, the owner sees a **Mint as NFT · 0.05 SOL** panel (hidden for other players' agents and in demo mode).
+1. On `/agents/[id]`, the owner sees a **Mint as NFT · 0.08 SOL** panel (hidden for other players' agents and in demo mode).
 2. Clicking it walks through `preparing → signing → confirming → done`, showing progress in the panel.
 3. Once confirmed, the panel shows **Minted** with a Solscan link to the asset; the button is gone.
 4. While a mint is pending (its transaction was built less than 3 minutes ago) the button is disabled with "still confirming". The server stays authoritative and returns 409 until the old transaction provably can't land.
@@ -102,7 +102,7 @@ The image uses the agent's current weapon tint (from gear) so it matches what th
 5. Generate the asset signer, then reserve the row with metadata_uri `"pending"`. A 409 means it's taken; a 429 means rate limited.
 6. Reuse an earlier upload of the identical snapshot. The snapshot includes the weapon tint and the mint date, so a match means identical art and metadata. Otherwise render the PNG and upload the image and the metadata JSON via Irys. On failure, return 502.
 7. Build the transaction:
-   - `SystemProgram.transfer(wallet → TREASURY_WALLET, 0.05 SOL)` plus the Core `create({asset, collection, name, uri, owner: wallet, payer: noop(wallet), authority: identity})`.
+   - `SystemProgram.transfer(wallet → TREASURY_WALLET, 0.08 SOL)` plus the Core `create({asset, collection, name, uri, owner: wallet, payer: noop(wallet), authority: identity})`.
    - feePayer is the wallet. It's partially signed by the asset key and the authority key.
 8. Publish with a compare-and-set: record `metadata_uri`, `last_valid_block_height` and `tx_built_at` only if the row is still `pending`. If it isn't (a slow prepare whose row was reclaimed), discard the transaction and return 409. Otherwise return `{ transaction (base64), assetAddress }`.
 
@@ -116,7 +116,7 @@ The image uses the agent's current weapon tint (from gear) so it matches what th
 3. Fetch the transaction, retrying up to 4 times. `verifyMint` checks:
    - The transaction didn't fail.
    - The payer signed.
-   - The treasury balance went up by at least 0.05 SOL.
+   - The treasury balance went up by at least 0.08 SOL.
    - The asset account went from 0 to more than 0 lamports.
 4. Require mpl-core ownership of the asset, then call `levelup_confirm_nft_mint`.
 
