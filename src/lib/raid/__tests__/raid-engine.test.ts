@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BOSSES, bossForWeek, computeBossStats } from "../bosses";
+import { BOSS_STAT_MULT, BOSSES, bossForWeek, computeBossStats } from "../bosses";
 import {
   attemptDamage,
   createRaidAttempt,
@@ -38,15 +38,20 @@ describe("bosses", () => {
     expect(bossForWeek(7)).toBe(BOSSES[2]);
   });
 
-  it("scales boss stats from the 75th percentile of agents times the profile", () => {
-    const agents = [100, 200, 300, 400].map((v, i) => makeAgent(`x${i}`, "modern", v));
+  it("scales boss stats above the 90th percentile of agents, times the profile", () => {
+    const agents = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000].map((v, i) => makeAgent(`x${i}`, "modern", v));
     const stats = computeBossStats(agents, def);
-    expect(stats.catAvg.Physical).toBeCloseTo(300 * def.profile.Physical);
-    expect(stats.speed).toBe(300);
+    expect(stats.catAvg.Physical).toBeCloseTo(900 * BOSS_STAT_MULT * def.profile.Physical);
+    expect(stats.speed).toBeCloseTo(900 * BOSS_STAT_MULT);
+  });
+
+  it("counts equipment when scaling the boss", () => {
+    const geared = { ...makeAgent("g", "medieval", 200), gear: { armor: 10 } };
+    expect(computeBossStats([geared], def).catAvg.Mental).toBeCloseTo((200 + 10) * BOSS_STAT_MULT * def.profile.Mental);
   });
 
   it("falls back to 150 per category with no agents", () => {
-    expect(computeBossStats([], def).catAvg.Mental).toBeCloseTo(150 * def.profile.Mental);
+    expect(computeBossStats([], def).catAvg.Mental).toBeCloseTo(150 * BOSS_STAT_MULT * def.profile.Mental);
   });
 });
 
@@ -78,7 +83,9 @@ describe("damage modifiers", () => {
     const fResist = dealt(flat, resolveRaidRound(flat, { type: "strike", category: def.resist }, half, { manual: true }));
     expect(dealt(s, weak)).toBeGreaterThan(0);
     expect(dealt(s, resist)).toBeGreaterThan(0);
-    expect(fWeak / fNeutral).toBeCloseTo(1.5, 1);
+    // ~1.5x; defense makes the ratio drift slightly above the raw multiplier.
+    expect(fWeak / fNeutral).toBeGreaterThan(1.45);
+    expect(fWeak / fNeutral).toBeLessThan(1.65);
     expect(fResist).toBeLessThan(fNeutral);
   });
 
@@ -149,7 +156,7 @@ describe("attempts", () => {
 });
 
 describe("MEDIAN_ATTEMPT_DAMAGE", () => {
-  it("is within 25% of the simulated median attempt for a 150-stat squad vs a 150-stat boss", async () => {
+  it("is within 25% of the simulated median attempt for a 150-stat squad vs a boss scaled from 150-stat agents", async () => {
     const { MEDIAN_ATTEMPT_DAMAGE } = await import("../raid-engine");
     const rng = mulberry32(42);
     const pool = [makeRoleAgent("b0", "medieval"), makeRoleAgent("b1", "future"), makeRoleAgent("b2", "modern")];
@@ -163,5 +170,15 @@ describe("MEDIAN_ATTEMPT_DAMAGE", () => {
     const median = damages[200];
     expect(MEDIAN_ATTEMPT_DAMAGE).toBeGreaterThan(median * 0.75);
     expect(MEDIAN_ATTEMPT_DAMAGE).toBeLessThan(median * 1.25);
+  });
+});
+
+describe("boss damage", () => {
+  it("hits harder than a plain exchange in every phase, and harder still when enraged", async () => {
+    const { raidMods, BOSS_DAMAGE_MULT, ENRAGE_MULT } = await import("../raid-engine");
+    const p1 = raidMods(attempt());
+    const p3 = raidMods(attempt({ kind: "stunned" }, ctx({ hpAtStart: 100_000 })));
+    expect(p1.outgoingMult?.defender?.("Physical")).toBeCloseTo(BOSS_DAMAGE_MULT);
+    expect(p3.outgoingMult?.defender?.("Physical")).toBeCloseTo(BOSS_DAMAGE_MULT * ENRAGE_MULT);
   });
 });

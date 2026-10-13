@@ -3,10 +3,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
 import { BossStage } from "@/components/BossStage";
+import { RaidRewards, TIER_ICON } from "@/components/RaidRewards";
 import { SquadBattle, type SquadResult } from "@/components/SquadBattle";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { useRaidLive } from "@/hooks/useRaidLive";
 import { GENERIC_START_ERROR, NETWORK_ERROR, postStart } from "@/lib/battle-client";
+import { tierForRank } from "@/lib/raid/rewards";
 import { titleLabel } from "@/lib/shop/catalog";
 import type { RaidState } from "@/lib/raid/raid-engine";
 import type { AgentWithDimensions } from "@/lib/types";
@@ -141,6 +143,9 @@ export default function RaidPage() {
 
   const boss = view?.boss ?? null;
   const def = view?.def ?? null;
+  // Only damage actually applied is credited, so contributions always sum to the HP taken off.
+  const totalDamage = boss ? boss.maxHp - boss.hpRemaining : 0;
+  const share = (damage: number) => (totalDamage > 0 ? `${((damage / totalDamage) * 100).toFixed(1)}%` : "0%");
 
   return (
     <main className="min-h-screen bg-gray-950 text-white p-4 pb-32 max-w-2xl mx-auto space-y-4">
@@ -183,16 +188,24 @@ export default function RaidPage() {
           )}
 
           <section className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-            <div className="flex justify-between items-baseline mb-2">
+            <div className="flex justify-between items-baseline mb-1">
               <h2 className="font-mono font-bold text-sm">Top damage</h2>
               <span className="font-mono text-[10px] text-gray-500">{view.participants ?? 0} raiders</span>
             </div>
+            <p className="font-mono text-xs text-gray-400 mb-2">
+              Total raid damage: <span className="text-red-300 font-bold">{totalDamage.toLocaleString()}</span>
+              <span className="text-gray-500"> / {boss.maxHp.toLocaleString()} HP ({((totalDamage / Math.max(boss.maxHp, 1)) * 100).toFixed(1)}%)</span>
+            </p>
             {view.contributions?.length ? (
               <ol className="space-y-1">
                 {view.contributions.map((c) => (
                   <li key={c.playerId} className={`flex justify-between font-mono text-xs px-2 py-1 rounded ${c.isMe ? "bg-purple-900/30 text-white" : "text-gray-300"}`}>
                     <span>
                       <span className="text-gray-500 mr-2">#{c.rank}</span>
+                      <span className="mr-1" title={tierForRank(c.rank)}>
+                        <span aria-hidden="true">{TIER_ICON[tierForRank(c.rank)]}</span>
+                        <span className="sr-only">{tierForRank(c.rank)}</span>
+                      </span>
                       {c.label || "Raider"}
                       {view.titles?.[c.playerId] && (
                         <span className="ml-1 px-1 rounded text-[9px] bg-yellow-900/40 text-yellow-300 border border-yellow-700/50">
@@ -201,7 +214,9 @@ export default function RaidPage() {
                       )}
                       {c.isMe && <span className="ml-1 text-purple-300">(you)</span>}
                     </span>
-                    <span>{c.damage.toLocaleString()}</span>
+                    <span className="shrink-0">
+                      {c.damage.toLocaleString()} <span className="text-gray-500">· {share(c.damage)}</span>
+                    </span>
                   </li>
                 ))}
               </ol>
@@ -210,10 +225,12 @@ export default function RaidPage() {
             )}
             {view.myRank && view.myRank > 20 && (
               <p className="font-mono text-xs text-purple-300 mt-2">
-                You: #{view.myRank} · {view.myDamage?.toLocaleString()}
+                You: #{view.myRank} · {view.myDamage?.toLocaleString()} · {share(view.myDamage ?? 0)}
               </p>
             )}
           </section>
+
+          <RaidRewards weakness={def.weak} myRank={view.myRank ?? null} />
 
           <section className="bg-gray-900 border border-gray-800 rounded-lg p-4">
             <h2 className="font-mono font-bold text-sm mb-2">Live feed</h2>

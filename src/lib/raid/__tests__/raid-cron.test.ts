@@ -31,11 +31,13 @@ describe("nextBossHp", () => {
   it("grows 10% over last week's damage when the boss survived", () => {
     expect(nextBossHp(boss({ status: "expired" }), 2_000_000)).toBe(2_200_000);
   });
-  it("grows faster when the boss died early, capped at 1.6x", () => {
+  it("grows faster the earlier the boss died, aiming for a day-6 kill, capped at 5x", () => {
+    const day1 = boss({ status: "defeated", defeatedAt: "2031-03-03T06:30:00Z" });
+    expect(nextBossHp(day1, 1_000_000)).toBe(5_000_000);
     const day2 = boss({ status: "defeated", defeatedAt: "2031-03-04T12:00:00Z" });
-    expect(nextBossHp(day2, 2_000_000)).toBe(3_200_000);
-    const day5 = boss({ status: "defeated", defeatedAt: "2031-03-07T12:00:00Z" });
-    expect(nextBossHp(day5, 2_000_000)).toBe(2_200_000);
+    expect(nextBossHp(day2, 2_000_000)).toBe(6_600_000);
+    const day6 = boss({ status: "defeated", defeatedAt: "2031-03-08T12:00:00Z" });
+    expect(nextBossHp(day6, 2_000_000)).toBe(2_200_000);
   });
   it("clamps to the min and max", () => {
     expect(nextBossHp(boss({ status: "expired" }), 10)).toBe(MIN_BOSS_HP);

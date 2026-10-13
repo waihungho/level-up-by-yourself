@@ -78,6 +78,7 @@ pnpm daily-growth
 - Demo mode (no Supabase) cannot run full battles in the browser: demo data lives client-side while routes run server-side.
 - Squads: `src/lib/squads.ts` (persistence, Elo, matchmaking), `src/lib/tactical/squad.ts` (engine), `/api/squad`, `/squad` builder page.
 - Raids: `src/lib/raid/*`. Weekly cron `/api/cron/raid-weekly` (Monday 00:00 UTC, `vercel.json`) expires/pays the old boss and spawns the next one; requires `CRON_SECRET`.
+- Raid difficulty: boss stats = 90th percentile of all agents (gear included) × `BOSS_STAT_MULT` (`bosses.ts`); boss damage × `BOSS_DAMAGE_MULT` in every phase (`raid-engine.ts`). Next boss HP aims for a day-6 kill (`nextBossHp` in `raid-cron.ts`, max 5× after an early kill). Rewards table lives in `src/lib/raid/rewards.ts` (client-safe, shown on `/raid`).
 - Enable Supabase Realtime for `levelup_raid_bosses` and `levelup_raid_hits` (migration 005 adds them to the `supabase_realtime` publication; check Database → Replication). Without it `/raid` falls back to polling every 15s.
 - Paid fight recharge: the client sends the payment signature to `/api/battle/recharge`, which verifies the transfer on-chain (`NEXT_PUBLIC_SOLANA_RPC_URL`, treasury, 0.05 SOL, < 15 min old) and records it in `levelup_fight_recharges`.
 - The daily-growth cron also sweeps battle sessions abandoned for 30+ minutes and retries unfinished raid payouts.

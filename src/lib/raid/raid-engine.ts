@@ -10,10 +10,12 @@ export const RAID_MAX_ROUNDS = 10;
 export const SOLO_DAMAGE_MULT = 1.5;
 export const WEAKNESS_MULT = 1.5;
 export const RESIST_MULT = 0.5;
+/** Boss damage multiplier in every phase; enrage stacks on top in phase 3. */
+export const BOSS_DAMAGE_MULT = 1.25;
 export const ENRAGE_MULT = 1.3;
 export const ENRAGE_COUNTER_MULT = 1.75;
-/** Median total damage of a 150-stat squad attempt vs a 150-stat boss (from raid-engine simulation). */
-export const MEDIAN_ATTEMPT_DAMAGE = 14_000;
+/** Median total damage of a 150-stat squad attempt vs a boss scaled from 150-stat agents (from raid-engine simulation). */
+export const MEDIAN_ATTEMPT_DAMAGE = 10_000;
 
 export type RaidPhase = 1 | 2 | 3;
 
@@ -78,7 +80,7 @@ export function raidMods(state: SquadState): ExchangeMods {
   return {
     outgoingMult: {
       attacker: (c) => affinity(c) * solo,
-      defender: () => (phase === 3 ? ENRAGE_MULT : 1),
+      defender: () => BOSS_DAMAGE_MULT * (phase === 3 ? ENRAGE_MULT : 1),
     },
     counterMult: phase === 3 ? ENRAGE_COUNTER_MULT : undefined,
     defenderStunImmune: true,

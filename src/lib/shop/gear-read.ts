@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase";
+import { selectAllPages } from "@/lib/supabase-pages";
 import type { Gear, GearSlot } from "./catalog";
 import { shopMem } from "./shop-memory";
 
@@ -14,5 +15,20 @@ export async function getGearForAgents(agentIds: string[]): Promise<Record<strin
     return out;
   }
   for (const id of agentIds) out[id] = { ...(shopMem.gear.get(id) ?? {}) };
+  return out;
+}
+
+/** Every agent's gear (agents without gear are absent). For whole-population jobs like boss scaling. */
+export async function getAllGear(): Promise<Record<string, Gear>> {
+  const out: Record<string, Gear> = {};
+  const sb = getSupabase();
+  if (sb) {
+    const rows = await selectAllPages<{ agent_id: string; slot: string; level: number }>((from, to) =>
+      sb.from("levelup_agent_gear").select("agent_id, slot, level").order("agent_id").order("slot").range(from, to)
+    );
+    for (const r of rows) (out[r.agent_id] ??= {})[r.slot as GearSlot] = r.level;
+    return out;
+  }
+  for (const [id, gear] of shopMem.gear) out[id] = { ...gear };
   return out;
 }

@@ -89,18 +89,23 @@ export function bossByKey(key: string): BossDef | undefined {
 
 const FALLBACK_STAT = 150;
 
-function p75(values: number[]): number {
+/** Percentile the boss is scaled from, and how far above it the boss sits. */
+export const BOSS_PERCENTILE = 0.9;
+export const BOSS_STAT_MULT = 1.1;
+
+function percentile(values: number[], p: number): number {
   if (!values.length) return FALLBACK_STAT;
   const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.max(0, Math.ceil(sorted.length * 0.75) - 1)]; // nearest-rank
+  return sorted[Math.max(0, Math.ceil(sorted.length * p) - 1)]; // nearest-rank
 }
 
-/** Boss stats track the stronger end of the current playerbase. */
+/** Boss stats sit above the strongest end of the current playerbase (gear included). */
 export function computeBossStats(agents: AgentWithDimensions[], def: BossDef): BossStats {
   const sides = agents.filter((a) => a.dimensions.length).map((a) => toSide(a));
+  const top = (values: number[]) => percentile(values, BOSS_PERCENTILE) * BOSS_STAT_MULT;
   const catAvg = {} as Record<Category, number>;
-  for (const c of CYCLE) catAvg[c] = p75(sides.map((s) => s.catAvg[c])) * def.profile[c];
-  return { catAvg, speed: p75(sides.map((s) => s.speed)) };
+  for (const c of CYCLE) catAvg[c] = top(sides.map((s) => s.catAvg[c])) * def.profile[c];
+  return { catAvg, speed: top(sides.map((s) => s.speed)) };
 }
 
 /** Display-only agent record for the boss (sprite + name in battle UIs). */

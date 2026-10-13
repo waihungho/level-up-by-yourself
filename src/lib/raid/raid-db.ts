@@ -4,23 +4,14 @@ import { getWriteClient } from "@/lib/supabase-admin";
 import { DIMENSIONS } from "@/lib/constants";
 import type { AgentWithDimensions } from "@/lib/types";
 import { bossByKey, type BossStats } from "./bosses";
+import { EXPIRED_REWARD_FACTOR, LAST_HIT_ABILITY, REWARDS, tierForRank } from "./rewards";
 import { getBossById, getBossByWeek, getContributions, mapBoss, mem, type RaidBoss, type RaidContribution, type TrophyTier } from "./raid-read";
 
 export * from "./raid-read";
+export * from "./rewards";
 
 const writer = getWriteClient;
 
-export type RewardTier = "champion" | "elite" | "vanguard" | "participant";
-
-/** growthTotal is spread evenly across the boss's weakness-category dimensions for each reward agent. */
-export const REWARDS: Record<RewardTier, { ability: number; growthTotal: number }> = {
-  champion: { ability: 300, growthTotal: 3.0 },
-  elite: { ability: 150, growthTotal: 2.0 },
-  vanguard: { ability: 75, growthTotal: 1.0 },
-  participant: { ability: 30, growthTotal: 0.5 },
-};
-export const LAST_HIT_ABILITY = 100;
-export const EXPIRED_REWARD_FACTOR = 0.5;
 export const MAX_RAID_ATTEMPTS = 3;
 
 // ---------------------------------------------------------------------------
@@ -141,13 +132,6 @@ export async function applyRaidDamage(input: {
 // ---------------------------------------------------------------------------
 // Payout
 // ---------------------------------------------------------------------------
-
-export function tierForRank(rank: number): RewardTier {
-  if (rank === 1) return "champion";
-  if (rank <= 3) return "elite";
-  if (rank <= 10) return "vanguard";
-  return "participant";
-}
 
 /** Claims one contributor's reward; true for exactly one caller, so retries never pay anyone twice. */
 async function claimPlayerPayout(bossId: string, playerId: string): Promise<boolean> {
