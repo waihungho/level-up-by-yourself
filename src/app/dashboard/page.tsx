@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { RaidBanner } from "@/components/RaidBanner";
 import { WhatsNewBanner } from "@/components/WhatsNewBanner";
 import { GemChip } from "@/components/GemChip";
+import { checkInOncePerDay } from "@/lib/pass/checkin-client";
 
 const DONATION_SOL = 0.05;
 
@@ -44,6 +45,12 @@ export default function Dashboard() {
       router.push("/");
     }
   }, [loading, player, router]);
+
+  // Daily Season Pass check-in (login XP + streak); at most one request per UTC day.
+  const playerWallet = player?.walletAddress;
+  useEffect(() => {
+    if (playerWallet) void checkInOncePerDay(playerWallet);
+  }, [playerWallet]);
 
   if (loading) {
     return (
@@ -127,6 +134,20 @@ export default function Dashboard() {
           className="flex-1 text-center px-4 py-3 bg-gradient-to-r from-purple-700 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-500 text-white font-mono rounded transition-colors"
         >
           💎 Shop
+        </Link>
+      </div>
+      <div className="flex gap-3 mt-3">
+        <Link
+          href="/pass"
+          className="flex-1 text-center px-4 py-3 bg-gradient-to-r from-amber-700 to-yellow-600 hover:from-amber-600 hover:to-yellow-500 text-white font-mono rounded transition-colors"
+        >
+          🎟 Season Pass
+        </Link>
+        <Link
+          href="/expeditions"
+          className="flex-1 text-center px-4 py-3 bg-gradient-to-r from-emerald-800 to-teal-600 hover:from-emerald-700 hover:to-teal-500 text-white font-mono rounded transition-colors"
+        >
+          🧭 Expeditions
         </Link>
       </div>
       <div className="mt-3 text-center">

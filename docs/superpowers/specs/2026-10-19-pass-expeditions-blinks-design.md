@@ -37,7 +37,7 @@ Foundation already built: `src/lib/pass/season.ts` (season calendar, XP table, `
 - **Rewards (catalog in `src/lib/pass/rewards.ts`, pure):**
   - Free track: 3 gems per tier; every 5th tier 10 gems + 1 Raid Ticket.
   - Premium track: 12 gems per tier; every 5th tier 40 gems; tier 30 also grants the title `pass_s<season>` (label "Season N Elite").
-  - Totals: free ≈ 132 gems + 6 tickets; premium ≈ 590 gems + title.
+  - Totals: free ≈ 132 gems + 6 tickets; premium 528 gems + title.
 - **Premium:** 0.15 SOL, paid once per season, verified on-chain with `verifySolPayment` and memo `levelup:pass:<season>` (add `passMemo(season)` to `src/lib/payment-memos.ts`). Recorded in `levelup_pass_premium (player_id, season, tx_signature UNIQUE)`. Unlocking premium lets you claim premium rewards for tiers already reached.
 - **Claiming:** a claim row `levelup_pass_claims (player_id, season, tier, track)` (PK) is inserted first, then the reward is granted. If the grant fails, the claim row is deleted so the player can retry. Gem refs are `pass:<season>:<tier>:<track>:<playerId>`. "Claim all" claims every reachable, unclaimed tier on the tracks the player owns.
 - **Routes:**

@@ -15,3 +15,7 @@ export function rechargeMemo(agentId: string): string {
 export function nftMintMemo(agentId: string): string {
   return `levelup:nft:${agentId}`;
 }
+
+export function passMemo(season: number): string {
+  return `levelup:pass:${season}`;
+}

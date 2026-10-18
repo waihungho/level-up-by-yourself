@@ -48,3 +48,25 @@ BEGIN
 END;
 $$;
 REVOKE EXECUTE ON FUNCTION levelup_pass_add_xp(uuid, int, text, text, int) FROM anon, authenticated, public;
+
+-- Premium unlock, paid once per season; tx_signature UNIQUE stops a payment being redeemed twice.
+CREATE TABLE IF NOT EXISTS levelup_pass_premium (
+  player_id    uuid NOT NULL REFERENCES levelup_players(id) ON DELETE CASCADE,
+  season       int NOT NULL,
+  tx_signature text NOT NULL UNIQUE,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, season)
+);
+
+-- One row per claimed reward. Inserted before the grant, deleted again if the grant fails.
+CREATE TABLE IF NOT EXISTS levelup_pass_claims (
+  player_id  uuid NOT NULL REFERENCES levelup_players(id) ON DELETE CASCADE,
+  season     int NOT NULL,
+  tier       int NOT NULL CHECK (tier BETWEEN 1 AND 30),
+  track      text NOT NULL CHECK (track IN ('free', 'premium')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (player_id, season, tier, track)
+);
+
+ALTER TABLE levelup_pass_premium ENABLE ROW LEVEL SECURITY;
+ALTER TABLE levelup_pass_claims ENABLE ROW LEVEL SECURITY;
