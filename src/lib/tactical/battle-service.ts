@@ -13,8 +13,10 @@ import { parseAction } from "./battle-service-actions";
 import { getAttemptBonusToday } from "@/lib/shop/shop-db";
 import { withGear } from "@/lib/shop/gear-db";
 import { createBattle, resolveRound, runAuto, toBattleLog } from "./engine";
-import { fail, usedToday, withinLimitAfterCreate, type BattleStateBase, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
+import { fail, runDeferred, usedToday, withinLimitAfterCreate, type BattleStateBase, type ModeHandler, type ServiceDeps, type ServiceResult } from "./service-common";
 import type { BattleSession, SessionMode, SessionStore } from "./session-store";
+import { XP, type XpSource } from "@/lib/pass/season";
+import { awardPassXp } from "@/lib/pass/xp";
 import { squadHandler, startSquadBattle } from "./squad-service";
 import { raidHandler, startRaidAttempt } from "@/lib/raid/raid-service";
 import { InvalidActionError, type BattleMode, type PlayerAction, type TacticalState } from "./types";
@@ -83,8 +85,16 @@ export async function finalizeSession(session: BattleSession<BattleStateBase>, d
   }
   const log = extra.battleLog as { id?: string } | undefined;
   await deps.store.markFinished(session.id, log?.id ?? null, extra);
+  const xp = SESSION_XP[session.mode];
+  if (xp) {
+    const award = { playerId: session.playerId, source: xp, ref: `session:${session.id}`, xp: XP[xp] };
+    await runDeferred(deps, "pass xp", async () => void (await awardPassXp(award)));
+  }
   return extra;
 }
+
+/** Season Pass XP source for each finished session mode. */
+const SESSION_XP: Partial<Record<SessionMode, Exclude<XpSource, "login">>> = { training: "fight", pvp: "fight", squad_pvp: "squad", raid: "raid" };
 
 /** Finalises abandoned sessions created before the cutoff (run from the daily cron). Returns how many were closed. */
 export async function sweepStaleSessions(beforeISO: string, deps: ServiceDeps): Promise<number> {

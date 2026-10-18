@@ -243,3 +243,15 @@ describe("gear", () => {
 
 });
 
+
+describe("Season Pass XP", () => {
+  it("awards fight XP once when a session finishes", async () => {
+    const { getPassXp } = await import("@/lib/pass/xp");
+    const { seasonOf, XP } = await import("@/lib/pass/season");
+    const { getPlayerByWallet } = await import("@/lib/db");
+    const s = await training();
+    await finish(s.body.sessionId as string, 0);
+    const player = (await getPlayerByWallet(wallet))!;
+    expect(await getPassXp(player.id, seasonOf())).toBe(XP.fight);
+  });
+});
