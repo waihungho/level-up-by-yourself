@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { getOrCreatePlayer } from "@/lib/db";
-import { applyGems, getGemBalance } from "@/lib/shop/gems";
+import { getGemBalance } from "@/lib/shop/gems";
 import { resetShopMemory } from "@/lib/shop/shop-memory";
 import { getAttemptBonusToday, getTitles, grantTitle } from "@/lib/shop/shop-db";
 import { awardPassXp } from "../xp";
-import { resetPassMemory } from "../pass-db";
+import { claimRewards, resetPassMemory } from "../pass-db";
 import { buyPremium, checkIn, claimPass, getPassView } from "../pass-service";
 
-vi.mock("@/lib/shop/gems", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("@/lib/shop/gems")>();
-  return { ...mod, applyGems: vi.fn(mod.applyGems) };
+vi.mock("../pass-db", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../pass-db")>();
+  return { ...mod, claimRewards: vi.fn(mod.claimRewards) };
+});
+vi.mock("../xp", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("../xp")>();
+  return { ...mod, awardPassXp: vi.fn(mod.awardPassXp) };
 });
 
 const DAY1 = new Date("2026-10-20T08:00:00Z");
@@ -21,6 +25,7 @@ let wallet: string;
 let playerId: string;
 
 beforeEach(async () => {
+  vi.clearAllMocks();
   resetPassMemory();
   resetShopMemory();
   wallet = "pass-" + crypto.randomUUID();
@@ -53,8 +58,15 @@ describe("checkIn", () => {
     expect(next.body).toMatchObject({ awarded: 60, streak: 2, xp: 60 });
   });
 
+  it("surfaces an XP failure instead of reporting a check-in", async () => {
+    vi.mocked(awardPassXp).mockRejectedValueOnce(new Error("rpc down"));
+    await expect(checkIn({ walletAddress: wallet }, DAY1)).rejects.toThrow("rpc down");
+    expect((await getPassView({ walletAddress: wallet }, DAY1)).body).toMatchObject({ checkedInToday: false, xp: 0 });
+  });
+
   it("rejects missing wallets and unknown players", async () => {
     expect((await checkIn({}, DAY1)).status).toBe(400);
+    expect((await checkIn({ walletAddress: 42 }, DAY1)).status).toBe(400);
     expect((await checkIn({ walletAddress: "nobody" }, DAY1)).status).toBe(403);
   });
 });
@@ -74,6 +86,7 @@ describe("getPassView", () => {
       claimed: [],
       streak: 1,
       checkedInToday: true,
+      title: null,
     });
     expect((await getPassView({ walletAddress: wallet }, day(1))).body).toMatchObject({ streak: 1, checkedInToday: false });
     expect((await getPassView({ walletAddress: wallet }, day(2))).body).toMatchObject({ streak: 0 });
@@ -106,6 +119,7 @@ describe("claimPass", () => {
     expect(await claimPass({ walletAddress: wallet, tier: 0, track: "free" }, DAY1)).toMatchObject({ status: 400, body: { error: "invalid_tier" } });
     expect(await claimPass({ walletAddress: wallet, tier: 1.5, track: "free" }, DAY1)).toMatchObject({ status: 400, body: { error: "invalid_tier" } });
     expect(await claimPass({ walletAddress: wallet, tier: 1, track: "gold" as never }, DAY1)).toMatchObject({ status: 400, body: { error: "invalid_track" } });
+    expect((await claimPass({ walletAddress: ["w"], all: true }, DAY1)).status).toBe(400);
     expect((await claimPass({ walletAddress: "nobody", all: true }, DAY1)).status).toBe(403);
   });
 
@@ -116,37 +130,48 @@ describe("claimPass", () => {
     expect(await getAttemptBonusToday({ playerId, mode: "raid" })).toBe(1);
   });
 
-  it("claim all takes every reachable unclaimed tier on owned tracks", async () => {
+  it("claim all takes every reachable unclaimed tier on owned tracks, except raid-ticket tiers", async () => {
     await giveXp(1250);
     await claimPass({ walletAddress: wallet, tier: 2, track: "free" }, DAY1);
     const r = await claimPass({ walletAddress: wallet, all: true }, DAY1);
     expect(r.status).toBe(200);
-    expect((r.body.claimed as unknown[]).length).toBe(4);
-    expect(await getGemBalance(playerId)).toBe(3 * 4 + 10);
+    expect(r.body.claimed).toEqual([1, 3, 4].map((tier) => ({ tier, track: "free", reward: { gems: 3, tickets: 0, title: false } })));
+    expect(await getGemBalance(playerId)).toBe(3 * 4);
+    expect(await getAttemptBonusToday({ playerId, mode: "raid" })).toBe(0);
     expect((await claimPass({ walletAddress: wallet, all: true }, DAY1)).body).toMatchObject({ claimed: [] });
+    expect(vi.mocked(claimRewards)).toHaveBeenCalledTimes(2); // single + all; an empty claim-all skips the RPC
 
     // Premium unlocks premium rewards for tiers already reached.
     await buyPremium({ walletAddress: wallet, signature: "sig-all" }, verified, DAY1);
     const prem = await claimPass({ walletAddress: wallet, all: true }, DAY1);
-    expect((prem.body.claimed as { track: string }[]).every((c) => c.track === "premium")).toBe(true);
-    expect((prem.body.claimed as unknown[]).length).toBe(5);
-    expect(await getGemBalance(playerId)).toBe(22 + 12 * 4 + 40);
+    expect((prem.body.claimed as { track: string }[]).map((c) => c.track)).toEqual(Array(5).fill("premium"));
+    expect(await getGemBalance(playerId)).toBe(12 + 12 * 4 + 40);
   });
 
-  it("tier 30 premium grants the season title, even if the player already holds it", async () => {
+  it("claim all grants the season title when the player has none", async () => {
     await giveXp(7500);
     await buyPremium({ walletAddress: wallet, signature: "sig-title" }, verified, DAY1);
-    await grantTitle(playerId, "pass_s1");
+    await claimPass({ walletAddress: wallet, all: true }, DAY1);
+    expect((await getTitles([playerId]))[playerId]).toBe("pass_s1");
+  });
+
+  it("claim all skips the title tier when it would replace another title; a single claim takes it", async () => {
+    await giveXp(7500);
+    await buyPremium({ walletAddress: wallet, signature: "sig-title" }, verified, DAY1);
+    await grantTitle(playerId, "champion");
+    const all = await claimPass({ walletAddress: wallet, all: true }, DAY1);
+    expect((all.body.claimed as { tier: number; track: string }[]).some((c) => c.tier === 30 && c.track === "premium")).toBe(false);
+    expect((await getTitles([playerId]))[playerId]).toBe("champion");
     expect((await claimPass({ walletAddress: wallet, tier: 30, track: "premium" }, DAY1)).status).toBe(200);
     expect((await getTitles([playerId]))[playerId]).toBe("pass_s1");
   });
 
-  it("rolls the claim back when the grant fails, so the player can retry", async () => {
+  it("a claim whose grant fails applies nothing and can be retried", async () => {
     await giveXp(250);
-    vi.mocked(applyGems).mockRejectedValueOnce(new Error("db down"));
-    const failed = await claimPass({ walletAddress: wallet, tier: 1, track: "free" }, DAY1);
-    expect(failed).toMatchObject({ status: 500, body: { error: "grant_failed" } });
+    vi.mocked(claimRewards).mockRejectedValueOnce(new Error("rpc down"));
+    await expect(claimPass({ walletAddress: wallet, tier: 1, track: "free" }, DAY1)).rejects.toThrow("rpc down");
     expect((await getPassView({ walletAddress: wallet }, DAY1)).body.claimed).toEqual([]);
+    expect(await getGemBalance(playerId)).toBe(0);
     expect((await claimPass({ walletAddress: wallet, tier: 1, track: "free" }, DAY1)).status).toBe(200);
     expect(await getGemBalance(playerId)).toBe(3);
   });
@@ -161,6 +186,19 @@ describe("buyPremium", () => {
     expect((await getPassView({ walletAddress: wallet }, DAY1)).body.premium).toBe(true);
     // Premium is per season.
     expect((await getPassView({ walletAddress: wallet }, new Date("2026-11-03T00:00:00Z"))).body.premium).toBe(false);
+  });
+
+  it("accepts a payment made for the previous season just before rollover and unlocks the current season", async () => {
+    const onlySeason1 = { verify: async (x: { memo?: string }) => x.memo === "levelup:pass:1" };
+    const season2 = new Date("2026-11-02T00:05:00Z");
+    expect(await buyPremium({ walletAddress: wallet, signature: "late" }, onlySeason1, season2)).toMatchObject({ status: 200, body: { premium: true, season: 2 } });
+    expect((await getPassView({ walletAddress: wallet }, season2)).body.premium).toBe(true);
+    expect((await getPassView({ walletAddress: wallet }, DAY1)).body.premium).toBe(false);
+  });
+
+  it("does not accept older seasons' memos", async () => {
+    const onlySeason1 = { verify: async (x: { memo?: string }) => x.memo === "levelup:pass:1" };
+    expect((await buyPremium({ walletAddress: wallet, signature: "old" }, onlySeason1, new Date("2026-11-20T00:00:00Z"))).status).toBe(402);
   });
 
   it("rejects an invalid payment with 402", async () => {

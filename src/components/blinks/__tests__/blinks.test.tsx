@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import type { BlinkChallenge } from "@/lib/blinks/challenge-read";
+import type { ChallengeListItem } from "@/lib/blinks/challenge-db";
 
 vi.mock("@/components/PixelSprite", () => ({ PixelSprite: () => <div data-testid="sprite" /> }));
 
@@ -10,16 +10,15 @@ import { ShareChallengeButton } from "../ShareChallengeButton";
 const ORIGIN = "https://levelup.test";
 const agent = { id: "agent-1", name: "Rook", role: "medieval" as const, roleTitle: "Knight", spriteSeed: {} };
 
-function challenge(over: Partial<BlinkChallenge>): BlinkChallenge {
+function challenge(over: Partial<ChallengeListItem>): ChallengeListItem {
   return {
     id: crypto.randomUUID(),
-    agentId: "agent-1",
-    challengerWallet: "Wa11et1111111111111111111111111111111111111",
-    challengerPlayerId: null,
-    txSignature: crypto.randomUUID(),
     winner: "defender",
-    summary: { challengerName: "Guest", challengerRole: "future", challengerAgentId: null, defenderName: "Rook", rounds: 6, damageDealt: 120, damageTaken: 300 },
-    day: "2026-10-19",
+    challengerName: "Guest",
+    challengerLabel: "Wa11…1111",
+    rounds: 6,
+    damageDealt: 120,
+    damageTaken: 300,
     createdAt: "2026-10-19T10:00:00.000Z",
     ...over,
   };
@@ -37,7 +36,7 @@ describe("ChallengeView", () => {
         agent={agent}
         power={4321}
         record={{ wins: 3, losses: 1 }}
-        recent={[challenge({}), challenge({ winner: "challenger", summary: { ...challenge({}).summary, challengerName: "Zed" } })]}
+        recent={[challenge({}), challenge({ winner: "challenger", challengerName: "Zed" })]}
         origin={ORIGIN}
         now={Date.parse("2026-10-19T12:00:00.000Z")}
       />
@@ -55,6 +54,21 @@ describe("ChallengeView", () => {
     expect(x).toMatch(/^https:\/\/twitter\.com\/intent\/tweet\?/);
     expect(new URL(x).searchParams.get("url")).toBe(`${ORIGIN}/challenge/agent-1`);
     expect(screen.getByRole("link", { name: /play level up/i })).toHaveAttribute("href", "/");
+  });
+
+  it("shows a resolved outcome from a result link as a status", () => {
+    render(
+      <ChallengeView
+        agent={agent}
+        power={10}
+        record={{ wins: 0, losses: 1 }}
+        recent={[]}
+        origin={ORIGIN}
+        now={0}
+        outcome={{ kind: "result", title: "Victory! Guest beat Rook", description: "Guest dealt 300 damage" }}
+      />
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Victory! Guest beat Rook");
   });
 
   it("invites the first challenger when there is no history", () => {
@@ -81,7 +95,8 @@ describe("ShareChallengeButton", () => {
     render(<ShareChallengeButton agentId="agent-1" agentName="Rook" />);
     fireEvent.click(screen.getByRole("button", { name: /share challenge/i }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/challenge/agent-1`));
-    expect(await screen.findByText(/link copied/i)).toBeInTheDocument();
+    expect(await screen.findByRole("status")).toHaveTextContent(/link copied/i);
+    expect(screen.getByRole("button", { name: /share challenge/i })).toHaveAttribute("type", "button");
     const x = screen.getByRole("link", { name: /post on x/i }).getAttribute("href")!;
     expect(new URL(x).searchParams.get("url")).toBe(`${window.location.origin}/challenge/agent-1`);
   });

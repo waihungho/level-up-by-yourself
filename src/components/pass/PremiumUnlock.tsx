@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { passMemo } from "@/lib/payment-memos";
 import { PREMIUM_PRICE_SOL } from "@/lib/pass/rewards";
+import { seasonOf } from "@/lib/pass/season";
 
 export type PassMessage = { ok: boolean; text: string; signature?: string };
 
@@ -26,7 +27,8 @@ export function PremiumUnlock({ walletAddress, season, pay, onUnlocked, onMessag
     try {
       let signature: string;
       try {
-        signature = await pay(PREMIUM_PRICE_SOL, passMemo(season));
+        // Memo for the season at pay time (the server also accepts the previous season's right after a rollover).
+        signature = await pay(PREMIUM_PRICE_SOL, passMemo(seasonOf(new Date())));
       } catch {
         onMessage({ ok: false, text: "Payment cancelled or not confirmed yet. If SOL left your wallet, contact support with the transaction." });
         return;
@@ -40,8 +42,15 @@ export function PremiumUnlock({ walletAddress, season, pay, onUnlocked, onMessag
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ walletAddress, signature }),
           });
-          if (res.ok || res.status === 409) {
+          const data: { error?: string } = await res.json();
+          // signature_used = this same payment was already applied (e.g. a retry after a lost response).
+          if (res.ok || data.error === "signature_used") {
             onMessage({ ok: true, text: "Premium unlocked! Claim your premium rewards below." });
+            onUnlocked();
+            return;
+          }
+          if (data.error === "already_owned") {
+            onMessage({ ok: false, text: "Premium was already unlocked — this payment wasn't applied. Keep this signature for support:", signature });
             onUnlocked();
             return;
           }

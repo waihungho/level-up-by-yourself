@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { passTitleId, PREMIUM_PRICE_SOL, rewardFor, TIERS, tierForXp, XP_PER_TIER } from "../rewards";
+import { claimKey, inClaimAll, isPassTier, isPassTrack, passTitleId, PREMIUM_PRICE_SOL, replacesTitle, rewardFor, TIERS, tierForXp, unclaimed, XP_PER_TIER } from "../rewards";
 import { titleLabel } from "@/lib/shop/catalog";
 import { passMemo } from "@/lib/payment-memos";
 
@@ -46,5 +46,32 @@ describe("pass rewards", () => {
     expect(titleLabel("pass_s3")).toBe("Season 3 Elite");
     expect(titleLabel("unknown_title")).toBe("unknown_title");
     expect(passMemo(2)).toBe("levelup:pass:2");
+  });
+
+  it("validates tiers and tracks", () => {
+    expect([0, 1, 30, 31, 1.5, "1", null].map(isPassTier)).toEqual([false, true, true, false, false, false, false]);
+    expect(["free", "premium", "gold", 1].map(isPassTrack)).toEqual([true, true, false, false]);
+  });
+
+  it("lists reached, unclaimed rewards on owned tracks", () => {
+    const done = new Set([claimKey(1, "free")]);
+    expect(unclaimed(2, false, done)).toEqual([{ tier: 2, track: "free" }]);
+    expect(unclaimed(2, true, done)).toEqual([
+      { tier: 2, track: "free" },
+      { tier: 1, track: "premium" },
+      { tier: 2, track: "premium" },
+    ]);
+    expect(unclaimed(0, true, new Set())).toEqual([]);
+  });
+
+  it("claim all skips raid-ticket tiers and a title that would replace another", () => {
+    expect(inClaimAll({ tier: 4, track: "free" }, false)).toBe(true);
+    expect(inClaimAll({ tier: 5, track: "free" }, false)).toBe(false);
+    expect(inClaimAll({ tier: 5, track: "premium" }, false)).toBe(true);
+    expect(inClaimAll({ tier: 30, track: "premium" }, false)).toBe(true);
+    expect(inClaimAll({ tier: 30, track: "premium" }, true)).toBe(false);
+    expect(replacesTitle(null, 1)).toBe(false);
+    expect(replacesTitle("pass_s1", 1)).toBe(false);
+    expect(replacesTitle("champion", 1)).toBe(true);
   });
 });

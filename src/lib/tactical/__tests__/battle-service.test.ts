@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { getOrCreatePlayer, getPlayerAgents, getBattleLogs, getPvpStatsForAgents, getAgentWithDimensions } from "@/lib/db";
 import { startBattle, takeTurn, getSessionView, finalizeSession, sweepStaleSessions, type ServiceDeps } from "../battle-service";
 import { MemorySessionStore } from "../session-store";
@@ -253,5 +253,18 @@ describe("Season Pass XP", () => {
     await finish(s.body.sessionId as string, 0);
     const player = (await getPlayerByWallet(wallet))!;
     expect(await getPassXp(player.id, seasonOf())).toBe(XP.fight);
+    // Re-finalising the same session never awards twice.
+    const { awardPassXp } = await import("@/lib/pass/xp");
+    expect((await awardPassXp({ playerId: player.id, source: "fight", ref: `session:${s.body.sessionId}`, xp: XP.fight })).applied).toBe(false);
+  });
+
+  it("an XP failure never breaks the fight", async () => {
+    const xp = await import("@/lib/pass/xp");
+    const spy = vi.spyOn(xp, "awardPassXp").mockRejectedValueOnce(new Error("db down"));
+    const s = await training();
+    const r = await finish(s.body.sessionId as string, 0);
+    expect(r.status).toBe(200);
+    expect(r.body.finished).toBe(true);
+    spy.mockRestore();
   });
 });

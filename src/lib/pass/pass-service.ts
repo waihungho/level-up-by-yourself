@@ -1,16 +1,35 @@
 import { getPlayerByWallet } from "@/lib/db";
 import { passMemo } from "@/lib/payment-memos";
-import { applyGems, getGemBalance } from "@/lib/shop/gems";
-import { addAttemptBonus, AlreadyOwnedError, grantTitle } from "@/lib/shop/shop-db";
+import { getGemBalance } from "@/lib/shop/gems";
+import { getTitles } from "@/lib/shop/shop-db";
 import type { PaymentVerifier } from "@/lib/shop/shop-service";
 import { fail, type ServiceResult } from "@/lib/tactical/service-common";
-import { deleteClaim, getClaims, getLoginDates, getPremium, insertClaim, loginRef, recordPremium, type PassClaim } from "./pass-db";
-import { isPassTrack, PASS_TRACKS, passTitleId, PREMIUM_PRICE_SOL, rewardFor, TIERS, tierForXp, XP_PER_TIER, type PassReward } from "./rewards";
+import { utcToday } from "@/lib/time";
+import { claimRewards, getClaims, getLoginDates, getPremium, loginRef, recordPremium } from "./pass-db";
+import {
+  claimKey,
+  inClaimAll,
+  isPassTier,
+  isPassTrack,
+  passTitleId,
+  PREMIUM_PRICE_SOL,
+  replacesTitle,
+  rewardFor,
+  TIERS,
+  tierForXp,
+  unclaimed,
+  XP_PER_TIER,
+  type PassClaim,
+  type PassClaimBody,
+  type PassViewBody,
+} from "./rewards";
 import { loginXp, seasonBounds, seasonOf } from "./season";
 import { awardPassXp, getPassXp } from "./xp";
 
-const utcDate = (d: Date) => d.toISOString().slice(0, 10);
-const dayBefore = (date: string) => utcDate(new Date(Date.parse(`${date}T00:00:00Z`) - 86_400_000));
+const dayBefore = (date: string) => utcToday(new Date(Date.parse(`${date}T00:00:00Z`) - 86_400_000));
+
+/** Wallet from an untrusted body/query: a non-empty string, else null. */
+const walletOf = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
 
 /** Consecutive check-in days ending on `end` (0 if `end` has none). */
 function streakEnding(dates: Set<string>, end: string): number {
@@ -24,43 +43,44 @@ function currentStreak(dates: Set<string>, today: string): number {
   return dates.has(today) ? streakEnding(dates, today) : streakEnding(dates, dayBefore(today));
 }
 
-export async function getPassView(input: { walletAddress?: string }, now: Date = new Date()): Promise<ServiceResult> {
-  if (!input.walletAddress) return fail(400, "missing_fields");
-  const player = await getPlayerByWallet(input.walletAddress);
+export async function getPassView(input: { walletAddress?: unknown }, now: Date = new Date()): Promise<ServiceResult> {
+  const wallet = walletOf(input.walletAddress);
+  if (!wallet) return fail(400, "missing_fields");
+  const player = await getPlayerByWallet(wallet);
   if (!player) return fail(403, "not_owner");
   const season = seasonOf(now);
-  const today = utcDate(now);
-  const [xp, premium, claims, dates] = await Promise.all([
+  const today = utcToday(now);
+  const [xp, premium, claims, dates, titles] = await Promise.all([
     getPassXp(player.id, season),
     getPremium(player.id, season),
     getClaims(player.id, season),
     getLoginDates(player.id),
+    getTitles([player.id]),
   ]);
   const days = new Set(dates);
-  return {
-    status: 200,
-    body: {
-      season,
-      endsAt: seasonBounds(season).end,
-      xp,
-      tier: tierForXp(xp),
-      tiers: TIERS,
-      xpPerTier: XP_PER_TIER,
-      premium: premium !== null,
-      premiumPriceSol: PREMIUM_PRICE_SOL,
-      claimed: claims.map((c) => `${c.tier}:${c.track}`),
-      streak: currentStreak(days, today),
-      checkedInToday: days.has(today),
-    },
+  const body: PassViewBody = {
+    season,
+    endsAt: seasonBounds(season).end,
+    xp,
+    tier: tierForXp(xp),
+    tiers: TIERS,
+    xpPerTier: XP_PER_TIER,
+    premium: premium !== null,
+    claimed: claims.map((c) => claimKey(c.tier, c.track)),
+    streak: currentStreak(days, today),
+    checkedInToday: days.has(today),
+    title: titles[player.id] ?? null,
   };
+  return { status: 200, body: { ...body } };
 }
 
 /** Awards today's login XP once per UTC day; the amount grows with the streak. */
-export async function checkIn(input: { walletAddress?: string }, now: Date = new Date()): Promise<ServiceResult> {
-  if (!input.walletAddress) return fail(400, "missing_fields");
-  const player = await getPlayerByWallet(input.walletAddress);
+export async function checkIn(input: { walletAddress?: unknown }, now: Date = new Date()): Promise<ServiceResult> {
+  const wallet = walletOf(input.walletAddress);
+  if (!wallet) return fail(400, "missing_fields");
+  const player = await getPlayerByWallet(wallet);
   if (!player) return fail(403, "not_owner");
-  const today = utcDate(now);
+  const today = utcToday(now);
   const days = new Set(await getLoginDates(player.id));
   if (days.has(today)) {
     const xp = await getPassXp(player.id, seasonOf(now));
@@ -72,48 +92,22 @@ export async function checkIn(input: { walletAddress?: string }, now: Date = new
   return { status: 200, body: { awarded: applied ? amount : 0, xp, tier: tierForXp(xp), streak } };
 }
 
-/** Grants one reward. Gems first (idempotent by ref), the non-idempotent raid ticket last. */
-async function grantReward(playerId: string, season: number, claim: PassClaim, reward: PassReward): Promise<void> {
-  await applyGems({ playerId, delta: reward.gems, reason: `pass:${claim.track}`, ref: `pass:${season}:${claim.tier}:${claim.track}:${playerId}` });
-  if (reward.title) {
-    try {
-      await grantTitle(playerId, passTitleId(season));
-    } catch (e) {
-      if (!(e instanceof AlreadyOwnedError)) throw e;
-    }
-  }
-  if (reward.tickets > 0) await addAttemptBonus({ playerId, agentId: null, mode: "raid", extra: reward.tickets });
-}
-
-/** Claim row first, then the grant; a failed grant deletes the claim row so the player can retry. */
-async function claimOne(playerId: string, season: number, claim: PassClaim): Promise<"ok" | "already_claimed" | "grant_failed"> {
-  if (!(await insertClaim({ playerId, season, ...claim }))) return "already_claimed";
-  try {
-    await grantReward(playerId, season, claim, rewardFor(claim.tier, claim.track));
-    return "ok";
-  } catch (e) {
-    console.error("[pass] grant failed, rolling back claim", { playerId, season, ...claim }, e);
-    try {
-      await deleteClaim({ playerId, season, ...claim });
-    } catch (rollback) {
-      console.error("[pass] CLAIM ROLLBACK FAILED — delete the claim row by hand", { playerId, season, ...claim }, rollback);
-    }
-    return "grant_failed";
-  }
-}
-
-/** Claims one tier/track, or with `all` every reached, unclaimed tier on the tracks the player owns. */
+/**
+ * Claims one tier/track, or with `all` every reached, unclaimed reward on the tracks the player owns,
+ * except raid-ticket tiers and a season title that would replace another title (see inClaimAll).
+ * Claim rows and grants are written in one transaction (claimRewards).
+ */
 export async function claimPass(
-  input: { walletAddress?: string; tier?: number; track?: string; all?: boolean },
+  input: { walletAddress?: unknown; tier?: unknown; track?: unknown; all?: unknown },
   now: Date = new Date()
 ): Promise<ServiceResult> {
-  const { walletAddress, all } = input;
-  if (!walletAddress || (!all && (input.tier === undefined || input.track === undefined))) return fail(400, "missing_fields");
-  if (!all) {
-    if (!Number.isInteger(input.tier) || input.tier! < 1 || input.tier! > TIERS) return fail(400, "invalid_tier");
-    if (!isPassTrack(input.track)) return fail(400, "invalid_track");
-  }
-  const player = await getPlayerByWallet(walletAddress);
+  const wallet = walletOf(input.walletAddress);
+  const all = input.all === true;
+  const { tier, track } = input;
+  if (!wallet || (!all && (tier === undefined || track === undefined))) return fail(400, "missing_fields");
+  if (!all && !isPassTier(tier)) return fail(400, "invalid_tier");
+  if (!all && !isPassTrack(track)) return fail(400, "invalid_track");
+  const player = await getPlayerByWallet(wallet);
   if (!player) return fail(403, "not_owner");
 
   const season = seasonOf(now);
@@ -122,42 +116,51 @@ export async function claimPass(
 
   let wanted: PassClaim[];
   if (all) {
-    const done = new Set(claims.map((c) => `${c.tier}:${c.track}`));
-    const tracks = PASS_TRACKS.filter((t) => t === "free" || premium !== null);
-    wanted = tracks.flatMap((track) => Array.from({ length: reached }, (_, i) => ({ tier: i + 1, track }))).filter((c) => !done.has(`${c.tier}:${c.track}`));
-  } else {
-    const claim = { tier: input.tier!, track: input.track as PassClaim["track"] };
+    const titleWouldReplace = replacesTitle((await getTitles([player.id]))[player.id] ?? null, season);
+    const done = new Set(claims.map((c) => claimKey(c.tier, c.track)));
+    wanted = unclaimed(reached, premium !== null, done).filter((c) => inClaimAll(c, titleWouldReplace));
+  } else if (isPassTier(tier) && isPassTrack(track)) {
+    const claim: PassClaim = { tier, track };
     if (claim.tier > reached) return fail(409, "tier_locked");
     if (claim.track === "premium" && premium === null) return fail(403, "premium_required");
     wanted = [claim];
+  } else {
+    return fail(400, "invalid_tier");
   }
 
-  const claimed: (PassClaim & { reward: PassReward })[] = [];
-  for (const claim of wanted) {
-    const outcome = await claimOne(player.id, season, claim);
-    if (outcome === "already_claimed") {
-      if (!all) return fail(409, "already_claimed");
-      continue;
-    }
-    if (outcome === "grant_failed") {
-      return { status: 500, body: { error: "grant_failed", claimed, balance: await getGemBalance(player.id) } };
-    }
-    claimed.push({ ...claim, reward: rewardFor(claim.tier, claim.track) });
-  }
-  return { status: 200, body: { claimed, balance: await getGemBalance(player.id) } };
+  if (wanted.length === 0) return { status: 200, body: { claimed: [], balance: await getGemBalance(player.id) } };
+  const items = wanted.map((c) => {
+    const reward = rewardFor(c.tier, c.track);
+    return { ...c, gems: reward.gems, tickets: reward.tickets, title: reward.title ? passTitleId(season) : null };
+  });
+  const result = await claimRewards(player.id, season, items);
+  if (!all && result.claimed.length === 0) return fail(409, "already_claimed");
+  const body: PassClaimBody = { claimed: result.claimed.map((c) => ({ ...c, reward: rewardFor(c.tier, c.track) })), balance: result.balance };
+  return { status: 200, body: { ...body } };
 }
 
 /** Verifies the 0.15 SOL premium payment on-chain and unlocks premium for the current season, once per signature. */
-export async function buyPremium(input: { walletAddress?: string; signature?: string }, deps: PaymentVerifier, now: Date = new Date()): Promise<ServiceResult> {
-  const { walletAddress, signature } = input;
-  if (!walletAddress || !signature) return fail(400, "missing_fields");
-  const player = await getPlayerByWallet(walletAddress);
+export async function buyPremium(input: { walletAddress?: unknown; signature?: unknown }, deps: PaymentVerifier, now: Date = new Date()): Promise<ServiceResult> {
+  const wallet = walletOf(input.walletAddress);
+  const signature = typeof input.signature === "string" && input.signature ? input.signature : null;
+  if (!wallet || !signature) return fail(400, "missing_fields");
+  const player = await getPlayerByWallet(wallet);
   if (!player) return fail(403, "not_owner");
   const season = seasonOf(now);
 
   const owned = await getPremium(player.id, season);
   if (owned) return fail(409, owned === signature ? "signature_used" : "already_owned");
-  if (!(await deps.verify({ signature, payer: walletAddress, minSol: PREMIUM_PRICE_SOL, memo: passMemo(season) }))) return fail(402, "payment_invalid");
+  // A payment sent just before a season rollover carries the previous season's memo; the 15-minute
+  // payment age limit bounds that window. It unlocks the current season.
+  const memos = season > 1 ? [passMemo(season), passMemo(season - 1)] : [passMemo(season)];
+  let paid = false;
+  for (const memo of memos) {
+    if (await deps.verify({ signature, payer: wallet, minSol: PREMIUM_PRICE_SOL, memo })) {
+      paid = true;
+      break;
+    }
+  }
+  if (!paid) return fail(402, "payment_invalid");
 
   const outcome = await recordPremium({ playerId: player.id, season, signature });
   if (outcome !== "ok") return fail(409, outcome);

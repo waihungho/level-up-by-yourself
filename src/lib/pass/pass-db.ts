@@ -1,5 +1,7 @@
+import { shopMem } from "@/lib/shop/shop-memory";
 import { getWriteClient } from "@/lib/supabase-admin";
-import type { PassTrack } from "./rewards";
+import { utcToday } from "@/lib/time";
+import { claimKey, type PassClaim, type PassTrack } from "./rewards";
 import { passXpMem, resetPassXpMemory } from "./xp";
 
 /** Demo-mode stores for premium unlocks and claims; tests reset them with resetPassMemory(). */
@@ -79,11 +81,6 @@ export async function recordPremium(input: { playerId: string; season: number; s
   return "ok";
 }
 
-export interface PassClaim {
-  tier: number;
-  track: PassTrack;
-}
-
 export async function getClaims(playerId: string, season: number): Promise<PassClaim[]> {
   const sb = getWriteClient();
   if (sb) {
@@ -100,33 +97,48 @@ export async function getClaims(playerId: string, season: number): Promise<PassC
     });
 }
 
-/** Inserts the claim row; false when it was already claimed. */
-export async function insertClaim(input: { playerId: string; season: number } & PassClaim): Promise<boolean> {
-  const sb = getWriteClient();
-  if (sb) {
-    const { error } = await sb.from("levelup_pass_claims").insert({ player_id: input.playerId, season: input.season, tier: input.tier, track: input.track });
-    if (!error) return true;
-    if (isUniqueViolation(error)) return false;
-    throw error;
-  }
-  const key = `${input.playerId}:${input.season}:${input.tier}:${input.track}`;
-  if (passMem.claims.has(key)) return false;
-  passMem.claims.add(key);
-  return true;
+/** One reward to claim; amounts are computed by the caller from rewards.ts. */
+export interface ClaimItem extends PassClaim {
+  gems: number;
+  tickets: number;
+  /** Title id to set, or null. */
+  title: string | null;
 }
 
-export async function deleteClaim(input: { playerId: string; season: number } & PassClaim): Promise<void> {
+export function passGemRef(playerId: string, season: number, claim: PassClaim): string {
+  return `pass:${season}:${claim.tier}:${claim.track}:${playerId}`;
+}
+
+/**
+ * Claims and grants `items` atomically (levelup_pass_claim, one transaction): already-claimed items
+ * are skipped, every new one gets its gems, raid ticket and title. Returns the newly claimed items.
+ */
+export async function claimRewards(playerId: string, season: number, items: ClaimItem[]): Promise<{ claimed: PassClaim[]; balance: number }> {
   const sb = getWriteClient();
   if (sb) {
-    const { error } = await sb
-      .from("levelup_pass_claims")
-      .delete()
-      .eq("player_id", input.playerId)
-      .eq("season", input.season)
-      .eq("tier", input.tier)
-      .eq("track", input.track);
+    const { data, error } = await sb.rpc("levelup_pass_claim", { p_player: playerId, p_season: season, p_items: items });
     if (error) throw error;
-    return;
+    const row = Array.isArray(data) ? data[0] : data;
+    const claimed = ((row?.claimed ?? []) as { tier: number; track: PassTrack }[]).map((c) => ({ tier: Number(c.tier), track: c.track }));
+    return { claimed, balance: Number(row?.balance ?? 0) };
   }
-  passMem.claims.delete(`${input.playerId}:${input.season}:${input.tier}:${input.track}`);
+
+  // Demo mode: synchronous section, so it is atomic in JS.
+  const claimed: PassClaim[] = [];
+  let balance = shopMem.balances.get(playerId) ?? 0;
+  for (const item of items) {
+    const key = `${playerId}:${season}:${claimKey(item.tier, item.track)}`;
+    if (passMem.claims.has(key)) continue;
+    passMem.claims.add(key);
+    const ref = passGemRef(playerId, season, item);
+    if (item.gems > 0 && !shopMem.refs.has(ref)) {
+      shopMem.refs.add(ref);
+      balance += item.gems;
+    }
+    if (item.tickets > 0) shopMem.bonuses.push({ playerId, agentId: null, mode: "raid", extra: item.tickets, day: utcToday() });
+    if (item.title) shopMem.titles.set(playerId, item.title);
+    claimed.push({ tier: item.tier, track: item.track });
+  }
+  shopMem.balances.set(playerId, balance);
+  return { claimed, balance };
 }

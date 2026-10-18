@@ -1,8 +1,8 @@
 // @vitest-environment node
-import { describe, it, expect } from "vitest";
-import { checkMemoTx, type ParsedMemoTx } from "../verify-memo";
+import { describe, it, expect, vi } from "vitest";
+import { checkMemoTx, verifyMemoTx, type ParsedMemoTx } from "../verify-memo";
 import { guestFighter } from "../guest";
-import { blinkMemo, ACTION_HEADERS } from "../actions";
+import { blinkMemo } from "@/lib/payment-memos";
 import { DIMENSIONS } from "@/lib/constants";
 
 const NOW = 1_800_000_000;
@@ -47,6 +47,36 @@ describe("checkMemoTx", () => {
   });
 });
 
+describe("verifyMemoTx", () => {
+  const input = { signature: "s", account: ACCOUNT, memo: MEMO };
+  const fresh = () => tx({ blockTime: Math.floor(Date.now() / 1000) - 10 });
+
+  it("retries while the RPC returns null, then verifies", async () => {
+    const getTx = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce(fresh());
+    expect(await verifyMemoTx(input, { getTx, delayMs: 0 })).toBe("ok");
+    expect(getTx).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports not_found after the retries run out", async () => {
+    const getTx = vi.fn(async () => null);
+    expect(await verifyMemoTx(input, { getTx, delayMs: 0, attempts: 3 })).toBe("not_found");
+    expect(getTx).toHaveBeenCalledTimes(3);
+  });
+
+  it("fails fast on an RPC error without retrying", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const getTx = vi.fn(async () => {
+      throw new Error("429 Too Many Requests");
+    });
+    expect(await verifyMemoTx(input, { getTx, delayMs: 0 })).toBe("rpc_error");
+    expect(getTx).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports invalid for a found transaction that fails the check", async () => {
+    expect(await verifyMemoTx(input, { getTx: async () => tx({ memo: "other" }), delayMs: 0 })).toBe("invalid");
+  });
+});
+
 describe("guestFighter", () => {
   it("has 150 in every dimension, the name Guest and a role picked deterministically from the wallet", () => {
     const g = guestFighter(ACCOUNT);
@@ -59,11 +89,8 @@ describe("guestFighter", () => {
   });
 });
 
-describe("actions helpers", () => {
-  it("builds the memo and the Actions CORS + spec headers", () => {
+describe("blinkMemo", () => {
+  it("tags the challenged agent", () => {
     expect(blinkMemo("abc")).toBe("levelup:blink:abc");
-    expect(ACTION_HEADERS["Access-Control-Allow-Origin"]).toBe("*");
-    expect(ACTION_HEADERS["X-Blockchain-Ids"]).toBe("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
-    expect(ACTION_HEADERS["X-Action-Version"]).toBeTruthy();
   });
 });

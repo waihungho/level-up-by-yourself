@@ -21,7 +21,7 @@ export function ExpeditionAgentList({ agents, awayIds, slotsFull, busy, onStart 
         return (
           <li key={a.id} className="border border-gray-800 bg-gray-900 rounded-lg p-2.5 flex items-center gap-2.5">
             <div className="shrink-0">
-              <PixelSprite spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={40} />
+              <PixelSprite spriteSeed={a.spriteSeed} role={a.role} size={40} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-mono text-xs font-bold text-white truncate">{a.name}</p>

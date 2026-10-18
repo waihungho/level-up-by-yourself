@@ -87,7 +87,8 @@ export async function finalizeSession(session: BattleSession<BattleStateBase>, d
   await deps.store.markFinished(session.id, log?.id ?? null, extra);
   const xp = SESSION_XP[session.mode];
   if (xp) {
-    const award = { playerId: session.playerId, source: xp, ref: `session:${session.id}`, xp: XP[xp] };
+    // Credited to the season the fight started in, so a fight spanning a rollover can't land in the next season.
+    const award = { playerId: session.playerId, source: xp, ref: `session:${session.id}`, xp: XP[xp], now: new Date(session.createdAt) };
     await runDeferred(deps, "pass xp", async () => void (await awardPassXp(award)));
   }
   return extra;

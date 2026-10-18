@@ -19,3 +19,8 @@ export function nftMintMemo(agentId: string): string {
 export function passMemo(season: number): string {
   return `levelup:pass:${season}`;
 }
+
+/** Blink challenge: a fee-only memo transaction (no SOL moves), tied to the challenged agent. */
+export function blinkMemo(agentId: string): string {
+  return `levelup:blink:${agentId}`;
+}

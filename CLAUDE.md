@@ -102,3 +102,13 @@ pnpm daily-growth
 - Mint authority keypair: `~/.config/solana/level-up-nft-authority.json` (`Ek9Zox15W29s6FPdEgh1LVf1vxMAwuBvYadgWJCNi7uC`); its base58 secret is `NFT_MINT_AUTHORITY_SECRET` in Vercel (Production + Preview). Keep it funded for Irys uploads (funded 0.1 SOL on 2026-10-13).
 - Collections: mainnet `CUZHQqJSpG7iYFfdyGiafQXP173X81ro1QEix5KG5oJ6` (set as `NEXT_PUBLIC_NFT_COLLECTION_ADDRESS`), devnet `4oTJA7oWMS7RrLoWGKV3NShTctRCeqxrya56aLf4Zk5r`. Both: 5% royalty to the treasury, created 2026-10-13.
 - Metaplex deps are pinned to umi 1.5.x via `overrides` in `pnpm-workspace.yaml` (umi 1.6 needs a newer web3.js); `@noble/hashes@1.8.0` is a direct dep for mpl-core's peer. Don't bump them casually.
+
+## Season Pass / Expeditions / Blink challenges
+
+- Spec: `docs/superpowers/specs/2026-10-19-pass-expeditions-blinks-design.md`. The game never pays SOL to players; all rewards are in-game.
+- Apply in prod before deploying: `011_season_pass.sql` → `012_expeditions.sql` → `013_blink_challenges.sql` (012 needs 008's `levelup_apply_growth` / `levelup_gems_apply`).
+- Grants are one transaction per claim: `levelup_pass_claim`, `levelup_claim_expedition` (claim + growth + gems + ticket). Caps are atomic RPCs with advisory locks: `levelup_start_expedition` (3 open per player), `levelup_blink_record_challenge` (5/day per wallet, 1/day per wallet+agent). Pass XP: `awardPassXp` (idempotent `ref`); every finished battle session awards XP after the response (`finalizeSession`).
+- Seasons: 14 days from 2026-10-19 (`src/lib/pass/season.ts`). Premium 0.15 SOL, memo `levelup:pass:<season>`; the previous season's memo is accepted after a rollover.
+- Payments: `checkTransfer` rejects a tx carrying more than one `levelup:` purpose memo (one payment, one product).
+- Blinks: Solana Actions at `/api/actions/challenge/[agentId]` (+ `/result`), `/actions.json`, page `/challenge/[agentId]`, avatar `/api/agents/[id]/avatar`. Memo-only tx (`levelup:blink:<agentId>`), challenger pays only the network fee. `BLINK_CLUSTER` (default mainnet), optional `NEXT_PUBLIC_SITE_URL`. For X to unfurl Blinks, register the action with the Dialect registry after deploy.
+- The new RPCs are exercised against PGlite (Postgres in WASM) in addition to the in-memory demo stores used by unit tests.

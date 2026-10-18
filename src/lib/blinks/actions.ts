@@ -1,38 +1,34 @@
 /*
  * Solana Actions plumbing for Blink challenges: spec types (the subset we use, from
- * @solana/actions-spec 2.4), response headers and the memo. No server imports.
+ * @solana/actions-spec 2.4) and response helpers.
  * Spec: https://solana.com/docs/advanced/actions
  */
 import { NextResponse } from "next/server";
+import { blinkChainId } from "./cluster";
 
 /** Spec version we implement, sent as X-Action-Version. */
 export const ACTIONS_SPEC_VERSION = "2.4";
-/** CAIP-2 id of Solana mainnet, sent as X-Blockchain-Ids. */
-export const SOLANA_MAINNET_CHAIN_ID = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
 
 /** CORS + spec headers required on every Actions response (including OPTIONS and actions.json). */
-export const ACTION_HEADERS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, Content-Encoding, Accept-Encoding, X-Accept-Action-Version, X-Accept-Blockchain-Ids",
-  "Access-Control-Expose-Headers": "X-Action-Version, X-Blockchain-Ids",
-  "X-Action-Version": ACTIONS_SPEC_VERSION,
-  "X-Blockchain-Ids": SOLANA_MAINNET_CHAIN_ID,
-};
-
-/** Memo the challenger's transaction must carry, so one signature can't be used for another agent. */
-export function blinkMemo(agentId: string): string {
-  return `levelup:blink:${agentId}`;
+export function actionHeaders(): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, Content-Encoding, Accept-Encoding, X-Accept-Action-Version, X-Accept-Blockchain-Ids",
+    "Access-Control-Expose-Headers": "X-Action-Version, X-Blockchain-Ids",
+    "X-Action-Version": ACTIONS_SPEC_VERSION,
+    "X-Blockchain-Ids": blinkChainId(),
+  };
 }
 
-export interface LinkedAction {
+export type LinkedAction = {
   type: "transaction" | "message" | "post" | "external-link";
   href: string;
   label: string;
-}
+};
 
 /** GET response (`type: "action"`) and the terminal `type: "completed"` action of a chain. */
-export interface ActionGetResponse {
+export type ActionGetResponse = {
   type: "action" | "completed";
   icon: string;
   title: string;
@@ -41,30 +37,43 @@ export interface ActionGetResponse {
   disabled?: boolean;
   links?: { actions: LinkedAction[] };
   error?: { message: string };
-}
+};
 
 /** POST response for a transaction, chained to a callback that receives `{ account, signature }`. */
-export interface ActionTransactionResponse {
+export type ActionTransactionResponse = {
   type: "transaction";
   transaction: string;
   message?: string;
   links?: { next: { type: "post"; href: string } };
+};
+
+/** Error body: `message` is the spec's ActionError text Blink clients show, `error` our usual code. */
+export type ActionErrorBody = { error: string; message: string };
+
+export type ActionResult = { status: number; body: ActionGetResponse | ActionTransactionResponse | ActionErrorBody };
+
+export function actionOk(body: ActionGetResponse | ActionTransactionResponse): ActionResult {
+  return { status: 200, body };
 }
 
-export function actionJson(body: unknown, status = 200): NextResponse {
-  return NextResponse.json(body, { status, headers: ACTION_HEADERS });
+export function actionFail(status: number, error: string, message: string): ActionResult {
+  return { status, body: { error, message } };
+}
+
+export function actionJson(body: unknown, status = 200, extraHeaders: Record<string, string> = {}): NextResponse {
+  return NextResponse.json(body, { status, headers: { ...actionHeaders(), ...extraHeaders } });
 }
 
 /** Preflight answer for every Actions route (200 + headers, like the official examples). */
 export function actionOptions(): NextResponse {
-  return NextResponse.json(null, { headers: ACTION_HEADERS });
+  return actionJson(null);
 }
 
 /** Runs a service call and maps its result (or an unexpected error) to an Actions JSON response. */
-export async function respondAction(tag: string, run: () => Promise<{ status: number; body: Record<string, unknown> }>): Promise<NextResponse> {
+export async function respondAction(tag: string, run: () => Promise<ActionResult>, okHeaders: Record<string, string> = {}): Promise<NextResponse> {
   try {
     const result = await run();
-    return actionJson(result.body, result.status);
+    return actionJson(result.body, result.status, result.status === 200 ? okHeaders : {});
   } catch (e) {
     console.error(`[${tag}]`, e);
     return actionJson({ error: "internal", message: "Something went wrong. Try again." }, 500);
@@ -79,4 +88,8 @@ export async function readActionBody(req: Request): Promise<Record<string, unkno
   } catch {
     return {};
   }
+}
+
+export function isActionError(body: ActionResult["body"]): body is ActionErrorBody {
+  return typeof (body as ActionErrorBody).error === "string";
 }

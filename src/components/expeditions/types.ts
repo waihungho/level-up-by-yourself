@@ -1,22 +1,15 @@
-import type { ExpeditionDuration, ExpeditionReward } from "@/lib/expeditions/catalog";
+import type { ExpeditionSummary } from "@/lib/expeditions/expedition-db";
 import type { RoleCategory } from "@/lib/types";
 
 /** Shapes returned by /api/expeditions (client side). */
-export interface ExpeditionItem {
-  id: string;
-  agentId: string;
-  durationH: ExpeditionDuration;
-  startedAt: string;
-  endsAt: string;
-  reward: ExpeditionReward;
-}
+export type ExpeditionItem = ExpeditionSummary;
 
 export interface ExpeditionAgent {
   id: string;
   name: string;
   role: RoleCategory;
   roleTitle: string;
-  spriteSeed: Record<string, unknown>;
+  spriteSeed: Record<string, number>;
 }
 
 export interface ExpeditionsView {
@@ -24,6 +17,14 @@ export interface ExpeditionsView {
   agents: ExpeditionAgent[];
   maxActive: number;
   serverNow: string;
+}
+
+/** What a claim actually granted (from /api/expeditions/claim). */
+export interface ExpeditionGrant {
+  gems: number;
+  growth: Record<number, number>;
+  ticket: boolean;
+  xp: boolean;
 }
 
 /** "3:05:09" for 3h 5m 9s; "0:00" once done. */

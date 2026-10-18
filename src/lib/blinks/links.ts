@@ -3,8 +3,18 @@
  * `window.location.origin` on the client, the request URL's origin on the server.
  */
 
+/** The public site origin: NEXT_PUBLIC_SITE_URL when set (canonical domain), else the request's. */
+export function siteOrigin(reqOrigin: string): string {
+  return (process.env.NEXT_PUBLIC_SITE_URL || reqOrigin).replace(/\/+$/, "");
+}
+
 export function challengePageUrl(origin: string, agentId: string): string {
   return `${origin}/challenge/${agentId}`;
+}
+
+/** Page that resolves a challenge whose transaction the RPC hadn't seen yet. */
+export function challengeResultPageUrl(origin: string, agentId: string, signature: string, account: string): string {
+  return `${challengePageUrl(origin, agentId)}?sig=${encodeURIComponent(signature)}&account=${encodeURIComponent(account)}`;
 }
 
 export function challengeActionUrl(origin: string, agentId: string): string {

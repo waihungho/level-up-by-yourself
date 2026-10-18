@@ -1,18 +1,17 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { EXPEDITION_DURATIONS, EXPEDITION_REWARDS, type ExpeditionDuration, type ExpeditionReward } from "@/lib/expeditions/catalog";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EXPEDITION_DURATIONS, EXPEDITION_REWARDS, MAX_ACTIVE, type ExpeditionDuration } from "@/lib/expeditions/catalog";
 import { announceGemBalance, postJson } from "@/lib/shop-client";
 import { ExpeditionAgentList } from "./ExpeditionAgentList";
 import { ExpeditionSlot } from "./ExpeditionSlot";
 import { RewardReveal } from "./RewardReveal";
-import type { ExpeditionAgent, ExpeditionItem, ExpeditionsView } from "./types";
+import type { ExpeditionAgent, ExpeditionGrant, ExpeditionItem, ExpeditionsView } from "./types";
 
 const ERRORS: Record<string, string> = {
-  agent_away: "That agent is already on an expedition.",
-  expedition_limit: "All 3 slots are in use. Claim one first.",
+  expedition_limit: `All ${MAX_ACTIVE} slots are in use. Claim one first.`,
   not_ready: "Not back yet.",
-  already_claimed: "That loot was already claimed.",
   not_owner: "That agent isn't yours.",
+  not_found: "That expedition no longer exists.",
   invalid_duration: "Pick 4h, 8h or 12h.",
   network: "Network error. Please try again.",
 };
@@ -20,20 +19,22 @@ const GENERIC_ERROR = "Something went wrong. Please try again.";
 
 interface ExpeditionsBoardProps {
   walletAddress: string;
-  /** Called after a claim (stats changed) so the caller can refresh agents. */
-  onClaimed?: () => void;
+  /** Called when a claim changed stats or gems (or another tab already claimed), so the caller can refresh them. */
+  onRewardsChanged?: () => void;
+  retryDelayMs?: number;
 }
 
-export function ExpeditionsBoard({ walletAddress, onClaimed }: ExpeditionsBoardProps) {
+export function ExpeditionsBoard({ walletAddress, onRewardsChanged, retryDelayMs }: ExpeditionsBoardProps) {
   const [view, setView] = useState<ExpeditionsView | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
-  const [claimingId, setClaimingId] = useState<string | null>(null);
-  const [reveal, setReveal] = useState<{ agentName: string; reward: ExpeditionReward } | null>(null);
+  const [claimingIds, setClaimingIds] = useState<ReadonlySet<string>>(new Set());
+  const [reveal, setReveal] = useState<{ agentName: string; granted: ExpeditionGrant } | null>(null);
   /** Server clock minus device clock, so countdowns match the server's "ready" check. */
   const [offset, setOffset] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const slotsHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -70,15 +71,16 @@ export function ExpeditionsBoard({ walletAddress, onClaimed }: ExpeditionsBoardP
 
   const agentsById = useMemo(() => new Map((view?.agents ?? []).map((a) => [a.id, a])), [view]);
   const awayIds = useMemo(() => new Set(expeditions.map((e) => e.agentId)), [expeditions]);
-  const maxActive = view?.maxActive ?? 3;
+  const maxActive = view?.maxActive ?? MAX_ACTIVE;
   const slotsFull = expeditions.length >= maxActive;
 
   async function start(agent: ExpeditionAgent, duration: ExpeditionDuration) {
     setStarting(true);
     setError(null);
     try {
-      const res = await postJson("/api/expeditions/start", { walletAddress, agentId: agent.id, duration });
-      if (!res.ok) setError(ERRORS[res.data.error as string] ?? GENERIC_ERROR);
+      const res = await postJson("/api/expeditions/start", { walletAddress, agentId: agent.id, duration }, retryDelayMs);
+      // agent_away after a lost response means our own retried start already went through: the refresh shows it.
+      if (!res.ok && res.data.error !== "agent_away") setError(ERRORS[res.data.error as string] ?? GENERIC_ERROR);
     } catch {
       setError(ERRORS.network);
     }
@@ -87,31 +89,47 @@ export function ExpeditionsBoard({ walletAddress, onClaimed }: ExpeditionsBoardP
   }
 
   async function claim(expedition: ExpeditionItem) {
-    setClaimingId(expedition.id);
+    setClaimingIds((s) => new Set(s).add(expedition.id));
     setError(null);
     try {
-      const res = await postJson("/api/expeditions/claim", { walletAddress, expeditionId: expedition.id });
+      const res = await postJson("/api/expeditions/claim", { walletAddress, expeditionId: expedition.id }, retryDelayMs);
       if (res.ok) {
-        const reward = res.data.reward as ExpeditionReward;
         if (typeof res.data.balance === "number") announceGemBalance(res.data.balance);
-        setReveal({ agentName: agentsById.get(expedition.agentId)?.name ?? "Your agent", reward });
-        onClaimed?.();
-      } else if (res.data.error !== "already_claimed") {
+        setReveal({ agentName: agentsById.get(expedition.agentId)?.name ?? "Your agent", granted: res.data.granted as ExpeditionGrant });
+        onRewardsChanged?.();
+      } else if (res.data.error === "already_claimed") {
+        // Claimed by a retried request or another tab: rewards are in, just resync gems and stats.
+        onRewardsChanged?.();
+      } else {
         setError(ERRORS[res.data.error as string] ?? GENERIC_ERROR);
       }
     } catch {
       setError(ERRORS.network);
     }
     await refresh();
-    setClaimingId(null);
+    setClaimingIds((s) => {
+      const next = new Set(s);
+      next.delete(expedition.id);
+      return next;
+    });
   }
 
-  const closeReveal = useCallback(() => setReveal(null), []);
+  const closeReveal = useCallback(() => {
+    setReveal(null);
+    slotsHeadingRef.current?.focus();
+  }, []);
 
   if (!view) {
-    return (
+    return loadError ? (
+      <div className="text-center py-12 space-y-3" role="alert">
+        <p className="font-mono text-sm text-gray-400">Couldn&apos;t load expeditions.</p>
+        <button type="button" onClick={refresh} className="min-h-[44px] px-5 rounded bg-gray-800 hover:bg-gray-700 font-mono text-sm text-white">
+          Retry
+        </button>
+      </div>
+    ) : (
       <p className="text-center font-mono text-sm text-gray-500 py-12" role="status">
-        {loadError ? "Couldn't load expeditions. Pull to refresh or try again later." : "Loading expeditions…"}
+        Loading expeditions…
       </p>
     );
   }
@@ -128,7 +146,7 @@ export function ExpeditionsBoard({ walletAddress, onClaimed }: ExpeditionsBoardP
 
       <section aria-labelledby="exp-slots">
         <div className="flex items-baseline justify-between mb-2">
-          <h2 id="exp-slots" className="font-mono text-sm font-bold text-gray-200">
+          <h2 id="exp-slots" ref={slotsHeadingRef} tabIndex={-1} className="font-mono text-sm font-bold text-gray-200 outline-none">
             Away
           </h2>
           <span className="font-mono text-[10px] text-gray-500">
@@ -143,7 +161,7 @@ export function ExpeditionsBoard({ walletAddress, onClaimed }: ExpeditionsBoardP
               expedition={e}
               agent={e ? agentsById.get(e.agentId) : undefined}
               now={serverNow}
-              claiming={claimingId === e?.id}
+              claiming={!!e && claimingIds.has(e.id)}
               onClaim={claim}
             />
           ))}
@@ -165,11 +183,13 @@ export function ExpeditionsBoard({ walletAddress, onClaimed }: ExpeditionsBoardP
             );
           })}
         </ul>
-        <p className="font-mono text-[10px] text-gray-500 mb-2">Stats grow in the agent&apos;s role category. Agents can still fight while away.</p>
+        <p className="font-mono text-[10px] text-gray-500 mb-2">
+          Stats grow in the agent&apos;s role category. A Raid Ticket is +1 raid attempt on the day you claim it. Agents can still fight while away.
+        </p>
         <ExpeditionAgentList agents={view.agents} awayIds={awayIds} slotsFull={slotsFull} busy={starting} onStart={start} />
       </section>
 
-      {reveal && <RewardReveal agentName={reveal.agentName} reward={reveal.reward} onClose={closeReveal} />}
+      {reveal && <RewardReveal agentName={reveal.agentName} granted={reveal.granted} onClose={closeReveal} />}
     </div>
   );
 }

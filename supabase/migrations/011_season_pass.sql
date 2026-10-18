@@ -58,11 +58,12 @@ CREATE TABLE IF NOT EXISTS levelup_pass_premium (
   PRIMARY KEY (player_id, season)
 );
 
--- One row per claimed reward. Inserted before the grant, deleted again if the grant fails.
+-- One row per claimed reward, written by levelup_pass_claim in the same transaction as the grant.
+-- The upper tier bound is TIERS in src/lib/pass/rewards.ts (checked by the app, so it can grow).
 CREATE TABLE IF NOT EXISTS levelup_pass_claims (
   player_id  uuid NOT NULL REFERENCES levelup_players(id) ON DELETE CASCADE,
   season     int NOT NULL,
-  tier       int NOT NULL CHECK (tier BETWEEN 1 AND 30),
+  tier       int NOT NULL CHECK (tier >= 1),
   track      text NOT NULL CHECK (track IN ('free', 'premium')),
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (player_id, season, tier, track)
@@ -70,3 +71,50 @@ CREATE TABLE IF NOT EXISTS levelup_pass_claims (
 
 ALTER TABLE levelup_pass_premium ENABLE ROW LEVEL SECURITY;
 ALTER TABLE levelup_pass_claims ENABLE ROW LEVEL SECURITY;
+
+-- Atomic claim: p_items = [{tier, track, gems, tickets, title}] (amounts from src/lib/pass/rewards.ts).
+-- In one transaction, inserts each claim row and grants only the newly inserted ones: gems (ledger ref
+-- pass:<season>:<tier>:<track>:<player>), raid tickets for today, and the title. Any error rolls back everything.
+CREATE OR REPLACE FUNCTION levelup_pass_claim(p_player uuid, p_season int, p_items jsonb)
+RETURNS TABLE(claimed jsonb, balance int)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_item    jsonb;
+  v_tier    int;
+  v_track   text;
+  v_gems    int;
+  v_tickets int;
+  v_title   text;
+  v_claimed jsonb := '[]'::jsonb;
+  v_balance int;
+BEGIN
+  FOR v_item IN SELECT value FROM jsonb_array_elements(p_items) LOOP
+    v_tier := (v_item->>'tier')::int;
+    v_track := v_item->>'track';
+    INSERT INTO levelup_pass_claims (player_id, season, tier, track)
+    VALUES (p_player, p_season, v_tier, v_track)
+    ON CONFLICT DO NOTHING;
+    CONTINUE WHEN NOT FOUND;
+
+    v_gems := COALESCE((v_item->>'gems')::int, 0);
+    IF v_gems > 0 THEN
+      PERFORM levelup_gems_apply(p_player, v_gems, 'pass:' || v_track, 'pass:' || p_season || ':' || v_tier || ':' || v_track || ':' || p_player);
+    END IF;
+    v_tickets := COALESCE((v_item->>'tickets')::int, 0);
+    IF v_tickets > 0 THEN
+      INSERT INTO levelup_attempt_bonuses (player_id, agent_id, mode, extra) VALUES (p_player, NULL, 'raid', v_tickets);
+    END IF;
+    v_title := v_item->>'title';
+    IF v_title IS NOT NULL THEN
+      INSERT INTO levelup_player_titles AS t (player_id, title) VALUES (p_player, v_title)
+      ON CONFLICT (player_id) DO UPDATE SET title = EXCLUDED.title;
+    END IF;
+    v_claimed := v_claimed || jsonb_build_array(jsonb_build_object('tier', v_tier, 'track', v_track));
+  END LOOP;
+
+  SELECT w.balance INTO v_balance FROM levelup_gem_wallets w WHERE w.player_id = p_player;
+  claimed := v_claimed; balance := COALESCE(v_balance, 0); RETURN NEXT;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION levelup_pass_claim(uuid, int, jsonb) FROM anon, authenticated, public;

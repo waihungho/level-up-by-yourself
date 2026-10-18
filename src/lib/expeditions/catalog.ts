@@ -42,10 +42,3 @@ export function rollReward(duration: ExpeditionDuration, role: RoleCategory, rng
   };
 }
 
-/** Short text for a reward, e.g. "+1.2 Mental · 💎 3 · 🎟 Raid Ticket". */
-export function describeReward(reward: ExpeditionReward, role: RoleCategory): string {
-  const growth = Object.values(reward.growth).reduce((s, v) => s + v, 0);
-  const parts = [`+${Math.round(growth * 10) / 10} ${ROLE_CATEGORY[role]}`, `💎 ${reward.gems}`];
-  if (reward.ticket) parts.push("🎟 Raid Ticket");
-  return parts.join(" · ");
-}

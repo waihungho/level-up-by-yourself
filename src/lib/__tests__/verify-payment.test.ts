@@ -5,7 +5,7 @@ const payer = "Payer111111111111111111111111111111111111111";
 const treasury = "Treasury1111111111111111111111111111111111111";
 const now = 1_800_000_000;
 
-function tx(over: { err?: unknown; blockTime?: number; source?: string; destination?: string; lamports?: number; memo?: string | null } = {}) {
+function tx(over: { err?: unknown; blockTime?: number; source?: string; destination?: string; lamports?: number; memo?: string | null; memos?: string[] } = {}) {
   return {
     blockTime: over.blockTime ?? now - 30,
     meta: { err: over.err ?? null },
@@ -14,6 +14,7 @@ function tx(over: { err?: unknown; blockTime?: number; source?: string; destinat
         instructions: [
           { program: "system", parsed: { type: "transfer", info: { source: over.source ?? payer, destination: over.destination ?? treasury, lamports: over.lamports ?? 50_000_000 } } },
           ...(over.memo ? [{ program: "spl-memo", parsed: over.memo }] : []),
+          ...(over.memos ?? []).map((m) => ({ program: "spl-memo", parsed: m })),
         ],
       },
     },
@@ -45,5 +46,11 @@ describe("checkTransfer", () => {
     expect(checkTransfer(tx({ memo: null }), withMemo)).toBe(false);
     expect(checkTransfer(tx({ memo: "levelup:recharge:a1" }), withMemo)).toBe(false);
     expect(checkTransfer(tx({ memo: "levelup:gems:whale" }), withMemo)).toBe(false);
+  });
+
+  it("rejects a payment that carries several purpose memos (one payment, one product)", () => {
+    const withMemo = { ...opts, memo: "levelup:gems:starter" };
+    expect(checkTransfer(tx({ memo: "levelup:gems:starter", memos: ["levelup:pass:1"] }), withMemo)).toBe(false);
+    expect(checkTransfer(tx({ memo: "levelup:gems:starter", memos: ["gm frens"] }), withMemo)).toBe(true);
   });
 });

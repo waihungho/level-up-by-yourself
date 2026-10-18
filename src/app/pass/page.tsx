@@ -32,7 +32,7 @@ export default function PassPage() {
   return (
     <main className="min-h-screen bg-gray-950 text-white p-4 pb-32 max-w-2xl mx-auto">
       {wallet ? (
-        <SeasonPass walletAddress={wallet} pay={pay} />
+        <SeasonPass key={wallet} walletAddress={wallet} pay={pay} />
       ) : (
         <div className="text-center py-12 space-y-2">
           <p className="font-mono text-4xl">🎟️</p>
