@@ -21,6 +21,7 @@ import type { Gear } from "@/lib/shop/catalog";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { announceGemBalance } from "@/lib/shop-client";
 import { MintNftPanel } from "@/components/nft/MintNftPanel";
+import { ShareChallengeButton } from "@/components/blinks/ShareChallengeButton";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
 const ROLE_COLORS = {
@@ -152,6 +153,13 @@ export default function AgentDetailPage() {
       {isSupabaseConfigured && publicKey && player?.id === agent.playerId && (
         <div className="mb-6">
           <MintNftPanel agentId={agent.id} />
+        </div>
+      )}
+
+      {/* Blink challenge (owner only) */}
+      {player?.id === agent.playerId && (
+        <div className="mb-6">
+          <ShareChallengeButton agentId={agent.id} agentName={agent.name} />
         </div>
       )}
 
