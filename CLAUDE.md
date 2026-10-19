@@ -106,7 +106,7 @@ pnpm daily-growth
 ## Season Pass / Expeditions / Blink challenges
 
 - Spec: `docs/superpowers/specs/2026-10-19-pass-expeditions-blinks-design.md`. The game never pays SOL to players; all rewards are in-game.
-- Apply in prod before deploying: `011_season_pass.sql` → `012_expeditions.sql` → `013_blink_challenges.sql` (012 needs 008's `levelup_apply_growth` / `levelup_gems_apply`).
+- Apply in prod before deploying: `011_season_pass.sql` → `012_expeditions.sql` → `013_blink_challenges.sql` (012 needs 008's `levelup_apply_growth` / `levelup_gems_apply`). Applied in production 2026-10-19.
 - Grants are one transaction per claim: `levelup_pass_claim`, `levelup_claim_expedition` (claim + growth + gems + ticket). Caps are atomic RPCs with advisory locks: `levelup_start_expedition` (3 open per player), `levelup_blink_record_challenge` (5/day per wallet, 1/day per wallet+agent). Pass XP: `awardPassXp` (idempotent `ref`); every finished battle session awards XP after the response (`finalizeSession`).
 - Seasons: 14 days from 2026-10-19 (`src/lib/pass/season.ts`). Premium 0.15 SOL, memo `levelup:pass:<season>`; the previous season's memo is accepted after a rollover.
 - Payments: `checkTransfer` rejects a tx carrying more than one `levelup:` purpose memo (one payment, one product).
