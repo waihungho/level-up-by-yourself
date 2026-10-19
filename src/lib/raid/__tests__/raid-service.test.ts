@@ -105,8 +105,8 @@ describe("deferred payout", () => {
     const done = await auto(r.body.sessionId as string);
     expect(done.body.killed).toBe(true);
     expect((await getBossById(boss.id))!.paidOutAt).toBeNull();
-    expect(deferred).toHaveLength(1);
-    await deferred[0]();
+    expect(deferred).toHaveLength(2); // payout + Season Pass XP, both after the response
+    await Promise.all(deferred.map((task) => task()));
     expect((await getBossById(boss.id))!.paidOutAt).not.toBeNull();
   });
 

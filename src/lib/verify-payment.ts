@@ -13,8 +13,12 @@ export interface ParsedTransferTx {
 
 /**
  * Pure check: a successful, recent system transfer of at least minLamports from payer to treasury,
- * and — when `memo` is given — a memo instruction with exactly that purpose.
+ * and — when `memo` is given — exactly one Level Up purpose memo, equal to `memo`. A tx carrying several
+ * purpose memos is rejected, so one payment can never redeem two products (each product dedupes signatures
+ * only in its own table).
  */
+const PURPOSE_PREFIX = "levelup:";
+
 export function checkTransfer(
   tx: ParsedTransferTx | null,
   opts: { payer: string; treasury: string; minLamports: number; nowSec: number; maxAgeSec: number; memo?: string }
@@ -33,7 +37,9 @@ export function checkTransfer(
     );
   });
   if (!paid) return false;
-  return opts.memo === undefined || ixs.some((ix) => ix.program === "spl-memo" && ix.parsed === opts.memo);
+  if (opts.memo === undefined) return true;
+  const purposes = ixs.filter((ix) => ix.program === "spl-memo" && typeof ix.parsed === "string" && ix.parsed.startsWith(PURPOSE_PREFIX));
+  return purposes.length === 1 && purposes[0].parsed === opts.memo;
 }
 
 const MAX_PAYMENT_AGE_SEC = 15 * 60;

@@ -3,14 +3,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 /** Bump when announcing a new release so the banner shows again for everyone. */
-const RELEASE = "2026-10-gem-shop-gear";
+const RELEASE = "2026-10-pass-expeditions-blinks";
 const STORAGE_KEY = `whats_new_dismissed_${RELEASE}`;
 
 const FEATURES = [
+  { href: "/pass", icon: "🎟", title: "Season Pass", text: "Every fight, raid and daily check-in earns XP. 30 tiers of gems, tickets and a season title." },
+  { href: "/expeditions", icon: "🧭", title: "Expeditions", text: "Send up to 3 agents away for 4–12 hours. They come back stronger, with gems." },
+  { href: "/agents", icon: "⚡", title: "Blink Challenges", text: "Share any agent on X — anyone with a Solana wallet can fight it from the post." },
   { href: "/shop", icon: "💎", title: "Gem Shop & Gear", text: "Elixirs, boosts, cosmetics — and upgradeable weapons, armor and relics." },
-  { href: "/battle", icon: "⚔", title: "Tactical Battles", text: "Read the enemy's move, counter it, and fire role Specials." },
-  { href: "/squad", icon: "⛨", title: "Squad 3v3", text: "Field 3 agents, tag-swap mid-fight and climb the squad rating." },
-  { href: "/raid", icon: "🐉", title: "World Boss Raid", text: "Team up with everyone to take down this week's boss." },
 ];
 
 export function WhatsNewBanner() {

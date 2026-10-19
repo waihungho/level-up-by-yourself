@@ -8,9 +8,9 @@ describe("WhatsNewBanner", () => {
   it("lists the latest features with links to try them", () => {
     render(<WhatsNewBanner />);
     expect(screen.getByText(/What's new/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Tactical Battles/i })).toHaveAttribute("href", "/battle");
-    expect(screen.getByRole("link", { name: /Squad 3v3/i })).toHaveAttribute("href", "/squad");
-    expect(screen.getByRole("link", { name: /World Boss/i })).toHaveAttribute("href", "/raid");
+    expect(screen.getByRole("link", { name: /Season Pass/i })).toHaveAttribute("href", "/pass");
+    expect(screen.getByRole("link", { name: /Expeditions/i })).toHaveAttribute("href", "/expeditions");
+    expect(screen.getByRole("link", { name: /Blink Challenges/i })).toHaveAttribute("href", "/agents");
   });
 
   it("stays hidden after being dismissed", () => {

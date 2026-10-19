@@ -73,6 +73,8 @@ const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 /** Display text for a title id (falls back to the id). */
 export function titleLabel(id: string): string {
+  const season = /^pass_s(\d+)$/.exec(id);
+  if (season) return `Season ${season[1]} Elite`;
   return (TITLES as Record<string, string>)[id] ?? id;
 }
 
