@@ -19,6 +19,7 @@ import { XP, type XpSource } from "@/lib/pass/season";
 import { awardPassXp } from "@/lib/pass/xp";
 import { squadHandler, startSquadBattle } from "./squad-service";
 import { raidHandler, startRaidAttempt } from "@/lib/raid/raid-service";
+import { startStoryBattle, storyHandler } from "@/lib/story/story-service";
 import { InvalidActionError, type BattleMode, type PlayerAction, type TacticalState } from "./types";
 
 export { parseAction } from "./battle-service-actions";
@@ -54,6 +55,7 @@ const handlers: Partial<Record<SessionMode, ModeHandler<any>>> = {
   pvp: tacticalHandler,
   squad_pvp: squadHandler,
   raid: raidHandler,
+  story: storyHandler,
 };
 
 function handlerFor(mode: SessionMode): ModeHandler<BattleStateBase> {
@@ -189,11 +191,18 @@ const extraStarters: Partial<Record<SessionMode, ExtraStarter>> = {
 };
 
 export async function startBattle(
-  input: { mode?: string; agentId?: string; walletAddress?: string; opponentAgentId?: string },
+  input: { mode?: string; agentId?: string; walletAddress?: string; opponentAgentId?: string; stageId?: string },
   deps: ServiceDeps
 ): Promise<ServiceResult> {
   const { mode, agentId, walletAddress, opponentAgentId } = input;
   if (!mode || !walletAddress) return fail(400, "missing_fields");
+  if (mode === "story") {
+    const player = await getPlayerByWallet(walletAddress);
+    if (!player) return fail(403, "not_owner");
+    // One story fight at a time: an abandoned one is finished on Auto (and can still clear its stage).
+    await resolveStaleSessions({ playerId: player.id, modes: ["story"] }, deps);
+    return startStoryBattle(player, { agentId, stageId: input.stageId }, deps);
+  }
   const isTactical = TACTICAL_MODES.includes(mode as BattleMode);
   const starter = extraStarters[mode as SessionMode];
   if (!isTactical && !starter) return fail(400, "invalid_mode");

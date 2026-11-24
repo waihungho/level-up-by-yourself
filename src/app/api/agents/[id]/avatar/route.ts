@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { weaponTint } from "@/components/shop/gearStyle";
 import { getAgentsByIds } from "@/lib/db";
 import { renderAvatarPng } from "@/lib/nft/render-avatar";
+import { isShiny } from "@/lib/shiny";
 import { getGearForAgents } from "@/lib/shop/gear-read";
 import type { SpriteSeed } from "@/lib/sprite-renderer";
 
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
     const [agent] = await getAgentsByIds([id]);
     if (!agent) return notFound();
     const gear = (await getGearForAgents([id]))[id];
-    const png = renderAvatarPng(agent.spriteSeed as unknown as SpriteSeed, agent.role, weaponTint(gear));
+    const png = renderAvatarPng(agent.spriteSeed as unknown as SpriteSeed, agent.role, weaponTint(gear), isShiny(agent.id));
     return new NextResponse(new Uint8Array(png), {
       headers: {
         "Content-Type": "image/png",

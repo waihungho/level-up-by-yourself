@@ -8,9 +8,10 @@ describe("WhatsNewBanner", () => {
   it("lists the latest features with links to try them", () => {
     render(<WhatsNewBanner />);
     expect(screen.getByText(/What's new/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Season Pass/i })).toHaveAttribute("href", "/pass");
-    expect(screen.getByRole("link", { name: /Expeditions/i })).toHaveAttribute("href", "/expeditions");
-    expect(screen.getByRole("link", { name: /Blink Challenges/i })).toHaveAttribute("href", "/agents");
+    expect(screen.getByRole("link", { name: /Real Life/i })).toHaveAttribute("href", "/life");
+    expect(screen.getByRole("link", { name: /Story & Events/i })).toHaveAttribute("href", "/story");
+    expect(screen.getByRole("link", { name: /Class Evolution/i })).toHaveAttribute("href", "/agents");
+    expect(screen.getByRole("link", { name: /Shiny Agents/i })).toHaveAttribute("href", "/summon");
   });
 
   it("stays hidden after being dismissed", () => {

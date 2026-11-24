@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { PixelSprite } from "@/components/PixelSprite";
+import { isShiny } from "@/lib/shiny";
 import type { AgentWithDimensions, BattleLog } from "@/lib/types";
 
 interface BattlePlaybackProps {
@@ -222,6 +223,7 @@ export function BattlePlayback({
                   spriteSeed={attacker.spriteSeed as Record<string, number>}
                   role={attacker.role}
                   size={56}
+                  shiny={isShiny(attacker.id)}
                 />
               </div>
               {/* Damage number */}
@@ -297,6 +299,7 @@ export function BattlePlayback({
                   spriteSeed={defender.spriteSeed as Record<string, number>}
                   role={defender.role}
                   size={56}
+                  shiny={isShiny(defender.id)}
                 />
               </div>
               {/* Damage number */}

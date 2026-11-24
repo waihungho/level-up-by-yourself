@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PixelSprite } from "@/components/PixelSprite";
+import { isShiny } from "@/lib/shiny";
 import type { ChallengeListItem } from "@/lib/blinks/challenge-db";
 import { challengePageUrl, dialToUrl, shareText, xIntentUrl } from "@/lib/blinks/links";
 import type { RoleCategory } from "@/lib/types";
@@ -52,7 +53,7 @@ export function ChallengeView({ agent, weaponTint, power, record, recent, origin
 
       <section className={`border rounded p-4 mb-4 ${ROLE_COLORS[agent.role]}`}>
         <div className="flex gap-4 items-center">
-          <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={80} weaponTint={weaponTint} />
+          <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={80} weaponTint={weaponTint} shiny={isShiny(agent.id)} />
           <div className="min-w-0">
             <h1 className="text-xl font-bold truncate">{agent.name}</h1>
             <p className="text-sm text-gray-400">

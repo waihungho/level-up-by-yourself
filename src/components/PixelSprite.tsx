@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useEffect } from "react";
-import { generateSpriteData } from "@/lib/sprite-renderer";
+import { generateSpriteData, type SpriteSeed } from "@/lib/sprite-renderer";
 import type { RoleCategory } from "@/lib/types";
 
 interface PixelSpriteProps {
@@ -9,9 +9,11 @@ interface PixelSpriteProps {
   size?: number;
   /** Gear tier colour for the weapon pixels. */
   weaponTint?: string;
+  /** Shiny variant (`isShiny(agent.id)`): alternate palette, sparkles and a soft gold glow. */
+  shiny?: boolean;
 }
 
-export function PixelSprite({ spriteSeed, role, size = 80, weaponTint }: PixelSpriteProps) {
+export function PixelSprite({ spriteSeed, role, size = 80, weaponTint, shiny = false }: PixelSpriteProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -21,7 +23,7 @@ export function PixelSprite({ spriteSeed, role, size = 80, weaponTint }: PixelSp
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const grid = generateSpriteData(spriteSeed as any, role, weaponTint);
+    const grid = generateSpriteData(spriteSeed as unknown as SpriteSeed, role, weaponTint, shiny);
 
     ctx.clearRect(0, 0, 32, 32);
 
@@ -34,15 +36,21 @@ export function PixelSprite({ spriteSeed, role, size = 80, weaponTint }: PixelSp
         }
       }
     }
-  }, [spriteSeed, role, weaponTint]);
+  }, [spriteSeed, role, weaponTint, shiny]);
 
   return (
     <canvas
       ref={canvasRef}
       width={32}
       height={32}
-      style={{ width: size, height: size, imageRendering: "pixelated" }}
+      style={{
+        width: size,
+        height: size,
+        imageRendering: "pixelated",
+        filter: shiny ? "drop-shadow(0 0 4px rgba(250, 204, 21, 0.55))" : undefined,
+      }}
       className="rounded"
+      aria-label={shiny ? "Shiny agent" : undefined}
     />
   );
 }

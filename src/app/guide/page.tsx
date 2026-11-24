@@ -1,5 +1,8 @@
 "use client";
 import Link from "next/link";
+import { EVOLUTION_BONUS, EVOLVE_AT, SIGNATURE_AT, SIGNATURE_MULT } from "@/lib/evolution";
+import { LIFE_DAILY_CAP, SESSIONS } from "@/lib/life/catalog";
+import { SHINY_ODDS } from "@/lib/shiny";
 
 const ROLE_INFO = [
   {
@@ -90,6 +93,14 @@ export default function GuidePage() {
           </div>
           <div className="bg-gray-900 border border-gray-800 rounded p-3">
             <p className="text-gray-400 text-xs">Summon cooldown: You can summon one new agent every 7 days.</p>
+          </div>
+          <div className="bg-gray-900 border border-yellow-600/60 rounded p-3">
+            <h3 className="text-yellow-300 font-bold mb-1">✦ Shiny agents</h3>
+            <p className="text-gray-300 text-xs">
+              About 1 in {SHINY_ODDS} agents is shiny: an alternate colour palette with sparkles, a ✦ SHINY badge
+              and a &ldquo;Shiny&rdquo; trait on its NFT. It&apos;s decided the moment the agent is summoned and is
+              purely cosmetic, with no effect on stats or battles.
+            </p>
           </div>
         </div>
       </Section>
@@ -264,8 +275,39 @@ export default function GuidePage() {
         </div>
       </Section>
 
+      <Section title="10. Real Life">
+        <div className="space-y-3 text-sm text-gray-300 font-mono">
+          <p>Level yourself up and your agent levels up too. Everything here grows the agent you pick, up to {LIFE_DAILY_CAP} stat points a day (honor system).</p>
+          <div className="bg-gray-900 border border-gray-800 rounded p-4">
+            <ul className="list-none space-y-2 ml-4">
+              <li><span className="text-amber-400 mr-2">Habits</span> - Track up to 5. Each check-in grows the habit&apos;s category; every day in a row adds +10% (up to +50%)</li>
+              <li><span className="text-amber-400 mr-2">Quests</span> - Three real-life quests a day, from three different categories</li>
+              <li><span className="text-amber-400 mr-2">Focus</span> - A {SESSIONS.focus.minutes}-minute timer for +{SESSIONS.focus.points} Mental. Meditation: {SESSIONS.meditation.minutes} minutes for +{SESSIONS.meditation.points} Spiritual</li>
+              <li><span className="text-amber-400 mr-2">Steps</span> - Log today&apos;s steps: +1 Physical per 2,500 steps, up to +2</li>
+            </ul>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="11. Class Evolution &amp; Signature Moves">
+        <div className="space-y-3 text-sm text-gray-300 font-mono">
+          <p>
+            When an agent&apos;s role category averages {EVOLVE_AT}, evolve it on its page. Each role has two permanent paths (for example Paladin or Berserker) that add +
+            {Math.round(EVOLUTION_BONUS * 100)}% to two categories in battle.
+          </p>
+          <p>Raise any single dimension to {SIGNATURE_AT} and the agent&apos;s special becomes a signature move named after it (like &ldquo;Hacking Protocol&rdquo;), hitting {Math.round((SIGNATURE_MULT - 1) * 100)}% harder.</p>
+        </div>
+      </Section>
+
+      <Section title="12. Story &amp; Seasonal Events">
+        <div className="space-y-3 text-sm text-gray-300 font-mono">
+          <p>A 12-stage campaign in three chapters, one per era. Stages unlock in order, and the first win on each pays gems and stats. Replays are free but pay nothing.</p>
+          <p>Seasonal events (Harvest Moon, Frostfall, Lunar New Year, Spring Bloom, Midsummer Arena) add three limited-time stages with an event boss.</p>
+        </div>
+      </Section>
+
       {/* Tips */}
-      <Section title="10. Tips">
+      <Section title="13. Tips">
         <div className="space-y-2 text-sm text-gray-300 font-mono">
           <div className="flex gap-2">
             <span className="text-yellow-400 shrink-0">*</span>

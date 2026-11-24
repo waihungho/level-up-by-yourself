@@ -1,3 +1,4 @@
+import { SHINY_HUE_SHIFT, SHINY_SPARKLE, SHINY_SPARKLE_CORE } from "./shiny";
 import type { RoleCategory } from "./types";
 
 type PixelGrid = (string | null)[][];
@@ -44,15 +45,17 @@ function hsl(h: number, s: number, l: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
-function getRolePalette(role: RoleCategory, colorSeed: number) {
-  const shift = (colorSeed % 40) - 20;
+function getRolePalette(role: RoleCategory, colorSeed: number, shiny: boolean) {
+  const base = (colorSeed % 40) - 20;
+  // Shiny agents rotate every colour but skin, so each role gets a distinct alternate colouring.
+  const shift = base + (shiny ? SHINY_HUE_SHIFT : 0);
   switch (role) {
     case "future":
       return {
         primary: hsl(180 + shift, 80, 55),
         secondary: hsl(270 + shift, 70, 50),
         accent: hsl(140 + shift, 90, 55),
-        skin: hsl(180 + shift, 20, 80),
+        skin: hsl(180 + base, 20, 80),
         dark: hsl(220 + shift, 50, 20),
         outline: hsl(210 + shift, 60, 15),
         highlight: hsl(180 + shift, 80, 75),
@@ -63,7 +66,7 @@ function getRolePalette(role: RoleCategory, colorSeed: number) {
         primary: hsl(210 + shift, 50, 50),
         secondary: hsl(0 + shift, 0, 60),
         accent: hsl(45 + shift, 80, 55),
-        skin: hsl(25 + shift, 40, 70),
+        skin: hsl(25 + base, 40, 70),
         dark: hsl(210 + shift, 30, 22),
         outline: hsl(210 + shift, 25, 15),
         highlight: hsl(210 + shift, 50, 70),
@@ -74,7 +77,7 @@ function getRolePalette(role: RoleCategory, colorSeed: number) {
         primary: hsl(35 + shift, 70, 45),
         secondary: hsl(15 + shift, 50, 30),
         accent: hsl(0 + shift, 65, 50),
-        skin: hsl(25 + shift, 45, 65),
+        skin: hsl(25 + base, 45, 65),
         dark: hsl(20 + shift, 50, 15),
         outline: hsl(20 + shift, 40, 12),
         highlight: hsl(45 + shift, 70, 65),
@@ -88,9 +91,23 @@ function seededRand(seed: number, i: number): number {
   return x - Math.floor(x);
 }
 
-export function generateSpriteData(seed: SpriteSeed, role: RoleCategory, weaponTint?: string): PixelGrid {
+/** Four-point sparkles in the sprite's empty side margins (x ≤ 3 or x ≥ 28 are never drawn on). */
+const SPARKLES: [number, number][] = [[2, 4], [29, 9], [2, 19], [29, 25]];
+
+function drawSparkles(grid: PixelGrid) {
+  for (const [x, y] of SPARKLES) {
+    setPixel(grid, x, y, SHINY_SPARKLE_CORE);
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) setPixel(grid, x + dx, y + dy, SHINY_SPARKLE);
+  }
+}
+
+/**
+ * `shiny` (see `@/lib/shiny`) swaps in the alternate palette and adds sparkles; it's purely
+ * cosmetic and leaves the sprite's shape untouched.
+ */
+export function generateSpriteData(seed: SpriteSeed, role: RoleCategory, weaponTint?: string, shiny = false): PixelGrid {
   const grid = createGrid();
-  const p = getRolePalette(role, seed.colorSeed);
+  const p = getRolePalette(role, seed.colorSeed, shiny);
   const cx = 15;
   const rand = (i: number) => seededRand(seed.colorSeed + seed.bodyType * 7 + seed.headType * 13, i);
 
@@ -434,6 +451,8 @@ export function generateSpriteData(seed: SpriteSeed, role: RoleCategory, weaponT
   if (rand(77) > 0.8) {
     setPixel(grid, cx + shoulderWidth, 14, p.glow);
   }
+
+  if (shiny) drawSparkles(grid);
 
   return grid;
 }

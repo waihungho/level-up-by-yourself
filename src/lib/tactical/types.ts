@@ -30,6 +30,8 @@ export interface SideState {
   insightRounds: number;
   catAvg: Record<Category, number>;
   speed: number;
+  /** Signature move name (a dimension at SIGNATURE_AT+); the special hits harder under this name. */
+  signature?: string;
 }
 
 export interface TacticalRound extends BattleRound {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
 import { PixelSprite } from "@/components/PixelSprite";
+import { isShiny } from "@/lib/shiny";
 import { synergyLabel } from "@/components/tactical/synergyLabel";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { SQUAD_SIZE } from "@/lib/tactical/constants";
@@ -98,7 +99,7 @@ export default function SquadBuilderPage() {
                 {a ? (
                   <>
                     <div className="flex justify-center">
-                      <PixelSprite spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={48} />
+                      <PixelSprite spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={48} shiny={isShiny(a.id)} />
                     </div>
                     <p className="font-mono text-xs truncate">{a.name}</p>
                   </>
@@ -121,7 +122,7 @@ export default function SquadBuilderPage() {
                   className={`border rounded-lg p-2 text-center ${picked ? "border-emerald-500 bg-emerald-900/20" : "border-gray-700 bg-gray-900"}`}
                 >
                   <div className="flex justify-center">
-                    <PixelSprite spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={40} />
+                    <PixelSprite spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={40} shiny={isShiny(a.id)} />
                   </div>
                   <p className="font-mono text-[11px] truncate">{a.name}</p>
                   <p className="font-mono text-[9px] text-gray-500">{a.role}</p>

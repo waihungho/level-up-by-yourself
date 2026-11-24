@@ -3,6 +3,7 @@ import { useGame } from "@/components/GameProvider";
 import { PlayerStats } from "@/components/PlayerStats";
 import { DailyTasks } from "@/components/DailyTasks";
 import { PixelSprite } from "@/components/PixelSprite";
+import { isShiny } from "@/lib/shiny";
 import { AgentRoom } from "@/components/AgentRoom";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { createPaymentTransaction, confirmTransaction } from "@/lib/sol-payment";
@@ -12,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { RaidBanner } from "@/components/RaidBanner";
 import { WhatsNewBanner } from "@/components/WhatsNewBanner";
+import { EventBanner } from "@/components/EventBanner";
 import { GemChip } from "@/components/GemChip";
 import { checkInOncePerDay } from "@/lib/pass/checkin-client";
 
@@ -82,6 +84,7 @@ export default function Dashboard() {
       </div>
 
       <WhatsNewBanner />
+      <EventBanner />
       <RaidBanner />
 
       {/* My Agents */}
@@ -97,7 +100,7 @@ export default function Dashboard() {
                 className="flex flex-col items-center shrink-0 group"
               >
                 <div className="rounded-lg border border-gray-700 group-hover:border-purple-500 transition-colors p-1 bg-gray-800">
-                  <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={56} />
+                  <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={56} shiny={isShiny(agent.id)} />
                 </div>
                 <span className="text-xs font-mono text-gray-400 mt-1 max-w-[64px] truncate group-hover:text-purple-400 transition-colors">
                   {agent.name}
@@ -148,6 +151,20 @@ export default function Dashboard() {
           className="flex-1 text-center px-4 py-3 bg-gradient-to-r from-emerald-800 to-teal-600 hover:from-emerald-700 hover:to-teal-500 text-white font-mono rounded transition-colors"
         >
           🧭 Expeditions
+        </Link>
+      </div>
+      <div className="flex gap-3 mt-3">
+        <Link
+          href="/life"
+          className="flex-1 text-center px-4 py-3 bg-gradient-to-r from-orange-700 to-amber-500 hover:from-orange-600 hover:to-amber-400 text-white font-mono rounded transition-colors"
+        >
+          ☀️ Real Life
+        </Link>
+        <Link
+          href="/story"
+          className="flex-1 text-center px-4 py-3 bg-gradient-to-r from-rose-800 to-red-600 hover:from-rose-700 hover:to-red-500 text-white font-mono rounded transition-colors"
+        >
+          📜 Story &amp; Events
         </Link>
       </div>
       <div className="mt-3 text-center">

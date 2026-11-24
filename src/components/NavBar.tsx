@@ -13,6 +13,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Home", icon: "⌂" },
   { href: "/agents", label: "Agents", icon: "▦" },
   { href: "/battle", label: "Battle", icon: "⚔" },
+  { href: "/life", label: "Life", icon: "☀" },
   { href: "/rank", label: "Rank", icon: "🏆" },
   { href: "/summon", label: "Summon", icon: "+" },
   { href: "/raid", label: "Raid", icon: "🐉" },

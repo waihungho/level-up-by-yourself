@@ -1,5 +1,6 @@
 import { DIMENSIONS } from "@/lib/constants";
 import { calculateGrowth } from "@/lib/battle-engine";
+import { evolutionMultipliers, SIGNATURE_MULT, signatureMove } from "@/lib/evolution";
 import { gearBonus } from "@/lib/shop/catalog";
 import type { AgentWithDimensions, BattleLog } from "@/lib/types";
 import {
@@ -88,6 +89,10 @@ export function toSide(agent: AgentWithDimensions, hpFactor = 1): SideState {
     for (const c of CYCLE) catAvg[c] += bonus.catAvg[c];
     speed += bonus.speed;
   }
+  // Class evolution scales its two categories (after gear, so it boosts the whole battle value).
+  const evo = evolutionMultipliers(agent.role, agent.evolution);
+  for (const c of CYCLE) catAvg[c] *= evo[c] ?? 1;
+  const signature = signatureMove(agent)?.name;
   return {
     agentId: agent.id,
     role: agent.role,
@@ -98,6 +103,7 @@ export function toSide(agent: AgentWithDimensions, hpFactor = 1): SideState {
     insightRounds: 0,
     catAvg,
     speed,
+    ...(signature ? { signature } : {}),
   };
 }
 
@@ -206,9 +212,15 @@ function moveDamage(
   if (move.kind === "special") {
     const sp = SPECIALS[src.role];
     const immuneBonus = src.role === "medieval" && dstStunImmune ? SHIELD_BASH_IMMUNE_MULT : 1;
-    return baseDamage(src, dst, sp.category, rng, sp.mult * immuneBonus, src.role === "future") * out(sp.category);
+    const signatureBonus = src.signature ? SIGNATURE_MULT : 1;
+    return baseDamage(src, dst, sp.category, rng, sp.mult * immuneBonus * signatureBonus, src.role === "future") * out(sp.category);
   }
   return 0;
+}
+
+/** The special's display name: the signature move when the fighter has one. */
+export function specialName(side: SideState): string {
+  return side.signature ?? SPECIALS[side.role].name;
 }
 
 function moveLabel(move: Move): string {
@@ -319,7 +331,7 @@ export function resolveExchange(
   let special: string | undefined;
   if (atkMove.kind === "special") {
     attacker.focus -= SPECIAL_COST;
-    special = SPECIALS[attacker.role].name;
+    special = specialName(attacker);
     if (attacker.role === "medieval" && !mods.defenderStunImmune && attackerDamage > 0) defender.stunned = true;
     if (attacker.role === "modern") attacker.insightRounds = INSIGHT_ROUNDS;
   }
@@ -340,7 +352,7 @@ export function resolveExchange(
     attackerFirst,
     playerAction,
     actionCategory: atkMove.kind === "strike" ? atkMove.category : atkMove.kind === "special" ? SPECIALS[attacker.role].category : undefined,
-    opponentAction: defMove.kind === "special" ? `Special: ${SPECIALS[defender.role].name}` : moveLabel(defMove),
+    opponentAction: defMove.kind === "special" ? `Special: ${specialName(defender)}` : moveLabel(defMove),
     special,
   };
 }

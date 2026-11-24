@@ -66,8 +66,9 @@ export function encodePng(width: number, height: number, rgb: Uint8Array): Buffe
   ]);
 }
 
-export function renderAvatarPng(spriteSeed: SpriteSeed, role: RoleCategory, weaponTint?: string): Buffer {
-  const grid = generateSpriteData(spriteSeed, role, weaponTint);
+/** `shiny`: the agent's shiny variant (`isShiny(agent.id)`), drawn with its alternate palette and sparkles. */
+export function renderAvatarPng(spriteSeed: SpriteSeed, role: RoleCategory, weaponTint?: string, shiny = false): Buffer {
+  const grid = generateSpriteData(spriteSeed, role, weaponTint, shiny);
   const rgb = new Uint8Array(AVATAR_SIZE * AVATAR_SIZE * 3);
   const background = hexToRgb(ROLE_BACKGROUND[role] ?? ROLE_BACKGROUND.modern);
   for (let i = 0; i < AVATAR_SIZE * AVATAR_SIZE; i++) rgb.set(background, i * 3);

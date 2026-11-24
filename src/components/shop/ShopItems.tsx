@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { PixelSprite } from "@/components/PixelSprite";
+import { isShiny } from "@/lib/shiny";
 import type { ItemKind, ShopItem } from "@/lib/shop/catalog";
 import { newPurchaseId, postJson, SHOP_ERRORS } from "@/lib/shop-client";
 import type { Agent } from "@/lib/types";
@@ -110,7 +111,7 @@ export function ShopItems({ items, balance, agents, walletAddress, onBalance, re
                 {agents.map((a) => (
                   <button key={a.id} type="button" onClick={() => buy(picking, a.id)} className="border border-gray-700 rounded-lg p-2 hover:border-purple-500">
                     <div className="flex justify-center">
-                      <PixelSprite spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={40} />
+                      <PixelSprite spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={40} shiny={isShiny(a.id)} />
                     </div>
                     <span className="block font-mono text-[10px] text-white truncate">{a.name}</span>
                   </button>

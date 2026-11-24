@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { PixelSprite } from "@/components/PixelSprite";
+import { isShiny } from "@/lib/shiny";
 import { TacticalBattle } from "@/components/TacticalBattle";
 import { GENERIC_START_ERROR, NETWORK_ERROR, postStart } from "@/lib/battle-client";
 import { rechargeMemo } from "@/lib/payment-memos";
@@ -443,6 +444,7 @@ export default function BattlePage() {
                       spriteSeed={agent.spriteSeed as Record<string, number>}
                       role={agent.role}
                       size={52}
+                      shiny={isShiny(agent.id)}
                     />
                   </div>
                   <p className="font-mono text-xs font-bold text-white truncate">{agent.name}</p>
@@ -553,6 +555,7 @@ export default function BattlePage() {
                         spriteSeed={agent.spriteSeed as Record<string, number>}
                         role={agent.role}
                         size={52}
+                        shiny={isShiny(agent.id)}
                       />
                     </div>
                     <p className="font-mono text-xs font-bold text-white truncate">

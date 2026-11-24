@@ -152,6 +152,7 @@ export function SquadBattle({ sessionId, initialState, attackers, defenders, wal
           intent={state.intent}
           focus={A.focus}
           role={me.role}
+          signature={me.signature}
           stunned={me.stunned}
           disabled={busy || playing}
           showHint={hintsOn}

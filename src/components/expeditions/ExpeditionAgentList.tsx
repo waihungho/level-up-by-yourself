@@ -1,5 +1,6 @@
 "use client";
 import { PixelSprite } from "@/components/PixelSprite";
+import { isShiny } from "@/lib/shiny";
 import { EXPEDITION_DURATIONS, type ExpeditionDuration } from "@/lib/expeditions/catalog";
 import type { ExpeditionAgent } from "./types";
 
@@ -21,7 +22,7 @@ export function ExpeditionAgentList({ agents, awayIds, slotsFull, busy, onStart 
         return (
           <li key={a.id} className="border border-gray-800 bg-gray-900 rounded-lg p-2.5 flex items-center gap-2.5">
             <div className="shrink-0">
-              <PixelSprite spriteSeed={a.spriteSeed} role={a.role} size={40} />
+              <PixelSprite spriteSeed={a.spriteSeed} role={a.role} size={40} shiny={isShiny(a.id)} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-mono text-xs font-bold text-white truncate">{a.name}</p>

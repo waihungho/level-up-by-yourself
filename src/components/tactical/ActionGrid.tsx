@@ -16,11 +16,13 @@ interface ActionGridProps {
   onAction: (action: Action) => void;
   /** Extra controls rendered before Auto (e.g. the squad Swap menu). */
   extra?: ReactNode;
+  /** The fighter's signature move name, shown instead of the role special's. */
+  signature?: string;
 }
 
 const BTN = "min-h-[44px] rounded-lg border font-mono text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
-export function ActionGrid({ intent, focus, role, stunned, disabled, showHint, onAction, extra }: ActionGridProps) {
+export function ActionGrid({ intent, focus, role, stunned, disabled, showHint, onAction, extra, signature }: ActionGridProps) {
   if (stunned) {
     return (
       <button type="button" disabled={disabled} onClick={() => onAction({ type: "guard" })} className={`${BTN} w-full border-gray-600 bg-gray-800 text-gray-200`}>
@@ -60,7 +62,7 @@ export function ActionGrid({ intent, focus, role, stunned, disabled, showHint, o
           onClick={() => onAction({ type: "special" })}
           className={`${BTN} border-yellow-500/70 bg-yellow-900/30 text-yellow-300 hover:bg-yellow-900/50`}
         >
-          ✦ {special.name} ({SPECIAL_COST})
+          ✦ {signature ?? special.name} ({SPECIAL_COST})
         </button>
         {extra}
         <button type="button" disabled={disabled} onClick={() => onAction({ type: "auto" })} className={`${BTN} border-purple-500/70 bg-purple-900/30 text-purple-200 hover:bg-purple-900/50`}>

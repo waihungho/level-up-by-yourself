@@ -9,6 +9,8 @@ import { BattleHistory } from "@/components/BattleHistory";
 import type { AgentWithDimensions, BattleLog, GrowthLog } from "@/lib/types";
 import Link from "next/link";
 import { PixelSprite } from "@/components/PixelSprite";
+import { ShinyBadge } from "@/components/ShinyBadge";
+import { isShiny } from "@/lib/shiny";
 import { TrophyBadges } from "@/components/TrophyBadges";
 import { getTrophies, type TrophyTier } from "@/lib/raid/raid-read";
 import { getCosmetics, type Cosmetics } from "@/lib/shop/shop-read";
@@ -21,6 +23,7 @@ import type { Gear } from "@/lib/shop/catalog";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { announceGemBalance } from "@/lib/shop-client";
 import { MintNftPanel } from "@/components/nft/MintNftPanel";
+import { EvolutionPanel } from "@/components/evolution/EvolutionPanel";
 import { ShareChallengeButton } from "@/components/blinks/ShareChallengeButton";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
@@ -111,11 +114,12 @@ export default function AgentDetailPage() {
       <div className={`border rounded p-4 mb-6 ${ROLE_COLORS[agent.role]}`}>
         <div className="flex gap-4 items-center">
           <div style={{ filter: auraStyle(cosmetics.aura) }}>
-            <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={80} weaponTint={weaponTint(gear)} />
+            <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={80} weaponTint={weaponTint(gear)} shiny={isShiny(agent.id)} />
           </div>
           <div>
             <h1 className={`text-2xl font-mono font-bold ${nameColorClass(cosmetics.namecolor)}`}>{agent.name}</h1>
             <p className="text-gray-400 font-mono">{agent.roleTitle} &middot; {agent.role}</p>
+            {isShiny(agent.id) && <ShinyBadge className="inline-block mt-1" />}
             <div className="mt-1">
               <TrophyBadges trophies={trophies} />
             </div>
@@ -147,6 +151,11 @@ export default function AgentDetailPage() {
             announceGemBalance(balance);
           }}
         />
+      </div>
+
+      {/* Class evolution and signature move */}
+      <div className="mb-6">
+        <EvolutionPanel agent={agent} walletAddress={publicKey && player?.id === agent.playerId ? publicKey.toBase58() : null} />
       </div>
 
       {/* NFT (owner only; needs Supabase — demo mode has no server-side agents) */}

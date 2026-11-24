@@ -4,7 +4,7 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { utcDayStartISO } from "@/lib/time";
 import type { BattleMode } from "./types";
 
-export type SessionMode = BattleMode | "squad_pvp" | "raid";
+export type SessionMode = BattleMode | "squad_pvp" | "raid" | "story";
 /** active → finalizing (one caller persists results) → finished. */
 export type SessionStatus = "active" | "finalizing" | "finished";
 

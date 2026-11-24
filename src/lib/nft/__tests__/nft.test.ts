@@ -10,6 +10,7 @@ import nacl from "tweetnacl";
 import bs58 from "bs58";
 import { DIMENSIONS } from "@/lib/constants";
 import { generateSpriteData } from "@/lib/sprite-renderer";
+import { isShiny } from "@/lib/shiny";
 import type { AgentWithDimensions } from "@/lib/types";
 
 const seed = { bodyType: 1, headType: 2, eyeType: 0, weaponType: 3, auraType: 1, colorSeed: 77 };
@@ -50,7 +51,7 @@ describe("buildNftMetadata", () => {
 
   it("carries every dimension as a numeric trait", () => {
     for (const d of DIMENSIONS) expect(trait(d.name)).toBe(d.id);
-    expect(meta.attributes).toHaveLength(2 + 5 + 1 + DIMENSIONS.length + 1);
+    expect(meta.attributes).toHaveLength(2 + 5 + 1 + DIMENSIONS.length + 2);
   });
   it("sums category totals and total power", () => {
     expect(trait("Physical")).toBe(55);
@@ -65,6 +66,17 @@ describe("buildNftMetadata", () => {
     expect(meta.image).toBe("https://arweave.net/img");
     expect(meta.properties.files).toEqual([{ uri: "https://arweave.net/img", type: "image/png" }]);
     expect(meta.external_url).toMatch(/\/agents\/agent-1$/);
+  });
+  it("adds Shiny as a Yes/No trait after the original traits, from the agent id", () => {
+    // Existing trait names are permanent: Shiny must only ever be appended.
+    expect(meta.attributes.at(-2)?.trait_type).toBe("Minted");
+    expect(meta.attributes.at(-1)).toEqual({ trait_type: "Shiny", value: "No" });
+    expect(isShiny(agent.id)).toBe(false);
+    const shinyId = Array.from({ length: 10_000 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`).find(isShiny)!;
+    const shinyAgent = { ...agent, id: shinyId };
+    const snap = buildSnapshot(shinyAgent, undefined, new Date("2026-10-13T08:00:00Z"));
+    expect(snap.shiny).toBe(true);
+    expect(buildNftMetadata(shinyAgent, snap, "u").attributes.at(-1)).toEqual({ trait_type: "Shiny", value: "Yes" });
   });
   it("collapses whitespace and caps the description at 500 chars", () => {
     expect(meta.description).toBe("Aria-7 — Quantum Ranger. Calm and precise. Objective: Map the void.");
@@ -129,6 +141,16 @@ describe("renderAvatarPng", () => {
   it("is deterministic", () => {
     expect(renderAvatarPng(seed, "future", "#facc15").equals(png)).toBe(true);
     expect(renderAvatarPng(seed, "medieval").equals(png)).toBe(false);
+  });
+  it("draws the shiny sprite when asked, and the plain one by default", () => {
+    expect(renderAvatarPng(seed, "future", "#facc15", false).equals(png)).toBe(true);
+    const shiny = renderAvatarPng(seed, "future", "#facc15", true);
+    expect(shiny.equals(png)).toBe(false);
+    const { px } = decodePng(shiny);
+    const grid = generateSpriteData(seed, "future", "#facc15", true);
+    for (const [x, y] of [[2, 4], [16, 16]]) {
+      expect(px(32 + x * 14 + 7, 32 + y * 14 + 7)).toBe(grid[y][x]!.toLowerCase());
+    }
   });
 });
 

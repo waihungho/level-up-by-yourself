@@ -3,14 +3,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 /** Bump when announcing a new release so the banner shows again for everyone. */
-const RELEASE = "2026-10-pass-expeditions-blinks";
+const RELEASE = "2026-11-real-life-story";
 const STORAGE_KEY = `whats_new_dismissed_${RELEASE}`;
 
 const FEATURES = [
-  { href: "/pass", icon: "🎟", title: "Season Pass", text: "Every fight, raid and daily check-in earns XP. 30 tiers of gems, tickets and a season title." },
-  { href: "/expeditions", icon: "🧭", title: "Expeditions", text: "Send up to 3 agents away for 4–12 hours. They come back stronger, with gems." },
-  { href: "/agents", icon: "⚡", title: "Blink Challenges", text: "Share any agent on X — anyone with a Solana wallet can fight it from the post." },
-  { href: "/shop", icon: "💎", title: "Gem Shop & Gear", text: "Elixirs, boosts, cosmetics — and upgradeable weapons, armor and relics." },
+  { href: "/life", icon: "☀️", title: "Real Life", text: "Habits, daily quests, focus and meditation timers and steps: level yourself up and your agent grows too." },
+  { href: "/story", icon: "📜", title: "Story & Events", text: "A 12-stage campaign across three eras, plus seasonal events. Harvest Moon is live now!" },
+  { href: "/agents", icon: "✦", title: "Class Evolution & Signature Moves", text: "Evolve agents into Paladins, Archons and more, and unlock a signature special at 200 in any stat." },
+  { href: "/summon", icon: "✨", title: "Shiny Agents", text: "1 in 64 summons is a shiny, with a rare colour scheme and sparkle." },
 ];
 
 export function WhatsNewBanner() {

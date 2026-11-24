@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGame } from "@/components/GameProvider";
 import { PixelSprite } from "@/components/PixelSprite";
+import { isShiny } from "@/lib/shiny";
 import { getAgentsByIds, getPlayersByIds } from "@/lib/db";
 import { useRankings } from "@/hooks/useRankings";
 import { getSquadLeaderboard, type SquadStats } from "@/lib/squads-read";
@@ -218,7 +219,7 @@ export default function RankPage() {
                 <div className="flex -space-x-2">
                   {row.agentIds.map((id) => {
                     const a = squadAgents.get(id);
-                    return a ? <PixelSprite key={id} spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={36} /> : null;
+                    return a ? <PixelSprite key={id} spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={36} shiny={isShiny(id)} /> : null;
                   })}
                 </div>
                 <span className="flex-1 font-mono text-[11px] text-gray-400 truncate">{shortWallet(row.playerId)}</span>
@@ -295,6 +296,7 @@ export default function RankPage() {
                       spriteSeed={agent.spriteSeed}
                       role={agent.role}
                       size={48}
+                      shiny={isShiny(agent.id)}
                     />
                   </div>
 

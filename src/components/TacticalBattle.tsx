@@ -9,8 +9,8 @@ import { readTutorialSeen, writeTutorialSeen } from "@/components/tactical/tutor
 import { FighterColumn } from "@/components/tactical/FighterColumn";
 import { useBattleTurns } from "@/components/tactical/useBattleTurns";
 import { useRoundPlayback } from "@/components/tactical/useRoundPlayback";
-import { MAX_ROUNDS, SPECIAL_COST, SPECIALS } from "@/lib/tactical/constants";
-import { counterFor } from "@/lib/tactical/engine";
+import { MAX_ROUNDS, SPECIAL_COST } from "@/lib/tactical/constants";
+import { counterFor, specialName } from "@/lib/tactical/engine";
 import type { TacticalState } from "@/lib/tactical/types";
 import type { AgentWithDimensions, BattleLog } from "@/lib/types";
 
@@ -76,7 +76,7 @@ export function TacticalBattle({ sessionId, initialState, attacker, defender, wa
       <div className="flex items-center justify-between font-mono text-xs text-gray-500">
         <span>Round {Math.min(state.round + 1, MAX_ROUNDS)}</span>
         <span>
-          {SPECIALS[me.role].name} ready at {SPECIAL_COST} focus
+          {specialName(me)} ready at {SPECIAL_COST} focus
         </span>
       </div>
 
@@ -104,6 +104,7 @@ export function TacticalBattle({ sessionId, initialState, attacker, defender, wa
           intent={state.intent}
           focus={me.focus}
           role={me.role}
+          signature={me.signature}
           stunned={me.stunned}
           disabled={busy || playing}
           showHint={hintsOn}

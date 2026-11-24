@@ -1,3 +1,4 @@
+import { getEvolutions } from "@/lib/evolution-db";
 import { getWriteClient } from "@/lib/supabase-admin";
 import type { AgentWithDimensions } from "@/lib/types";
 import type { GearSlot } from "./catalog";
@@ -30,9 +31,17 @@ export async function upgradeGearLevel(agentId: string, slot: GearSlot, expected
   return true;
 }
 
-/** Fighters with their gear (battle bonuses) and aura (battle visuals) attached, in two batched reads. */
+/**
+ * Fighters with their gear and class evolution (battle bonuses) and aura (battle visuals) attached,
+ * in three batched reads.
+ */
 export async function withGear<T extends AgentWithDimensions>(agents: T[]): Promise<T[]> {
   const ids = agents.map((a) => a.id);
-  const [gear, cosmetics] = await Promise.all([getGearForAgents(ids), getCosmetics(ids)]);
-  return agents.map((a) => ({ ...a, gear: gear[a.id] ?? {}, ...(cosmetics[a.id]?.aura ? { aura: cosmetics[a.id].aura } : {}) }));
+  const [gear, cosmetics, evolutions] = await Promise.all([getGearForAgents(ids), getCosmetics(ids), getEvolutions(ids)]);
+  return agents.map((a) => ({
+    ...a,
+    gear: gear[a.id] ?? {},
+    ...(cosmetics[a.id]?.aura ? { aura: cosmetics[a.id].aura } : {}),
+    ...(evolutions[a.id] ? { evolution: evolutions[a.id] } : {}),
+  }));
 }

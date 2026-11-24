@@ -8,7 +8,9 @@ import { generateInitialDimensions, generateSpriteSeed } from "@/lib/agent-init"
 import { summonAgent } from "@/lib/db";
 import { createPaymentTransaction, confirmTransaction } from "@/lib/sol-payment";
 import { ROLE_WEIGHTS, SUMMON_COST_SOL } from "@/lib/constants";
-import type { RoleCategory, DimensionCategory } from "@/lib/types";
+import { isShiny, SHINY_ODDS } from "@/lib/shiny";
+import { PixelSprite } from "@/components/PixelSprite";
+import type { Agent, RoleCategory, DimensionCategory } from "@/lib/types";
 
 const ROLE_OPTIONS: { value: RoleCategory; label: string; icon: string }[] = [
   { value: "future", icon: "🤖", label: "Future" },
@@ -57,6 +59,8 @@ export function SummonForm({ free = false }: { free?: boolean }) {
   const [objective, setObjective] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** A freshly summoned shiny agent, shown in a reveal before going to its page. */
+  const [shinyAgent, setShinyAgent] = useState<Agent | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,13 +117,39 @@ export function SummonForm({ free = false }: { free?: boolean }) {
       });
 
       await refreshAgents();
-      router.push(`/agents/${agent.id}`);
+      if (isShiny(agent.id)) setShinyAgent(agent);
+      else router.push(`/agents/${agent.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to summon agent. Please try again.");
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (shinyAgent) {
+    return (
+      <div className="font-mono text-center py-10 animate-fadeIn">
+        <p className="text-yellow-300 text-3xl font-bold tracking-widest animate-victoryBounce">✦ SHINY! ✦</p>
+        <div className="flex justify-center my-6">
+          <PixelSprite
+            spriteSeed={shinyAgent.spriteSeed as Record<string, number>}
+            role={shinyAgent.role}
+            size={160}
+            shiny
+          />
+        </div>
+        <p className="text-white text-lg font-bold">{shinyAgent.name}</p>
+        <p className="text-gray-400 text-sm mt-1">A 1-in-{SHINY_ODDS} shiny variant. Same stats, rarer look.</p>
+        <button
+          type="button"
+          onClick={() => router.push(`/agents/${shinyAgent.id}`)}
+          className="mt-6 px-6 py-3 rounded font-bold bg-yellow-500 hover:bg-yellow-400 text-gray-950 transition-colors"
+        >
+          Meet {shinyAgent.name}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 font-mono">

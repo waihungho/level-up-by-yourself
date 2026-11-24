@@ -43,6 +43,8 @@ export interface AgentWithDimensions extends Agent {
   gear?: Gear;
   /** Bought aura style, shown around the sprite in battle. */
   aura?: string;
+  /** Chosen class evolution path id (battle-time bonus); attached by withGear() when building fighters. */
+  evolution?: string | null;
 }
 
 export interface DailyTask {

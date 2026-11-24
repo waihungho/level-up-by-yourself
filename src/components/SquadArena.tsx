@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { PixelSprite } from "@/components/PixelSprite";
+import { isShiny } from "@/lib/shiny";
 import { SquadBattle, type SquadResult } from "@/components/SquadBattle";
 import { synergyLabel } from "@/components/tactical/synergyLabel";
 import { GENERIC_START_ERROR, NETWORK_ERROR, postStart } from "@/lib/battle-client";
@@ -162,7 +163,7 @@ export function SquadArena({ walletAddress, onAgentsChanged }: { walletAddress: 
               <div key={a.id} className="border border-gray-700 rounded-lg p-2 text-center">
                 <p className="font-mono text-[9px] text-gray-500">{["Lead", "Second", "Anchor"][i]}</p>
                 <div className="flex justify-center">
-                  <PixelSprite spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={44} />
+                  <PixelSprite spriteSeed={a.spriteSeed as Record<string, number>} role={a.role} size={44} shiny={isShiny(a.id)} />
                 </div>
                 <p className="font-mono text-xs text-white truncate">{a.name}</p>
               </div>

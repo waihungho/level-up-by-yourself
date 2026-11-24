@@ -4,6 +4,7 @@
  * trait names are permanent once the first agent is minted.
  */
 import { DIMENSIONS } from "@/lib/constants";
+import { isShiny } from "@/lib/shiny";
 import type { AgentWithDimensions, DimensionCategory, RoleCategory } from "@/lib/types";
 
 export const NFT_SYMBOL = "LUBY";
@@ -38,6 +39,8 @@ export interface MintSnapshot {
   totalPower: number;
   /** Gear colour baked into the image (null = default sprite colours). */
   weaponTint: string | null;
+  /** Shiny variant baked into the image and the "Shiny" trait. */
+  shiny: boolean;
   /** UTC date (YYYY-MM-DD) recorded as the "Minted" trait. */
   mintedOn: string;
 }
@@ -64,6 +67,7 @@ export function buildSnapshot(agent: AgentWithDimensions, weaponTint: string | u
     categories,
     totalPower,
     weaponTint: weaponTint ?? null,
+    shiny: isShiny(agent.id),
     mintedOn: mintedAt.toISOString().slice(0, 10),
   };
 }
@@ -81,6 +85,8 @@ export function buildNftMetadata(agent: AgentWithDimensions, snap: MintSnapshot,
     { trait_type: "Total Power", value: snap.totalPower },
     ...DIMENSIONS.map((d) => ({ trait_type: d.name, value: snap.dimensions[d.name] })),
     { trait_type: "Minted", value: snap.mintedOn },
+    // Added after the first mints: a new trait only, existing names must never change.
+    { trait_type: "Shiny", value: snap.shiny ? "Yes" : "No" },
   ];
   return {
     name: agent.name,

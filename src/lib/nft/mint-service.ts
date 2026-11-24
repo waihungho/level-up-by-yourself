@@ -289,7 +289,7 @@ export async function prepareMint(
 
 /**
  * Metadata already uploaded for this exact snapshot, so retries (wallet rejections, expired
- * blockhashes) don't pay Irys again. The snapshot carries the weapon tint and mint date, so a
+ * blockhashes) don't pay Irys again. The snapshot carries the weapon tint, shiny flag and mint date, so a
  * match always means identical artwork and metadata.
  */
 async function reusableUpload(sb: SupabaseClient, agentId: string, snapshot: MintSnapshot): Promise<string | null> {
@@ -307,7 +307,7 @@ async function reusableUpload(sb: SupabaseClient, agentId: string, snapshot: Min
 }
 
 async function upload(umi: ReturnType<typeof createUmi>, agent: AgentWithDimensions, snapshot: MintSnapshot): Promise<string> {
-  const png = renderAvatarPng(agent.spriteSeed as unknown as SpriteSeed, agent.role, snapshot.weaponTint ?? undefined);
+  const png = renderAvatarPng(agent.spriteSeed as unknown as SpriteSeed, agent.role, snapshot.weaponTint ?? undefined, snapshot.shiny);
   const [imageUri] = await umi.uploader.upload([createGenericFile(png, `${agent.id}.png`, { contentType: "image/png" })]);
   return umi.uploader.uploadJson(buildNftMetadata(agent, snapshot, imageUri));
 }

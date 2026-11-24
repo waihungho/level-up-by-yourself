@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { PixelSprite } from "@/components/PixelSprite";
+import { isShiny } from "@/lib/shiny";
 import type { AgentWithDimensions } from "@/lib/types";
 import { HpBar } from "./HpBar";
 import { weaponTint } from "@/components/shop/gearStyle";
@@ -21,7 +22,7 @@ export function FighterColumn({ agent, hp, maxHp, damage, align = "left", size =
   return (
     <div className="space-y-1">
       <div className={`flex justify-center ${damage ? "animate-shakeHit" : ""}`} style={{ filter: auraStyle(agent?.aura) }}>
-        {agent && <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={size} weaponTint={weaponTint(agent.gear)} />}
+        {agent && <PixelSprite spriteSeed={agent.spriteSeed as Record<string, number>} role={agent.role} size={size} weaponTint={weaponTint(agent.gear)} shiny={isShiny(agent.id)} />}
       </div>
       <HpBar name={agent?.name ?? ""} hp={hp} maxHp={maxHp} align={align} floater={damage || null} />
       {children}

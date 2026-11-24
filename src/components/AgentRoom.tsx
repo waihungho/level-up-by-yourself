@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import { generateSpriteData } from "@/lib/sprite-renderer";
+import { isShiny } from "@/lib/shiny";
 import type { Agent } from "@/lib/types";
 import * as PIXI from "pixi.js";
 import { BloomFilter } from "@pixi/filter-bloom";
@@ -679,7 +680,7 @@ export function AgentRoom({ agents }: AgentRoomProps) {
       const start = pickNonOverlappingTile(others);
       const target = pickNonOverlappingTile(others);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const spriteData = generateSpriteData(agent.spriteSeed as any, agent.role);
+      const spriteData = generateSpriteData(agent.spriteSeed as any, agent.role, undefined, isShiny(agent.id));
       const tex = buildAgentTexture(app, spriteData);
 
       const agentSpr = new PIXI.Sprite(tex);

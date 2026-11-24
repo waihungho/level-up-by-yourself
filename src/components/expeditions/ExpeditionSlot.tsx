@@ -1,5 +1,6 @@
 "use client";
 import { PixelSprite } from "@/components/PixelSprite";
+import { isShiny } from "@/lib/shiny";
 import { EXPEDITION_REWARDS } from "@/lib/expeditions/catalog";
 import { formatCountdown, type ExpeditionAgent, type ExpeditionItem } from "./types";
 
@@ -37,7 +38,7 @@ export function ExpeditionSlot({ index, expedition, agent, now, claiming, onClai
       aria-label={`Slot ${index + 1}: ${name}, ${ready ? "back" : "away"}`}
       className={`border rounded-lg p-3 flex items-center gap-3 min-h-[88px] ${ready ? "border-amber-500 bg-amber-900/20" : "border-gray-800 bg-gray-900"}`}
     >
-      <div className="shrink-0">{agent && <PixelSprite spriteSeed={agent.spriteSeed} role={agent.role} size={48} />}</div>
+      <div className="shrink-0">{agent && <PixelSprite spriteSeed={agent.spriteSeed} role={agent.role} size={48} shiny={isShiny(agent.id)} />}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between gap-2">
           <span className="font-mono text-sm font-bold text-white truncate">{name}</span>
