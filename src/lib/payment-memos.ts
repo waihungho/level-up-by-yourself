@@ -24,3 +24,8 @@ export function passMemo(season: number): string {
 export function blinkMemo(agentId: string): string {
   return `levelup:blink:${agentId}`;
 }
+
+/** Paid summon (skips the free-summon cooldown), tied to the paying wallet. */
+export function summonMemo(walletAddress: string): string {
+  return `levelup:summon:${walletAddress}`;
+}

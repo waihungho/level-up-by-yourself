@@ -401,43 +401,8 @@ export async function completeTask(
   playerId: string,
   taskName: string
 ): Promise<void> {
-  const sb = getSupabase();
-
-  if (sb) {
-    const { error: insertError } = await sb
-      .from("levelup_player_task_completions")
-      .insert({ player_id: playerId, task_name: taskName });
-
-    if (insertError) throw insertError;
-
-    // Increment ability_score by looking up the task's points
-    const { DAILY_TASKS } = await import("./constants");
-    const task = DAILY_TASKS.find((t) => t.name === taskName);
-    const points = task?.abilityPoints ?? 0;
-
-    const { error: updateError } = await sb.rpc("increment_ability_score", {
-      p_player_id: playerId,
-      p_points: points,
-    });
-
-    if (updateError) {
-      // Fallback: read-then-write
-      const { data: player } = await sb
-        .from("levelup_players")
-        .select("ability_score")
-        .eq("id", playerId)
-        .single();
-
-      if (player) {
-        await sb
-          .from("levelup_players")
-          .update({ ability_score: player.ability_score + points })
-          .eq("id", playerId);
-      }
-    }
-
-    return;
-  }
+  // Demo mode only: with Supabase, tasks complete on the server (/api/tasks/complete, migration 018).
+  if (isSupabaseConfigured) throw new Error("completeTask runs on the server when Supabase is configured");
 
   // Demo mode
   const now = new Date().toISOString();
@@ -515,7 +480,8 @@ export async function getGrowthLogs(
 // ---------------------------------------------------------------------------
 export async function addAbilityPoints(playerId: string, points: number): Promise<void> {
   if (points <= 0) return;
-  const sb = getSupabase();
+  // Server-only write (the anon key lost access in migration 019).
+  const sb = getWriteClient();
 
   if (sb) {
     const { error } = await sb.rpc("increment_ability_score", { p_player_id: playerId, p_points: points });
@@ -1043,7 +1009,8 @@ export async function updatePvpStats(
   winnerId: string,
   loserId: string
 ): Promise<void> {
-  const sb = getSupabase();
+  // Server-only write (the anon key lost access in migration 019).
+  const sb = getWriteClient();
 
   if (sb) {
     // Use atomic RPC for upsert+increment (defined in supabase/migrations/pvp.sql)

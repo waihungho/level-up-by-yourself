@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useGame } from "@/components/GameProvider";
 import { DAILY_TASKS } from "@/lib/constants";
 import { completeTask, getCompletedTasksToday } from "@/lib/db";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 export function DailyTasks() {
   const { player, refreshPlayer } = useGame();
@@ -29,7 +30,18 @@ export function DailyTasks() {
     setCompleting(taskName);
     setError(null);
     try {
-      await completeTask(player.id, taskName);
+      if (isSupabaseConfigured) {
+        // The server grants the points, once per task per UTC day.
+        const res = await fetch("/api/tasks/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ walletAddress: player.walletAddress, taskName }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok && data.error !== "already_done") throw new Error("Failed to complete task");
+      } else {
+        await completeTask(player.id, taskName);
+      }
       setCompletedTasks((prev) => [...prev, taskName]);
       await refreshPlayer();
     } catch (err) {

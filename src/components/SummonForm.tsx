@@ -7,7 +7,9 @@ import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { generateInitialDimensions, generateSpriteSeed } from "@/lib/agent-init";
 import { summonAgent } from "@/lib/db";
 import { createPaymentTransaction, confirmTransaction } from "@/lib/sol-payment";
-import { ROLE_WEIGHTS, SUMMON_COST_SOL } from "@/lib/constants";
+import { ROLE_WEIGHTS, SUMMON_COOLDOWN_DAYS, SUMMON_COST_SOL } from "@/lib/constants";
+import { summonMemo } from "@/lib/payment-memos";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { isShiny, SHINY_ODDS } from "@/lib/shiny";
 import { PixelSprite } from "@/components/PixelSprite";
 import type { Agent, RoleCategory, DimensionCategory } from "@/lib/types";
@@ -45,6 +47,16 @@ const WEIGHT_DISPLAY: Record<string, string> = {
   low: "\u2193",
 };
 
+const SUMMON_ERRORS: Record<string, string> = {
+  cooldown: `Your free summon recharges every ${SUMMON_COOLDOWN_DAYS} days. Pay to summon now instead.`,
+  payment_invalid: "We couldn't verify your payment yet. Wait a few seconds and press Summon again (you won't be charged twice).",
+  signature_used: "That payment was already used for a summon.",
+  name_taken: "That name is taken. Pick another one (your payment is kept for the retry).",
+  invalid_fields: "Please fill in every field (name up to 30 characters).",
+  invalid_role: "Please pick a role.",
+  not_owner: "Your player profile wasn't found. Reconnect your wallet and try again.",
+};
+
 const CATEGORY_ORDER: DimensionCategory[] = ["Mental", "Technical", "Social", "Physical", "Spiritual"];
 
 export function SummonForm({ free = false }: { free?: boolean }) {
@@ -59,6 +71,8 @@ export function SummonForm({ free = false }: { free?: boolean }) {
   const [objective, setObjective] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Signature of a confirmed summon payment whose summon request hasn't succeeded yet (retry without paying again). */
+  const [paidSignature, setPaidSignature] = useState<string | null>(null);
   /** A freshly summoned shiny agent, shown in a reveal before going to its page. */
   const [shinyAgent, setShinyAgent] = useState<Agent | null>(null);
 
@@ -70,16 +84,16 @@ export function SummonForm({ free = false }: { free?: boolean }) {
     setError(null);
 
     try {
-      // Payment required only when not a free summon
-      if (!free) {
+      // Payment required only when not a free summon. A payment whose summon request failed is reused, never re-charged.
+      let signature: string | null = paidSignature;
+      if (!free && !signature) {
         if (!publicKey || !connected) {
           setError("Please connect your wallet to pay for summon.");
           setSubmitting(false);
           return;
         }
 
-        const tx = await createPaymentTransaction(connection, publicKey, SUMMON_COST_SOL);
-        let signature: string;
+        const tx = await createPaymentTransaction(connection, publicKey, SUMMON_COST_SOL, summonMemo(publicKey.toBase58()));
         try {
           signature = await sendTransaction(tx, connection);
         } catch (walletErr: unknown) {
@@ -99,22 +113,42 @@ export function SummonForm({ free = false }: { free?: boolean }) {
           setSubmitting(false);
           return;
         }
+        setPaidSignature(signature);
       }
 
-      // Summon agent
-      const initialDimensions = generateInitialDimensions(role);
-      const spriteSeed = generateSpriteSeed(role, name, character);
-
-      const agent = await summonAgent({
-        playerId: player.id,
-        name: name.trim(),
-        role,
-        roleTitle: roleTitle.trim(),
-        character: character.trim(),
-        objective: objective.trim(),
-        spriteSeed,
-        initialDimensions,
-      });
+      let agent: Agent;
+      if (isSupabaseConfigured) {
+        // The server rolls the starting stats and checks the cooldown or the payment.
+        const res = await fetch("/api/summon", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            walletAddress: player.walletAddress,
+            name: name.trim(),
+            role,
+            roleTitle: roleTitle.trim(),
+            character: character.trim(),
+            objective: objective.trim(),
+            signature: free ? null : signature,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(SUMMON_ERRORS[data.error as string] ?? "Failed to summon agent. Please try again.");
+        agent = data.agent as Agent;
+        setPaidSignature(null);
+      } else {
+        // Demo mode (no Supabase): everything stays in this browser.
+        agent = await summonAgent({
+          playerId: player.id,
+          name: name.trim(),
+          role,
+          roleTitle: roleTitle.trim(),
+          character: character.trim(),
+          objective: objective.trim(),
+          spriteSeed: generateSpriteSeed(role, name, character),
+          initialDimensions: generateInitialDimensions(role),
+        });
+      }
 
       await refreshAgents();
       if (isShiny(agent.id)) setShinyAgent(agent);
@@ -275,7 +309,7 @@ export function SummonForm({ free = false }: { free?: boolean }) {
         disabled={submitting || !name.trim() || !role || !roleTitle.trim() || !character.trim() || !objective.trim()}
         className="w-full py-3 rounded font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-cyan-600 hover:bg-cyan-500 text-white"
       >
-        {submitting ? "Summoning..." : free ? "Summon Agent (Free)" : `Summon Agent (${SUMMON_COST_SOL} SOL)`}
+        {submitting ? "Summoning..." : free ? "Summon Agent (Free)" : paidSignature ? "Summon Agent (already paid)" : `Summon Agent (${SUMMON_COST_SOL} SOL)`}
       </button>
     </form>
   );
