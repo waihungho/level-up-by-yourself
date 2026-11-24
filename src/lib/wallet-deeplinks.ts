@@ -6,14 +6,20 @@
  * PhantomWalletAdapter.connect() does) just opens phantom.app in Safari.
  */
 
-/** True on iPhone/iPad when no wallet is injected, so the user has to switch to a wallet app. */
-export function needsWalletAppRedirect(userAgent: string, walletInjected: boolean): boolean {
-  if (walletInjected) return false;
+/**
+ * True on iPhone/iPad. iPadOS 13+ Safari reports a desktop Mac user agent, so a
+ * "Macintosh" with a touch screen is an iPad.
+ */
+export function isIosDevice(userAgent: string, maxTouchPoints: number): boolean {
   const ua = userAgent.toLowerCase();
-  return ua.includes("iphone") || ua.includes("ipad");
+  if (ua.includes("iphone") || ua.includes("ipad")) return true;
+  return ua.includes("macintosh") && maxTouchPoints > 1;
 }
 
-/** Whether a Solana wallet provider is injected into this page (in-app wallet browser). */
+/**
+ * Whether a Solana wallet provider is injected into this page under a legacy global.
+ * Wallet Standard wallets are covered by the adapter's `Installed` ready state instead.
+ */
 export function hasInjectedWallet(): boolean {
   if (typeof window === "undefined") return false;
   const w = window as unknown as {

@@ -1,34 +1,31 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+import { WalletReadyState } from "@solana/wallet-adapter-base";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useUnifiedWallet } from "@/hooks/useUnifiedWallet";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import {
-  hasInjectedWallet,
-  needsWalletAppRedirect,
-  phantomBrowseUrl,
-  solflareBrowseUrl,
-} from "@/lib/wallet-deeplinks";
+import { hasInjectedWallet, isIosDevice, phantomBrowseUrl, solflareBrowseUrl } from "@/lib/wallet-deeplinks";
 
-/** On iPhone without an injected wallet: links (set after mount) that reopen this page in a wallet app. */
+const noSubscribe = () => () => {};
+
+/**
+ * On iPhone/iPad with no wallet available in this page: links that reopen it in a wallet app.
+ * Inside any wallet's in-app browser the adapter reports that wallet as Installed (Wallet
+ * Standard or injected global), so the normal Connect button shows instead.
+ */
 function useIosWalletLinks(enabled: boolean) {
-  const [links, setLinks] = useState<{ phantom: string; solflare: string } | null>(null);
+  const { wallets } = useWallet();
+  // False during server render and hydration; the real value once on the client.
+  const ios = useSyncExternalStore(
+    noSubscribe,
+    () => isIosDevice(navigator.userAgent, navigator.maxTouchPoints),
+    () => false
+  );
 
-  useEffect(() => {
-    if (!enabled) return;
-    // Wallet browsers can inject their provider slightly after load, so check again after a short delay.
-    const check = () => {
-      setLinks(
-        needsWalletAppRedirect(navigator.userAgent, hasInjectedWallet())
-          ? { phantom: phantomBrowseUrl(window.location.href), solflare: solflareBrowseUrl(window.location.href) }
-          : null
-      );
-    };
-    check();
-    const timer = setTimeout(check, 600);
-    return () => clearTimeout(timer);
-  }, [enabled]);
-
-  return links;
+  const walletAvailable = wallets.some((w) => w.readyState === WalletReadyState.Installed) || hasInjectedWallet();
+  if (!enabled || !ios || walletAvailable) return null;
+  const href = window.location.href;
+  return { phantom: phantomBrowseUrl(href), solflare: solflareBrowseUrl(href) };
 }
 
 export function WalletConnectButton() {
