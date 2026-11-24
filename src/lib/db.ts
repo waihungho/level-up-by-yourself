@@ -1,3 +1,4 @@
+import { getWriteClient } from "./supabase-admin";
 import { getSupabase, isSupabaseConfigured } from "./supabase";
 import { selectAllPages } from "./supabase-pages";
 import { getLatestRechargeToday } from "./recharges";
@@ -530,7 +531,8 @@ export async function addAbilityPoints(playerId: string, points: number): Promis
 // applyAgentGrowth — add dimension deltas to one agent
 // ---------------------------------------------------------------------------
 export async function applyAgentGrowth(agentId: string, growth: Record<number, number>): Promise<void> {
-  const sb = getSupabase();
+  // Stats are writable only with the service role (migration 017).
+  const sb = getWriteClient();
 
   if (sb) {
     // Each increment is atomic and touches its own row, so they can run concurrently.
@@ -554,7 +556,8 @@ export async function applyAgentGrowth(agentId: string, growth: Record<number, n
 // saveBattleLog
 // ---------------------------------------------------------------------------
 export async function saveBattleLog(log: BattleLog): Promise<void> {
-  const sb = getSupabase();
+  // Stats are writable only with the service role (migration 017).
+  const sb = getWriteClient();
 
   if (sb) {
     const { error } = await sb.from("levelup_battle_logs").insert({
@@ -900,7 +903,8 @@ export async function recordSeekerTask(
 // saveGrowthLog
 // ---------------------------------------------------------------------------
 export async function saveGrowthLog(log: GrowthLog): Promise<void> {
-  const sb = getSupabase();
+  // Stats are writable only with the service role (migration 017).
+  const sb = getWriteClient();
 
   if (sb) {
     const { error } = await sb.from("levelup_growth_logs").insert({
@@ -979,7 +983,8 @@ export async function getPvpFightsToday(agentId: string): Promise<number> {
 // savePvpBattleLog
 // ---------------------------------------------------------------------------
 export async function savePvpBattleLog(log: BattleLog): Promise<void> {
-  const sb = getSupabase();
+  // Stats are writable only with the service role (migration 017).
+  const sb = getWriteClient();
 
   if (sb) {
     const { error } = await sb.from("levelup_battle_logs").insert({

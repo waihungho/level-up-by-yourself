@@ -40,14 +40,15 @@ export function calculateGrowth(
 export async function runDailyGrowth() {
   const { createClient } = await import("@supabase/supabase-js");
 
+  // Agent stats are writable only with the service role (migration 017).
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const today = new Date().toISOString().split("T")[0];
 
   // Fetch all agents with player ability scores
@@ -99,13 +100,16 @@ export async function runDailyGrowth() {
       continue;
     }
 
-    // Update dimensions
-    for (const [dimId, delta] of Object.entries(changes)) {
-      await supabase.rpc("levelup_increment_dimension", {
-        p_agent_id: agent.id,
-        p_dimension_id: Number(dimId),
-        p_delta: delta,
-      });
+    // Update dimensions (an error here used to be ignored, so a permissions problem grew nothing silently)
+    const results = await Promise.all(
+      Object.entries(changes).map(([dimId, delta]) =>
+        supabase.rpc("levelup_increment_dimension", { p_agent_id: agent.id, p_dimension_id: Number(dimId), p_delta: delta })
+      )
+    );
+    const failed = results.find((r) => r.error);
+    if (failed) {
+      console.error(`  ${agent.name}: failed to apply growth -`, failed.error?.message);
+      continue;
     }
 
     // Log growth
